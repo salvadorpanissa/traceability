@@ -26,9 +26,14 @@ begin
 end;
 $$;
 
+-- security definer: called from authenticate_as() after the session role
+-- may already have been switched to something restricted (e.g. anon via
+-- clear_authentication()), which would otherwise lack SELECT on
+-- user_account once RLS grants land in a later migration.
 create or replace function tests.get_supabase_user(identifier text)
 returns uuid
 language sql
+security definer
 stable
 as $$
   select id from public.user_account where name = identifier;

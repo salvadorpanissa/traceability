@@ -257,9 +257,14 @@ begin
 end;
 $$;
 
+-- security definer: called from authenticate_as() after the session role
+-- may already have been switched to something restricted (e.g. anon via
+-- clear_authentication()), which would otherwise lack SELECT on
+-- user_account once RLS grants land in a later migration.
 create or replace function tests.get_supabase_user(identifier text)
 returns uuid
 language sql
+security definer
 stable
 as $$
   select id from public.user_account where name = identifier;
@@ -729,7 +734,7 @@ git commit -m "feat: add event child tables (transfer, health, retag, recategori
 - Create: `supabase/tests/06_derived_state.sql`
 
 **Interfaces:**
-- Produces: materialized view `public.animal_current_state(animal_id, current_tag, current_farm_id, current_category_id, status)` with unique index `animal_current_state_animal_id_idx`, function `public.refresh_animal_current_state()`, and statement-level trigger `event_refresh_animal_current_state` (`after insert on public.event`).
+- Produces: materialized view `public.animal_current_state_mv(animal_id, current_tag, current_farm_id, current_category_id, status)` — named `_mv` rather than the public-facing `animal_current_state`, because Postgres cannot enable Row Level Security on a materialized view at all. Task 8 wraps it in a security-invoker view named `public.animal_current_state` that applies the farm-scoping filter itself; nothing outside Task 8's migration should query `_mv` directly. Also produces unique index `animal_current_state_mv_animal_id_idx`, `security definer` function `public.refresh_animal_current_state()` (definer, because it runs inside a trigger fired by whatever role performed the INSERT, which won't own the matview), and statement-level triggers on `public.event` **and every event child table** — a trigger on `event` alone refreshes before the same statement's follow-up insert into e.g. `event_transfer` has landed, so each child table needs its own trigger too.
 - Consumes: `public.event` + all event child tables (Tasks 5, 6), `tests.create_supabase_user` (Task 2).
 
 - [ ] **Step 1: Write the failing test (RED)**
@@ -740,7 +745,7 @@ Create `supabase/tests/06_derived_state.sql`:
 begin;
 select plan(4);
 
-select has_materialized_view('public', 'animal_current_state', 'animal_current_state exists');
+select has_materialized_view('public', 'animal_current_state_mv', 'animal_current_state_mv exists');
 
 -- Fixture: one animal, one farm it starts outside of, one farm it moves to.
 select tests.create_supabase_user('derived_state_tester');
@@ -761,7 +766,7 @@ insert into public.event_transfer (event_id, origin_farm_id, destination_farm_id
 values ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
 select results_eq(
-  $$ select current_farm_id from public.animal_current_state where animal_id = '33333333-3333-3333-3333-333333333333' $$,
+  $$ select current_farm_id from public.animal_current_state_mv where animal_id = '33333333-3333-3333-3333-333333333333' $$,
   $$ values ('22222222-2222-2222-2222-222222222222'::uuid) $$,
   'derived state reflects the transfer destination farm after insert'
 );
@@ -777,7 +782,7 @@ values ('void', '2026-01-02', '33333333-3333-3333-3333-333333333333',
         '55555555-5555-5555-5555-555555555555');
 
 select results_eq(
-  $$ select current_farm_id from public.animal_current_state where animal_id = '33333333-3333-3333-3333-333333333333' $$,
+  $$ select current_farm_id from public.animal_current_state_mv where animal_id = '33333333-3333-3333-3333-333333333333' $$,
   $$ values (null::uuid) $$,
   'voided transfer is excluded from derived state'
 );
@@ -798,7 +803,7 @@ rollback;
 supabase test db
 ```
 
-Expected: FAIL — `relation "public.animal_current_state" does not exist`.
+Expected: FAIL — `relation "public.animal_current_state_mv" does not exist`.
 
 - [ ] **Step 3: Write the migration (GREEN)**
 
@@ -809,7 +814,13 @@ supabase migration new create_derived_state
 Edit `supabase/migrations/<timestamp>_create_derived_state.sql`:
 
 ```sql
-create materialized view public.animal_current_state as
+-- Named _mv (not the public-facing "animal_current_state" name) because
+-- Postgres cannot enable Row Level Security on a materialized view at all
+-- ("ALTER action ENABLE ROW SECURITY cannot be performed on relation ...
+-- This operation is not supported for materialized views."). The RLS
+-- migration (Task 8) wraps this in a security-invoker view named
+-- public.animal_current_state that applies the farm-scoping filter itself.
+create materialized view public.animal_current_state_mv as
 with active_event as (
   select e.*
   from public.event e
@@ -871,14 +882,20 @@ left join last_recategorize lc on lc.animal_id = a.id
 left join last_sale ls on ls.animal_id = a.id
 left join last_death ld on ld.animal_id = a.id;
 
-create unique index animal_current_state_animal_id_idx on public.animal_current_state(animal_id);
+create unique index animal_current_state_mv_animal_id_idx on public.animal_current_state_mv(animal_id);
 
+-- security definer: this runs inside a trigger fired by whatever role
+-- performed the INSERT (e.g. an authenticated manager). That role won't
+-- own animal_current_state_mv and has no reason to hold REFRESH privileges
+-- on it directly, so the refresh itself must run with the function
+-- owner's (postgres) privileges instead of the caller's.
 create or replace function public.refresh_animal_current_state()
 returns trigger
 language plpgsql
+security definer
 as $$
 begin
-  refresh materialized view concurrently public.animal_current_state;
+  refresh materialized view concurrently public.animal_current_state_mv;
   return null;
 end;
 $$;
@@ -950,8 +967,10 @@ git commit -m "feat: add animal_current_state derived-state materialized view wi
 
 **Interfaces:**
 - Produces functions: `public.is_admin() returns boolean`, `public.user_farm_ids() returns setof uuid`.
-- Enables RLS + policies on: `farm`, `role`, `category`, `product`, `user_account`, `user_farm`, `animal`, `animal_tag_history`, `animal_current_state`, `batch_operation`, `event`, `event_transfer`, `event_health`, `event_retag`, `event_recategorize`, `event_sale`, `event_death`.
-- Consumes: `tests.create_supabase_user`, `tests.authenticate_as`, `tests.clear_authentication` (Task 2); all tables from Tasks 2–6; `animal_current_state` (Task 7).
+- Produces base-table GRANTs to `authenticated` for every table (RLS policies alone do nothing without the underlying SQL privilege first) — full CRUD on the editable catalogs/org tables, SELECT+INSERT only on the immutable/append-only ones (`animal`, `event`, and children), matching the "no update/delete" rule in Global Constraints.
+- Produces view `public.animal_current_state`, wrapping `animal_current_state_mv` (Task 7) with the farm-scoping filter baked into its `WHERE` clause — the only way to apply row-level scoping to a materialized view's data, since materialized views themselves cannot have RLS enabled. Runs with the view owner's privileges (not `security_invoker`), since `authenticated` is never granted direct access to the underlying `_mv` — only to this filtered view.
+- Enables RLS + policies on: `farm`, `role`, `category`, `product`, `user_account`, `user_farm`, `animal`, `animal_tag_history`, `batch_operation`, `event`, `event_transfer`, `event_health`, `event_retag`, `event_recategorize`, `event_sale`, `event_death`. (`animal_current_state_mv` is exempt — see above; it's never granted to `authenticated` directly.)
+- Consumes: `tests.create_supabase_user`, `tests.authenticate_as`, `tests.clear_authentication` (Task 2); all tables from Tasks 2–6; `animal_current_state_mv` (Task 7).
 
 - [ ] **Step 1: Write the failing test (RED)**
 
@@ -1055,6 +1074,31 @@ supabase migration new create_rls_policies
 Edit `supabase/migrations/<timestamp>_create_rls_policies.sql`:
 
 ```sql
+-- Base table grants ------------------------------------------------------
+-- RLS policies only take effect once the role already holds the underlying
+-- SQL privilege; without a GRANT, Postgres denies access before policies
+-- are even consulted. Immutable/append-only tables (animal, event, and
+-- event's children) intentionally get no UPDATE/DELETE grant at all, as a
+-- privilege-level backstop to the "no update/delete policy" rule below.
+
+grant select, insert, update, delete on
+  public.role, public.category, public.product, public.farm,
+  public.user_account, public.user_farm
+  to authenticated;
+
+grant select, insert on
+  public.animal, public.animal_tag_history,
+  public.batch_operation, public.event,
+  public.event_transfer, public.event_health, public.event_retag,
+  public.event_recategorize, public.event_sale, public.event_death
+  to authenticated;
+
+-- animal_current_state_mv itself is intentionally NOT granted to
+-- authenticated. Postgres cannot enable RLS on a materialized view, so
+-- access control for derived state is enforced entirely by the
+-- security-invoker wrapper view created below, which is the only thing
+-- authenticated ever gets to query.
+
 -- Helper functions -----------------------------------------------------
 
 create or replace function public.is_admin()
@@ -1123,6 +1167,24 @@ create policy user_farm_select on public.user_farm for select to authenticated u
 create policy user_farm_write on public.user_farm for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
+-- animal_current_state_mv cannot have RLS (materialized views don't support
+-- it), so the farm-scoping filter is applied directly in this wrapper
+-- view's WHERE clause instead of via a policy. Deliberately NOT
+-- security_invoker: the view must run with its owner's (postgres)
+-- privileges so it can read animal_current_state_mv on the caller's
+-- behalf, since authenticated is never granted access to the mv directly
+-- - only to this filtered view. Making it security_invoker would require
+-- granting authenticated raw access to the mv, which would let any client
+-- query it directly and bypass the filter entirely.
+-- Created here (before the policies below) because they reference it.
+create view public.animal_current_state
+as
+select *
+from public.animal_current_state_mv
+where public.is_admin() or current_farm_id in (select public.user_farm_ids());
+
+grant select on public.animal_current_state to authenticated;
+
 -- animal / animal_tag_history (scoped via animal_current_state) ----------
 
 alter table public.animal enable row level security;
@@ -1147,11 +1209,6 @@ create policy animal_tag_history_select on public.animal_tag_history for select 
 );
 create policy animal_tag_history_insert on public.animal_tag_history for insert to authenticated with check (
   exists (select 1 from public.user_account where id = auth.uid())
-);
-
-alter table public.animal_current_state enable row level security;
-create policy animal_current_state_select on public.animal_current_state for select to authenticated using (
-  public.is_admin() or current_farm_id in (select public.user_farm_ids())
 );
 
 -- batch_operation ----------------------------------------------------------
