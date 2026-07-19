@@ -740,7 +740,7 @@ Create `supabase/tests/06_derived_state.sql`:
 begin;
 select plan(4);
 
-select has_view('public', 'animal_current_state', 'animal_current_state exists');
+select has_materialized_view('public', 'animal_current_state', 'animal_current_state exists');
 
 -- Fixture: one animal, one farm it starts outside of, one farm it moves to.
 select tests.create_supabase_user('derived_state_tester');
@@ -883,8 +883,43 @@ begin
 end;
 $$;
 
+-- A batch operation inserts one `event` row per animal, then a *separate*
+-- statement inserts the matching child rows (event_transfer, event_health,
+-- etc.). A trigger on `event` alone refreshes before the child data exists,
+-- and nothing re-refreshes once the child row lands. So every table this
+-- view reads from needs its own AFTER INSERT trigger.
 create trigger event_refresh_animal_current_state
 after insert on public.event
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_transfer_refresh_animal_current_state
+after insert on public.event_transfer
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_health_refresh_animal_current_state
+after insert on public.event_health
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_retag_refresh_animal_current_state
+after insert on public.event_retag
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_recategorize_refresh_animal_current_state
+after insert on public.event_recategorize
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_sale_refresh_animal_current_state
+after insert on public.event_sale
+for each statement
+execute function public.refresh_animal_current_state();
+
+create trigger event_death_refresh_animal_current_state
+after insert on public.event_death
 for each statement
 execute function public.refresh_animal_current_state();
 ```
