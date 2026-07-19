@@ -1,4 +1,10 @@
-create materialized view public.animal_current_state as
+-- Named _mv (not the public-facing "animal_current_state" name) because
+-- Postgres cannot enable Row Level Security on a materialized view at all
+-- ("ALTER action ENABLE ROW SECURITY cannot be performed on relation ...
+-- This operation is not supported for materialized views."). The RLS
+-- migration (Task 8) wraps this in a security-invoker view named
+-- public.animal_current_state that applies the farm-scoping filter itself.
+create materialized view public.animal_current_state_mv as
 with active_event as (
   select e.*
   from public.event e
@@ -60,14 +66,20 @@ left join last_recategorize lc on lc.animal_id = a.id
 left join last_sale ls on ls.animal_id = a.id
 left join last_death ld on ld.animal_id = a.id;
 
-create unique index animal_current_state_animal_id_idx on public.animal_current_state(animal_id);
+create unique index animal_current_state_mv_animal_id_idx on public.animal_current_state_mv(animal_id);
 
+-- security definer: this runs inside a trigger fired by whatever role
+-- performed the INSERT (e.g. an authenticated manager). That role won't
+-- own animal_current_state_mv and has no reason to hold REFRESH privileges
+-- on it directly, so the refresh itself must run with the function
+-- owner's (postgres) privileges instead of the caller's.
 create or replace function public.refresh_animal_current_state()
 returns trigger
 language plpgsql
+security definer
 as $$
 begin
-  refresh materialized view concurrently public.animal_current_state;
+  refresh materialized view concurrently public.animal_current_state_mv;
   return null;
 end;
 $$;

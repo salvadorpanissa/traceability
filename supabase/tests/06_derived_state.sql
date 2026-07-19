@@ -1,7 +1,7 @@
 begin;
 select plan(4);
 
-select has_materialized_view('public', 'animal_current_state', 'animal_current_state exists');
+select has_materialized_view('public', 'animal_current_state_mv', 'animal_current_state_mv exists');
 
 -- Fixture: one animal, one farm it starts outside of, one farm it moves to.
 select tests.create_supabase_user('derived_state_tester');
@@ -22,7 +22,7 @@ insert into public.event_transfer (event_id, origin_farm_id, destination_farm_id
 values ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
 select results_eq(
-  $$ select current_farm_id from public.animal_current_state where animal_id = '33333333-3333-3333-3333-333333333333' $$,
+  $$ select current_farm_id from public.animal_current_state_mv where animal_id = '33333333-3333-3333-3333-333333333333' $$,
   $$ values ('22222222-2222-2222-2222-222222222222'::uuid) $$,
   'derived state reflects the transfer destination farm after insert'
 );
@@ -38,7 +38,7 @@ values ('void', '2026-01-02', '33333333-3333-3333-3333-333333333333',
         '55555555-5555-5555-5555-555555555555');
 
 select results_eq(
-  $$ select current_farm_id from public.animal_current_state where animal_id = '33333333-3333-3333-3333-333333333333' $$,
+  $$ select current_farm_id from public.animal_current_state_mv where animal_id = '33333333-3333-3333-3333-333333333333' $$,
   $$ values (null::uuid) $$,
   'voided transfer is excluded from derived state'
 );
