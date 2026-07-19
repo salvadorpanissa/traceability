@@ -296,6 +296,13 @@ begin
   perform set_config('request.jwt.claims', '', true);
 end;
 $$;
+
+-- authenticate_as() switches the session role away from postgres, so every
+-- role it can switch into needs standing access to call tests.* functions
+-- (including clear_authentication() itself, called while already switched).
+grant usage on schema tests to authenticated, anon, service_role;
+grant execute on all functions in schema tests to authenticated, anon, service_role;
+alter default privileges in schema tests grant execute on functions to authenticated, anon, service_role;
 ```
 
 - [ ] **Step 6: Apply and verify**
