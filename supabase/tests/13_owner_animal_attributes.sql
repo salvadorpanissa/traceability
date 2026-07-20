@@ -9,7 +9,10 @@ select has_column('public', 'animal', 'sex', 'animal has sex');
 select has_column('public', 'animal', 'owner_id', 'animal has owner_id');
 select fk_ok('animal', 'owner_id', 'owner', 'id');
 
-insert into public.owner (id, name) values ('f1111111-1111-1111-1111-111111111111', 'Estancia La Postrera');
+-- Name deliberately distinct from supabase/seed.sql's 'Estancia La Postrera'
+-- row (added later, in Task 9) — owner.name is unique, and supabase test db
+-- runs against a seeded database (db.seed.enabled = true in config.toml).
+insert into public.owner (id, name) values ('f1111111-1111-1111-1111-111111111111', 'Dueño de Prueba');
 
 select tests.create_supabase_user('owner_manager', 'owner_manager@test.local', 'manager');
 select tests.authenticate_as('owner_manager');

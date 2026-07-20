@@ -50,7 +50,10 @@ select has_column('public', 'animal', 'sex', 'animal has sex');
 select has_column('public', 'animal', 'owner_id', 'animal has owner_id');
 select fk_ok('animal', 'owner_id', 'owner', 'id');
 
-insert into public.owner (id, name) values ('f1111111-1111-1111-1111-111111111111', 'Estancia La Postrera');
+-- Name deliberately distinct from supabase/seed.sql's 'Estancia La Postrera'
+-- row (added later, in Task 9) — owner.name is unique, and supabase test db
+-- runs against a seeded database (db.seed.enabled = true in config.toml).
+insert into public.owner (id, name) values ('f1111111-1111-1111-1111-111111111111', 'Dueño de Prueba');
 
 select tests.create_supabase_user('owner_manager', 'owner_manager@test.local', 'manager');
 select tests.authenticate_as('owner_manager');
@@ -1105,7 +1108,9 @@ insert into public.paddock (id, farm_id, name) values
   ('d4444444-4444-4444-4444-444444444444', 'd1111111-1111-1111-1111-111111111111', 'Potrero 2'),
   ('d9999999-9999-9999-9999-999999999999', 'd2222222-2222-2222-2222-222222222222', 'Potrero Sur');
 insert into public.category (id, name) values ('d5555555-5555-5555-5555-555555555555', 'Ternero');
-insert into public.owner (id, name) values ('d0000000-0000-0000-0000-000000000000', 'Estancia La Postrera');
+-- Name distinct from seed.sql's seeded owner (see the equivalent note in
+-- Task 1's test) to avoid a unique-constraint collision under supabase test db.
+insert into public.owner (id, name) values ('d0000000-0000-0000-0000-000000000000', 'Dueño de Prueba');
 
 select tests.create_supabase_user('confirm_transfer_manager', 'confirm_transfer_manager@test.local', 'manager');
 select tests.create_supabase_user('confirm_transfer_admin', 'confirm_transfer_admin@test.local', 'admin');
@@ -1372,11 +1377,17 @@ select plan(8);
 select has_function('public', 'confirm_health_batch', 'confirm_health_batch function exists');
 
 insert into public.farm (id, name) values ('e1111111-1111-1111-1111-111111111111', 'Campo Norte');
+-- Names deliberately distinct from supabase/seed.sql's 'Ivermectina 1%'/
+-- 'Aftosa' rows (added in Task 9) — product.name is unique, and supabase
+-- test db runs against a seeded database (db.seed.enabled = true in
+-- config.toml), so reusing a seeded name here would collide.
 insert into public.product (id, name, default_dose_unit, default_withdrawal_days) values
-  ('e2222222-2222-2222-2222-222222222222', 'Ivermectina 1%', 'ml', 21),
-  ('e7777777-7777-7777-7777-777777777777', 'Aftosa', 'ml', 60);
+  ('e2222222-2222-2222-2222-222222222222', 'Ivermectina Test 1%', 'ml', 21),
+  ('e7777777-7777-7777-7777-777777777777', 'Aftosa Test', 'ml', 60);
 insert into public.category (id, name) values ('e3333333-3333-3333-3333-333333333333', 'Vaca');
-insert into public.owner (id, name) values ('e8888888-8888-8888-8888-888888888888', 'Estancia La Postrera');
+-- Name distinct from seed.sql's seeded owner (see the equivalent note in
+-- Task 1's test) to avoid a unique-constraint collision under supabase test db.
+insert into public.owner (id, name) values ('e8888888-8888-8888-8888-888888888888', 'Dueño de Prueba');
 
 select tests.create_supabase_user('confirm_health_manager', 'confirm_health_manager@test.local', 'manager');
 insert into public.user_farm (user_id, farm_id)
