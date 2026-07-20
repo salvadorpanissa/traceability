@@ -31,7 +31,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect('/select-farm')
   }
 
-  const profile = await getCurrentUserProfile(supabase)
+  const profile = await getCurrentUserProfile(supabase, user.id)
 
   return (
     <AppShell activeFarm={activeFarm} showFarmSwitcher={farms.length > 1} profile={profile}>
