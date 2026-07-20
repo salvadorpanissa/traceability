@@ -14,6 +14,7 @@ export default function NuevaActividadPage() {
   const [farms, setFarms] = useState<Farm[]>([])
   const [paddocksByFarm, setPaddocksByFarm] = useState<Record<string, Farm[]>>({})
   const [products, setProducts] = useState<Product[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -21,11 +22,22 @@ export default function NuevaActividadPage() {
       .from('farm')
       .select('id, name')
       .order('name')
-      .then(async ({ data: farmRows }) => {
+      .then(async ({ data: farmRows, error: farmError }) => {
+        if (farmError) {
+          setLoadError('No pudimos cargar los datos necesarios. Intentá de nuevo en unos minutos.')
+          return
+        }
         setFarms(farmRows ?? [])
         const byFarm: Record<string, Farm[]> = {}
         for (const farm of farmRows ?? []) {
-          const { data: paddockRows } = await supabase.from('paddock').select('id, name').eq('farm_id', farm.id)
+          const { data: paddockRows, error: paddockError } = await supabase
+            .from('paddock')
+            .select('id, name')
+            .eq('farm_id', farm.id)
+          if (paddockError) {
+            setLoadError('No pudimos cargar los datos necesarios. Intentá de nuevo en unos minutos.')
+            return
+          }
           byFarm[farm.id] = paddockRows ?? []
         }
         setPaddocksByFarm(byFarm)
@@ -34,7 +46,11 @@ export default function NuevaActividadPage() {
       .from('product')
       .select('id, name, default_dose_unit, default_withdrawal_days')
       .order('name')
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          setLoadError('No pudimos cargar los datos necesarios. Intentá de nuevo en unos minutos.')
+          return
+        }
         setProducts(
           (data ?? []).map((p) => ({
             id: p.id,
@@ -57,23 +73,29 @@ export default function NuevaActividadPage() {
       */}
       <h1 className="text-2xl font-semibold mb-4">Registrar actividad</h1>
 
-      <div className="grid gap-2 mb-4">
-        <Label htmlFor="activity-type">Tipo de actividad</Label>
-        <select
-          id="activity-type"
-          value={activityType === 'transfer' ? 'Traslado' : 'Sanidad'}
-          onChange={(e) => setActivityType(e.target.value === 'Traslado' ? 'transfer' : 'health')}
-          className="border rounded-md h-9 px-2"
-        >
-          <option value="Traslado">Traslado</option>
-          <option value="Sanidad">Sanidad</option>
-        </select>
-      </div>
-
-      {activityType === 'transfer' ? (
-        <TransferForm farms={farms} paddocksByFarm={paddocksByFarm} />
+      {loadError ? (
+        <p className="text-sm text-red-600">{loadError}</p>
       ) : (
-        <HealthForm products={products} />
+        <>
+          <div className="grid gap-2 mb-4">
+            <Label htmlFor="activity-type">Tipo de actividad</Label>
+            <select
+              id="activity-type"
+              value={activityType === 'transfer' ? 'Traslado' : 'Sanidad'}
+              onChange={(e) => setActivityType(e.target.value === 'Traslado' ? 'transfer' : 'health')}
+              className="border rounded-md h-9 px-2"
+            >
+              <option value="Traslado">Traslado</option>
+              <option value="Sanidad">Sanidad</option>
+            </select>
+          </div>
+
+          {activityType === 'transfer' ? (
+            <TransferForm farms={farms} paddocksByFarm={paddocksByFarm} />
+          ) : (
+            <HealthForm products={products} />
+          )}
+        </>
       )}
     </div>
   )

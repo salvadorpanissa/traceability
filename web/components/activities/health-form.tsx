@@ -21,6 +21,8 @@ export function HealthForm({ products }: { products: Product[] }) {
   const [message, setMessage] = useState<string | null>(null)
 
   const hasErrors = rows?.some((r) => r.kind === 'error') ?? false
+  const hasValidHealthParams =
+    !!productId && Number(dose) > 0 && doseUnit.trim() !== '' && route.trim() !== ''
 
   const handleProductChange = (id: string) => {
     setProductId(id)
@@ -114,7 +116,7 @@ export function HealthForm({ products }: { products: Product[] }) {
       {rows && <PreviewTable rows={rows} />}
       {message && <p className="text-sm">{message}</p>}
 
-      <Button type="button" onClick={handleConfirm} disabled={!rows || hasErrors}>
+      <Button type="button" onClick={handleConfirm} disabled={!rows || hasErrors || !hasValidHealthParams}>
         Confirmar
       </Button>
     </div>
