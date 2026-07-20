@@ -1,7 +1,7 @@
 # Diseño: Login y estructura base del frontend — Sistema de trazabilidad de ganado
 
 **Fecha:** 2026-07-19
-**Estado:** Aprobado, pendiente de plan de implementación
+**Estado:** **Superseded** por `docs/superpowers/specs/2026-07-20-frontend-auth-shell-design-v2.md` (2026-07-20) — se decidió migrar de Supabase (`@supabase/ssr`, RLS) a Postgres local + Auth.js, y el enfoque pasó de mobile-first a desktop-first. Este documento queda como referencia histórica; no usar como fuente vigente.
 **Sub-proyecto:** primer spec de frontend. Depende del esquema de base de datos (`docs/superpowers/specs/2026-07-18-database-schema-design.md`, ya implementado en la rama `feature/database-schema`). Le siguen, como specs separados: alta de usuarios (admin crea encargados), pantalla de selección de lote + acción, y el módulo de chat con Claude (pausado hasta resolver la cuenta de API).
 
 ## Contexto

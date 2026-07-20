@@ -4,6 +4,10 @@
 **Estado:** Aprobado, pendiente de plan de implementación (revisión — ver "Revisión" abajo)
 **Sub-proyecto:** frontend, alternativo al módulo de chat con Claude (pausado hasta resolver la cuenta de API). Depende del esquema de base de datos, RLS, y modelo de potreros, todos ya implementados y mergeados a `main`. Cubre dos actividades de referencia — **traslado** y **sanidad** — el resto (recategorización, venta, baja) se agrega después reutilizando el mismo patrón.
 
+## Nota de migración (2026-07-20)
+
+Se decidió migrar el backend de Supabase a Postgres local + Auth.js (ver `docs/superpowers/specs/2026-07-20-frontend-auth-shell-design-v2.md`). Las validaciones de permisos descritas en este spec que hoy se apoyan en RLS de Supabase pasan a verificarse en el DAL (Server Actions); la lógica de negocio (qué puede hacer un manager vs. un admin) no cambia.
+
 ## Revisión (importante)
 
 La primera versión de este spec asumía que el Excel siempre trae columnas fijas (`caravana`, `categoria` opcional). Un archivo real de lectura (exportado por el lector de caravanas electrónicas en una sanidad del 16/06) mostró que esto no se sostiene:
