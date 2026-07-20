@@ -251,14 +251,18 @@ select lives_ok(
   'confirm_transfer_batch runs without error for an existing + a new animal'
 );
 
+-- Queried via the RLS-safe public.animal_current_state view, not the
+-- underlying _mv — that materialized view is intentionally never granted
+-- to `authenticated`, only this filtered wrapper view is (see the RLS
+-- migration). Same precedent already used in 10_derived_state_paddock.sql.
 select is(
-  (select current_paddock_id from public.animal_current_state_mv where animal_id = 'd6666666-6666-6666-6666-666666666666'),
+  (select current_paddock_id from public.animal_current_state where animal_id = 'd6666666-6666-6666-6666-666666666666'),
   'd4444444-4444-4444-4444-444444444444'::uuid,
   'the existing animal now shows Potrero 2 as its current paddock'
 );
 
 select is(
-  (select acs.current_tag from public.animal_current_state_mv acs
+  (select acs.current_tag from public.animal_current_state acs
    join public.animal_tag_history h on h.animal_id = acs.animal_id
    where h.tag = '999'),
   '999',
@@ -266,7 +270,7 @@ select is(
 );
 
 select is(
-  (select acs.current_category_id from public.animal_current_state_mv acs
+  (select acs.current_category_id from public.animal_current_state acs
    join public.animal_tag_history h on h.animal_id = acs.animal_id
    where h.tag = '999'),
   'd5555555-5555-5555-5555-555555555555'::uuid,
@@ -299,14 +303,19 @@ select tests.clear_authentication();
 -- Authenticate as admin (not the manager) for this one: admin bypasses the
 -- farm-scoping RLS check entirely, so this assertion deterministically
 -- exercises the paddock-ownership validation inside the function itself,
--- not the RLS policy tested above.
+-- not the RLS policy tested above. A real paddock under Campo Sur is used
+-- (not just an unknown id) so the check genuinely proves "belongs to the
+-- wrong farm", not merely "doesn't exist anywhere".
 select tests.authenticate_as('confirm_transfer_admin');
+
+insert into public.paddock (id, farm_id, name) values
+  ('d9999999-9999-9999-9999-999999999999', 'd2222222-2222-2222-2222-222222222222', 'Potrero Sur');
 
 select throws_like(
   $$ select public.confirm_transfer_batch(
        'd1111111-1111-1111-1111-111111111111'::uuid,
        'd1111111-1111-1111-1111-111111111111'::uuid,
-       'd2222222-2222-2222-2222-222222222222'::uuid,
+       'd9999999-9999-9999-9999-999999999999'::uuid,
        '2026-01-01'::date,
        array[]::uuid[],
        '[{"tag": "888", "category_id": null}]'::jsonb
@@ -393,9 +402,19 @@ begin
   -- New animals: create the animal, then a self-retag (establishes its
   -- initial current_tag), the real transfer to the destination, and an
   -- optional self-recategorize if the Excel row carried a category.
+  --
+  -- The id is generated here and inserted explicitly (no RETURNING):
+  -- Postgres re-checks INSERT ... RETURNING output against the table's
+  -- SELECT policy, and animal_select requires an existing
+  -- animal_current_state row scoped to the caller's farm — which a
+  -- brand-new animal doesn't have until its transfer event below commits
+  -- and the derived-state view refreshes. RETURNING would therefore raise
+  -- "new row violates row-level security policy" even though the INSERT's
+  -- own WITH CHECK passes.
   for v_row in select * from jsonb_array_elements(p_new_animals)
   loop
-    insert into public.animal default values returning id into v_animal_id;
+    v_animal_id := gen_random_uuid();
+    insert into public.animal (id) values (v_animal_id);
     insert into public.animal_tag_history (animal_id, tag) values (v_animal_id, v_row->>'tag');
 
     insert into public.event (event_type, event_date, animal_id, farm_id, batch_operation_id, created_by)
@@ -955,8 +974,11 @@ select is(
   'both the existing and the new animal got an event_health row with the same product/dose'
 );
 
+-- Queried via the RLS-safe public.animal_current_state view, not the
+-- underlying _mv — see the equivalent note in 11_confirm_transfer_batch.sql
+-- (Task 2): the _mv is never granted to `authenticated`.
 select is(
-  (select current_farm_id from public.animal_current_state_mv acs
+  (select current_farm_id from public.animal_current_state acs
    join public.animal_tag_history h on h.animal_id = acs.animal_id
    where h.tag = '777'),
   'e1111111-1111-1111-1111-111111111111'::uuid,
@@ -964,7 +986,7 @@ select is(
 );
 
 select is(
-  (select current_paddock_id from public.animal_current_state_mv acs
+  (select current_paddock_id from public.animal_current_state acs
    join public.animal_tag_history h on h.animal_id = acs.animal_id
    where h.tag = '777'),
   null::uuid,
@@ -1036,9 +1058,13 @@ begin
     values (v_event_id, p_product_id, p_dose, p_dose_unit, p_route, p_withdrawal_days);
   end loop;
 
+  -- Same RETURNING/RLS pitfall as confirm_transfer_batch (Task 2): generate
+  -- the id explicitly and insert without RETURNING, since animal_select
+  -- can't yet see a row with zero events.
   for v_row in select * from jsonb_array_elements(p_new_animals)
   loop
-    insert into public.animal default values returning id into v_animal_id;
+    v_animal_id := gen_random_uuid();
+    insert into public.animal (id) values (v_animal_id);
     insert into public.animal_tag_history (animal_id, tag) values (v_animal_id, v_row->>'tag');
 
     insert into public.event (event_type, event_date, animal_id, farm_id, batch_operation_id, created_by)
