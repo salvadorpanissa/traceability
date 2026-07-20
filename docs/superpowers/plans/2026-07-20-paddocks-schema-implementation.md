@@ -203,7 +203,7 @@ git commit -m "feat: add optional origin/destination paddock columns to event_tr
 
 **Interfaces:**
 - Produces: `public.animal_current_state_mv.current_paddock_id` (and therefore `public.animal_current_state.current_paddock_id`, since the wrapper view is `select *`).
-- Rebuilds (identically, byte-for-byte except the one added column and its one added source line) all objects that depend on `animal_current_state_mv`: the view `animal_current_state`, the function `refresh_animal_current_state()`, its 6 triggers, and the two RLS policies (`animal_select`, `animal_tag_history_select`) that reference the view.
+- Rebuilds (identically, byte-for-byte except the one added column and its one added source line) all objects that depend on `animal_current_state_mv`: the view `animal_current_state`, the function `refresh_animal_current_state()`, its 7 triggers (on `event` and its 6 child tables), and the two RLS policies (`animal_select`, `animal_tag_history_select`) that reference the view.
 - Consumes: `public.event_transfer.destination_paddock_id` (Task 2).
 
 - [ ] **Step 1: Write the failing test (RED)**
