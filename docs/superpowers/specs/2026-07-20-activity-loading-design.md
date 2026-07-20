@@ -28,7 +28,9 @@ No existe una pantalla de "alta" separada. Cuando el Excel de una actividad trae
 
 ### Sanidad
 
-- El formulario pide **producto**, **dosis**, **unidad de dosis**, **vía de administración** — uniformes para todo el lote, igual que ya se había definido antes de este spec.
+- El formulario pide **producto**, **dosis**, **unidad de dosis**, **vía de administración**, y **días de carencia** — uniformes para todo el lote, igual que ya se había definido antes de este spec.
+- El período de carencia (para venta/faena, por residuos en carne) se precarga con el default del producto elegido (`product.default_withdrawal_days`), pero queda editable para ese lote específico — la carencia real a veces depende de la dosis u otros factores. Se guarda en `event_health.withdrawal_days`, que ya existe en el esquema.
+- No se calcula ni se muestra en esta pantalla la fecha desde la que los animales quedan habilitados para venta — el dato queda disponible para eso más adelante (ej. en el reporte de "sanidades pendientes" ya anotado como spec futuro).
 
 ### Flujo de validación y confirmación (sin persistir el Excel)
 
