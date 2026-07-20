@@ -11,7 +11,8 @@ insert into public.farm (id, name) values
   ('d2222222-2222-2222-2222-222222222222', 'Campo Sur');
 insert into public.paddock (id, farm_id, name) values
   ('d3333333-3333-3333-3333-333333333333', 'd1111111-1111-1111-1111-111111111111', 'Potrero 1'),
-  ('d4444444-4444-4444-4444-444444444444', 'd1111111-1111-1111-1111-111111111111', 'Potrero 2');
+  ('d4444444-4444-4444-4444-444444444444', 'd1111111-1111-1111-1111-111111111111', 'Potrero 2'),
+  ('d9999999-9999-9999-9999-999999999999', 'd2222222-2222-2222-2222-222222222222', 'Potrero Sur');
 insert into public.category (id, name) values ('d5555555-5555-5555-5555-555555555555', 'Ternero');
 
 select tests.create_supabase_user('confirm_transfer_manager', 'confirm_transfer_manager@test.local', 'manager');
@@ -109,7 +110,7 @@ select throws_like(
   $$ select public.confirm_transfer_batch(
        'd1111111-1111-1111-1111-111111111111'::uuid,
        'd1111111-1111-1111-1111-111111111111'::uuid,
-       'd2222222-2222-2222-2222-222222222222'::uuid,
+       'd9999999-9999-9999-9999-999999999999'::uuid,
        '2026-01-01'::date,
        array[]::uuid[],
        '[{"tag": "888", "category_id": null}]'::jsonb
