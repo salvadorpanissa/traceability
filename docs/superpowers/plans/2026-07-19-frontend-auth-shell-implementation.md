@@ -79,7 +79,7 @@ git commit -m "chore: scaffold Next.js app with Tailwind and shadcn/ui"
 - Create: `web/lib/supabase/client.ts`
 - Create: `web/lib/supabase/server.ts`
 - Create: `web/lib/supabase/middleware.ts`
-- Create: `web/middleware.ts`
+- Create: `web/proxy.ts` (Next.js 16 convention — see Step 5)
 - Create: `web/lib/farms.ts`
 - Create: `web/app/login/page.tsx`
 - Create: `web/components/login-form.tsx`
@@ -147,19 +147,29 @@ begin
     (v_farm_one_id, 'Campo Test Uno'),
     (v_farm_two_id, 'Campo Test Dos');
 
+  -- confirmation_token/recovery_token/email_change_token_new/email_change have
+  -- no column default (NULL unless set) but GoTrue's Go struct scans them as
+  -- plain strings, not sql.NullString — leaving them NULL makes
+  -- signInWithPassword fail with "500: Database error querying schema" /
+  -- "converting NULL to string is unsupported". Explicit '' is required for
+  -- any row inserted directly into auth.users outside of GoTrue itself.
   insert into auth.users (
     id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
-    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+    confirmation_token, recovery_token, email_change_token_new, email_change
   ) values
     (v_manager_one_farm_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
      'e2e.manager.one.farm@test.local', crypt('e2e-test-password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+     '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+     '', '', '', ''),
     (v_manager_no_farm_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
      'e2e.manager.no.farm@test.local', crypt('e2e-test-password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+     '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+     '', '', '', ''),
     (v_admin_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
      'e2e.admin@test.local', crypt('e2e-test-password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{}', now(), now());
+     '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+     '', '', '', '');
 
   insert into auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
   values
@@ -307,13 +317,13 @@ export async function updateSession(request: NextRequest) {
 }
 ```
 
-Create `web/middleware.ts`:
+Create `web/proxy.ts` (Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` — same file, same job, the exported function is named `proxy` instead of `middleware`; verified during implementation that `middleware.ts` triggers a deprecation warning at build time, so this plan uses the current name):
 
 ```ts
 import { type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   return await updateSession(request)
 }
 
