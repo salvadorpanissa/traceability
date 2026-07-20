@@ -20,16 +20,21 @@ export function LoginForm() {
     setIsLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError('Email o contraseña incorrectos.')
+      if (error) {
+        setError('Email o contraseña incorrectos.')
+        return
+      }
+
+      router.push('/select-farm')
+    } catch {
+      setError('No se pudo conectar. Intentá de nuevo.')
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    router.push('/select-farm')
   }
 
   return (

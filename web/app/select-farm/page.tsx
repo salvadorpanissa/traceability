@@ -5,7 +5,17 @@ import { AutoSelectFarm } from '@/components/auto-select-farm'
 
 export default async function SelectFarmPage() {
   const supabase = await createClient()
-  const farms = await getUserFarms(supabase)
+
+  let farms: Awaited<ReturnType<typeof getUserFarms>>
+  try {
+    farms = await getUserFarms(supabase)
+  } catch {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-4 text-center">
+        <p>No pudimos cargar tus campos. Intentá de nuevo en unos minutos.</p>
+      </main>
+    )
+  }
 
   if (farms.length === 0) {
     return (

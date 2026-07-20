@@ -46,3 +46,19 @@ test('shows a generic error message on invalid credentials, does not redirect', 
   expect(await screen.findByText(/email o contraseña incorrectos/i)).toBeInTheDocument()
   expect(push).not.toHaveBeenCalled()
 })
+
+test('shows a connection error and re-enables the button when the request throws', async () => {
+  signInWithPassword.mockRejectedValue(new Error('network error'))
+  render(<LoginForm />)
+
+  await userEvent.type(screen.getByLabelText(/email/i), 'manager@test.local')
+  await userEvent.type(screen.getByLabelText(/contraseña/i), 'password123')
+  await userEvent.click(screen.getByRole('button', { name: /ingresar/i }))
+
+  expect(await screen.findByText(/no se pudo conectar\. intentá de nuevo\./i)).toBeInTheDocument()
+  expect(push).not.toHaveBeenCalled()
+
+  const button = screen.getByRole('button', { name: /ingresar/i })
+  expect(button).not.toBeDisabled()
+  expect(button).toHaveTextContent(/^ingresar$/i)
+})
