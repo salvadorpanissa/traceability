@@ -1,6 +1,10 @@
 insert into public.role (name) values ('manager'), ('admin')
 on conflict (name) do nothing;
 
+insert into public.product (name, default_dose_unit, default_withdrawal_days)
+values ('Ivermectina 1%', 'ml', 21)
+on conflict (name) do nothing;
+
 -- E2E test fixtures. Local dev only — auth.users/auth.identities inserts like
 -- this must never run against a deployed project; there you'd use the Auth
 -- Admin API instead. pgcrypto (enabled in the first schema migration)
