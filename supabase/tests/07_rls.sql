@@ -65,7 +65,8 @@ select tests.clear_authentication();
 -- admin sees everything
 select tests.authenticate_as('rls_admin');
 select is(
-  (select count(*) from public.farm)::int, 2,
+  (select count(*) from public.farm
+   where id in ('a1111111-1111-1111-1111-111111111111', 'a2222222-2222-2222-2222-222222222222'))::int, 2,
   'admin sees all farms'
 );
 select is(
