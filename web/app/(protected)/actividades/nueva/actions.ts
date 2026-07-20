@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { parseTagExcel } from '@/lib/activities/parse-tag-excel'
 import { resolveBatchRows } from '@/lib/activities/resolve-batch-rows'
+import { reverifyBatchRows } from '@/lib/activities/reverify-batch-rows'
 import type { PreviewRow } from '@/lib/activities/types'
 
 export async function validarLoteTraslado(
@@ -34,6 +35,9 @@ export async function confirmarLoteTraslado(input: {
   const cookieStore = await cookies()
   const operatingFarmId = cookieStore.get('active_farm_id')?.value
   if (!operatingFarmId) return { ok: false, error: 'No se pudo determinar el campo activo.' }
+
+  const reverifyError = await reverifyBatchRows(supabase, input.rows)
+  if (reverifyError) return { ok: false, error: reverifyError }
 
   const existingAnimalIds = input.rows.filter((r) => r.kind === 'existing').map((r) => r.animalId)
   const newAnimals = input.rows
@@ -83,6 +87,9 @@ export async function confirmarLoteSanidad(input: {
   const cookieStore = await cookies()
   const operatingFarmId = cookieStore.get('active_farm_id')?.value
   if (!operatingFarmId) return { ok: false, error: 'No se pudo determinar el campo activo.' }
+
+  const reverifyError = await reverifyBatchRows(supabase, input.rows)
+  if (reverifyError) return { ok: false, error: reverifyError }
 
   const existingAnimalIds = input.rows.filter((r) => r.kind === 'existing').map((r) => r.animalId)
   const newAnimals = input.rows

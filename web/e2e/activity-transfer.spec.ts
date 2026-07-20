@@ -44,6 +44,34 @@ test('uploading an Excel with a new tag shows it as "nueva" in the preview, and 
   await expect(page.getByText(/lote confirmado/i)).toBeVisible()
 })
 
+test('clicking Confirmar a second time with the same stale preview rows fails re-verification instead of creating a duplicate tag', async ({ page }) => {
+  await login(page, 'e2e.manager.one.farm@test.local')
+  await page.goto('/actividades/nueva')
+
+  const excel = await buildExcelFile([{ tag: 'e2e-transfer-reconfirm', category: '' }])
+  await page.getByLabel('Archivo Excel').setInputFiles({
+    name: 'lote.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: excel,
+  })
+  await selectDestinationFarm(page, 'Campo Test Uno')
+  await page.getByRole('button', { name: 'Validar' }).click()
+
+  await expect(page.getByText('e2e-transfer-reconfirm')).toBeVisible()
+  await expect(page.getByText('Nueva')).toBeVisible()
+
+  // First confirm succeeds and creates the animal with the "new" tag.
+  await page.getByRole('button', { name: 'Confirmar' }).click()
+  await expect(page.getByText(/lote confirmado/i)).toBeVisible()
+
+  // The preview rows in client state are now stale (the tag exists in the DB),
+  // but the UI doesn't disable Confirmar after a successful confirm. Clicking
+  // it again resends the same stale rows — server-side re-verification must
+  // catch this and block a duplicate/collided tag from being created.
+  await page.getByRole('button', { name: 'Confirmar' }).click()
+  await expect(page.getByText(/ya existe en el sistema/i)).toBeVisible()
+})
+
 test('a duplicate tag in the Excel is shown as an error and blocks confirmation', async ({ page }) => {
   await login(page, 'e2e.manager.one.farm@test.local')
   await page.goto('/actividades/nueva')
