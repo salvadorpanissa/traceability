@@ -1,5 +1,5 @@
 begin;
-select plan(3);
+select plan(4);
 
 select has_column('public', 'animal_current_state_mv', 'current_paddock_id', 'animal_current_state_mv has current_paddock_id');
 
@@ -45,6 +45,18 @@ select results_eq(
   $$ values (null::uuid) $$,
   'a transfer without a paddock leaves current_paddock_id null'
 );
+
+-- RLS wrapper view: verify authenticated user can see current_paddock_id through the wrapper
+insert into public.user_farm (user_id, farm_id)
+values (tests.get_supabase_user('paddock_derived_tester'), 'c1111111-1111-1111-1111-111111111111');
+
+select tests.authenticate_as('paddock_derived_tester');
+select results_eq(
+  $$ select current_paddock_id from public.animal_current_state where animal_id = 'c4444444-4444-4444-4444-444444444444' $$,
+  $$ values ('c3333333-3333-3333-3333-333333333333'::uuid) $$,
+  'authenticated user sees current_paddock_id through RLS wrapper view'
+);
+select tests.clear_authentication();
 
 select * from finish();
 rollback;

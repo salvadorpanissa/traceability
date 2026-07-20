@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(8);
 
 select has_table('public', 'paddock', 'paddock table exists');
 select col_is_pk('public', 'paddock', 'id', 'paddock.id is pk');
@@ -35,6 +35,10 @@ select tests.authenticate_as('paddock_admin');
 select is(
   (select count(*) from public.paddock)::int, 2,
   'admin sees paddocks across all farms'
+);
+select lives_ok(
+  $$ insert into public.paddock (farm_id, name) values ('b1111111-1111-1111-1111-111111111111', 'Potrero admin test') $$,
+  'admin can create a paddock'
 );
 select tests.clear_authentication();
 
