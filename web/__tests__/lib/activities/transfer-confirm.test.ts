@@ -46,7 +46,17 @@ describe("confirmTransferBatch", () => {
       .values({ farmId: seededFarm.id, name: "Potrero 1" })
       .returning();
 
-    const rows: ResolvedRow[] = [{ tag: "AR000000000010", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000010",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await confirmTransferBatch({
       userId: manager.id,
@@ -74,7 +84,17 @@ describe("confirmTransferBatch", () => {
 
   it("creates a self-retag event for a new animal so current_tag is populated", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000014", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000014",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await confirmTransferBatch({
       userId: manager.id,
@@ -107,7 +127,15 @@ describe("confirmTransferBatch", () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [createdCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
     const rows: ResolvedRow[] = [
-      { tag: "AR000000000015", eventDate: "2026-02-01", status: "new", categoryId: createdCategory.id },
+      {
+        tag: "AR000000000015",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: createdCategory.id,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
     ];
 
     await confirmTransferBatch({
@@ -138,7 +166,17 @@ describe("confirmTransferBatch", () => {
 
   it("does not create a recategorize event for a new animal without an initial category", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000016", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000016",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await confirmTransferBatch({
       userId: manager.id,
@@ -158,7 +196,17 @@ describe("confirmTransferBatch", () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
 
-    const rows: ResolvedRow[] = [{ tag: "AR000000000011", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await expect(
       confirmTransferBatch({
@@ -196,7 +244,17 @@ describe("confirmTransferBatch", () => {
     const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
     const [wrongPaddock] = await testDb.insert(paddock).values({ farmId: otherFarm.id, name: "Potrero Sur" }).returning();
 
-    const rows: ResolvedRow[] = [{ tag: "AR000000000013", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000013",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await expect(
       confirmTransferBatch({
@@ -208,5 +266,31 @@ describe("confirmTransferBatch", () => {
         rows,
       })
     ).rejects.toThrow();
+  });
+
+  it("rejects confirmation when a new row has a pending owner", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000017",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: "Gómez",
+      },
+    ];
+
+    await expect(
+      confirmTransferBatch({
+        userId: manager.id,
+        role: "manager",
+        operatingFarmId: seededFarm.id,
+        destinationFarmId: seededFarm.id,
+        destinationPaddockId: null,
+        rows,
+      })
+    ).rejects.toThrow("propietarios pendientes");
   });
 });

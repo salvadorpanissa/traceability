@@ -43,7 +43,17 @@ describe("confirmHealthBatch", () => {
     const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
     const [productB] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
 
-    const rows: ResolvedRow[] = [{ tag: "AR000000000070", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000070",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
     const products: HealthProduct[] = [
       { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: 21, notes: null },
       { productId: productB.id, dose: "2", doseUnit: "ml", route: "intramuscular", withdrawalDays: null, notes: null },
@@ -103,7 +113,17 @@ describe("confirmHealthBatch", () => {
 
   it("rejects an empty product list", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000072", eventDate: "2026-02-01", status: "new", categoryId: null }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000072",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
 
     await expect(
       confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products: [], rows })
@@ -124,5 +144,28 @@ describe("confirmHealthBatch", () => {
 
     const batches = await testDb.select().from(batchOperation);
     expect(batches).toHaveLength(0);
+  });
+
+  it("rejects confirmation when a new row has a pending owner", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000074",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: "Gómez",
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await expect(
+      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows })
+    ).rejects.toThrow("propietarios pendientes");
   });
 });

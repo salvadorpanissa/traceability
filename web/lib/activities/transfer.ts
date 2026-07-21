@@ -24,6 +24,9 @@ export async function confirmTransferBatch(input: {
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
+  if (rows.some((row) => row.status === "new" && row.pendingOwnerName)) {
+    throw new Error("El lote tiene propietarios pendientes de crear; no se puede confirmar");
+  }
 
   if (destinationPaddockId) {
     const [destinationPaddockRow] = await db.select().from(paddock).where(eq(paddock.id, destinationPaddockId));
