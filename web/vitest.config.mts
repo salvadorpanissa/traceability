@@ -15,6 +15,14 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["__tests__/**/*.test.{ts,tsx}"],
+    // Integration tests share a single Postgres test DB (web/test/db.ts) and
+    // each does a TRUNCATE ... CASCADE in beforeEach. Vitest's default file
+    // parallelism runs test files concurrently in separate workers, so one
+    // file's TRUNCATE can wipe rows another file just inserted, producing
+    // non-deterministic failures. This is a small suite (single-digit test
+    // files), so disabling file parallelism entirely is the simplest correct
+    // fix rather than building partial-parallelism/test-isolation schemes.
+    fileParallelism: false,
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./") },
