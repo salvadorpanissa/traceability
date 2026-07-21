@@ -1,9 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { farm } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
+import { resolveActiveFarm } from "@/lib/dal/active-farm";
 import { AppShell } from "@/components/app-shell";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +13,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect("/select-farm");
   }
 
-  const [activeFarm] = await db.select({ id: farm.id, name: farm.name }).from(farm).where(eq(farm.id, activeFarmId));
+  const activeFarm = await resolveActiveFarm(session.user.id, session.user.role, activeFarmId);
 
   if (!activeFarm) {
     redirect("/select-farm");
