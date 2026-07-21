@@ -7,7 +7,13 @@ export type ParsedExcel = {
 
 export async function parseExcelFile(buffer: ArrayBuffer): Promise<ParsedExcel> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as unknown as Buffer);
+  // exceljs bundles its own (older) @types/node transitively via @fast-csv/*,
+  // whose Buffer type is structurally incompatible with our project's
+  // (newer, generic) Buffer type — `as Buffer` doesn't resolve this since
+  // bare `Buffer` still means our own generic type. `any` bypasses the
+  // mismatch; the runtime value is a real, correctly-constructed Buffer.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(Buffer.from(buffer) as any);
 
   const sheet = workbook.worksheets[0];
   if (!sheet) {
