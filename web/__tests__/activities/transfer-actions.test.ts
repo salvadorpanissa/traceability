@@ -15,9 +15,8 @@ vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewTransferBatch, confirmTransferBatchAction, createOwnerAction } = await import(
-  "../../app/(protected)/activities/transfer/actions"
-);
+const { previewTransferBatch, confirmTransferBatchAction, createOwnerAction, listPaddocksAction, createPaddockAction } =
+  await import("../../app/(protected)/activities/transfer/actions");
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
@@ -173,5 +172,24 @@ describe("createOwnerAction", () => {
     const created = await createOwnerAction("Pérez");
 
     expect(created.name).toBe("Pérez");
+  });
+});
+
+describe("listPaddocksAction and createPaddockAction", () => {
+  it("creates a paddock under a farm the user has access to, then lists it", async () => {
+    const { seededFarm } = await seedManagerSession();
+
+    const created = await createPaddockAction(seededFarm.id, "Potrero 1");
+    expect(created.name).toBe("Potrero 1");
+
+    const listed = await listPaddocksAction(seededFarm.id);
+    expect(listed).toEqual([{ id: created.id, name: "Potrero 1", farmId: seededFarm.id }]);
+  });
+
+  it("rejects creating a paddock in a farm the user doesn't have access to", async () => {
+    await seedManagerSession();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+
+    await expect(createPaddockAction(otherFarm.id, "Potrero 1")).rejects.toThrow();
   });
 });

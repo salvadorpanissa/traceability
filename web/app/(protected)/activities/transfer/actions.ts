@@ -9,6 +9,8 @@ import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
+import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -87,4 +89,16 @@ export async function confirmTransferBatchAction(input: {
 export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
   await requireSession();
   return createOwner(name);
+}
+
+export async function listPaddocksAction(farmId: string): Promise<PaddockCatalogEntry[]> {
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return listPaddocksByFarm(farmId);
+}
+
+export async function createPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return createPaddock(farmId, name);
 }
