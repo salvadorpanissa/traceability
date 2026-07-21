@@ -32,3 +32,19 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     category: categoryIndex >= 0 ? (row[categoryIndex] || null) : null,
   }));
 }
+
+export function extractProductColumnValues(headers: string[], rows: string[][], mapping: ColumnMapping[]): string[] {
+  const productColumns = mapping.filter((m) => m.meaning === "product");
+  const values: string[] = [];
+
+  for (const column of productColumns) {
+    const index = headers.indexOf(column.header);
+    if (index < 0) continue;
+    const firstNonEmpty = rows.map((row) => row[index]).find((value) => value && value.trim().length > 0);
+    if (firstNonEmpty) {
+      values.push(firstNonEmpty.trim());
+    }
+  }
+
+  return values;
+}

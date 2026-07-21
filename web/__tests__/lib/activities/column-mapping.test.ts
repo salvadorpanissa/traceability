@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import {
+  computeHeaderSignature,
+  applyColumnMapping,
+  extractProductColumnValues,
+  type ColumnMapping,
+} from "@/lib/activities/column-mapping";
 
 describe("computeHeaderSignature", () => {
   it("is stable for the same headers in the same order", () => {
@@ -44,5 +49,42 @@ describe("ColumnMeaning", () => {
   it("includes product as a valid meaning", () => {
     const mapping: ColumnMapping = { header: "SANIDAD", meaning: "product" };
     expect(mapping.meaning).toBe("product");
+  });
+});
+
+describe("extractProductColumnValues", () => {
+  const headers = ["IDE", "SANIDAD", "SANIDAD 2"];
+  const rows = [
+    ["123456789012345", "ASPERSIN", "AFTOSA"],
+    ["223456789012345", "ASPERSIN", "AFTOSA"],
+  ];
+
+  it("returns the first non-empty value for every column mapped as product, in mapping order", () => {
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "SANIDAD", meaning: "product" },
+      { header: "SANIDAD 2", meaning: "product" },
+    ];
+
+    expect(extractProductColumnValues(headers, rows, mapping)).toEqual(["ASPERSIN", "AFTOSA"]);
+  });
+
+  it("skips a product column whose value is empty in every row", () => {
+    const sparseRows = [
+      ["123456789012345", "", "AFTOSA"],
+      ["223456789012345", "", "AFTOSA"],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "SANIDAD", meaning: "product" },
+      { header: "SANIDAD 2", meaning: "product" },
+    ];
+
+    expect(extractProductColumnValues(headers, sparseRows, mapping)).toEqual(["AFTOSA"]);
+  });
+
+  it("returns an empty array when no column is mapped as product", () => {
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+    expect(extractProductColumnValues(headers, rows, mapping)).toEqual([]);
   });
 });

@@ -114,6 +114,36 @@ describe("previewHealthBatch", () => {
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
   });
+
+  it("suggests a product row per product-mapped column, matched against the catalog when possible", async () => {
+    await seedManagerSession();
+    const [matchedProduct] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
+
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "SANIDAD", "SANIDAD 2"],
+      [["AR000000000110", "ASPERSIN", "Aftosa"]]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "SANIDAD", meaning: "product" },
+        { header: "SANIDAD 2", meaning: "product" },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) {
+      expect(result.productSuggestions).toEqual([
+        { rawValue: "ASPERSIN", matchedProductId: null },
+        { rawValue: "Aftosa", matchedProductId: matchedProduct.id },
+      ]);
+    }
+  });
 });
 
 describe("confirmHealthBatchAction", () => {

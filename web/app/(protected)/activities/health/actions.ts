@@ -6,13 +6,25 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import {
+  computeHeaderSignature,
+  applyColumnMapping,
+  extractProductColumnValues,
+  type ColumnMapping,
+} from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
+import { listProducts } from "@/lib/dal/product-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; headerSignature: string; mapping: ColumnMapping[]; rows: ResolvedRow[] };
+  | {
+      mappingNeeded: false;
+      headerSignature: string;
+      mapping: ColumnMapping[];
+      rows: ResolvedRow[];
+      productSuggestions: { rawValue: string; matchedProductId: string | null }[];
+    };
 
 function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
   return mapping.some((m) => m.meaning === "ignore");
@@ -56,7 +68,14 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   const mappedRows = applyColumnMapping(headers, rows, mapping);
   const resolvedRows = await resolveBatchRows(mappedRows, eventDate);
 
-  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows };
+  const productValues = extractProductColumnValues(headers, rows, mapping);
+  const catalog = await listProducts();
+  const productSuggestions = productValues.map((rawValue) => {
+    const matched = catalog.find((entry) => entry.name.trim().toLowerCase() === rawValue.trim().toLowerCase());
+    return { rawValue, matchedProductId: matched?.id ?? null };
+  });
+
+  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, productSuggestions };
 }
 
 export async function confirmHealthBatchAction(input: {
