@@ -50,6 +50,13 @@
       "when": 1784640626380,
       "tag": "0006_create_derived_state",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784641829313,
+      "tag": "0007_flowery_shinko_yamashiro",
+      "breakpoints": true
     }
   ]
 }

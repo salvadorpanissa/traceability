@@ -6,3 +6,4 @@ export * from "./product";
 export * from "./animal";
 export * from "./event";
 export * from "./event-children";
+export * from "./paddock";
