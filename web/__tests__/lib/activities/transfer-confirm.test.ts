@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
@@ -8,11 +8,14 @@ import {
   userAccount,
   userFarm,
   paddock,
+  category,
   animal,
   animalTagHistory,
   batchOperation,
   event,
   eventTransfer,
+  eventRetag,
+  eventRecategorize,
 } from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/transfer";
 
@@ -61,11 +64,94 @@ describe("confirmTransferBatch", () => {
     expect(createdAnimal).toBeDefined();
 
     const events = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.animalId));
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(2);
 
-    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, events[0].id));
+    const transferEvent = events.find((e) => e.eventType === "transfer")!;
+    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, transferEvent.id));
     expect(transfer.destinationPaddockId).toBe(destinationPaddock.id);
     expect(transfer.originFarmId).toBe(seededFarm.id);
+  });
+
+  it("creates a self-retag event for a new animal so current_tag is populated", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const rows: ResolvedRow[] = [{ tag: "AR000000000014", eventDate: "2026-02-01", status: "new", categoryId: null }];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000014"));
+    const retagEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, tagRow.animalId));
+    const retagEvent = retagEvents.find((e) => e.eventType === "retag")!;
+    expect(retagEvent).toBeDefined();
+
+    const [retag] = await testDb.select().from(eventRetag).where(eq(eventRetag.eventId, retagEvent.id));
+    expect(retag.oldTag).toBe("AR000000000014");
+    expect(retag.newTag).toBe("AR000000000014");
+
+    const stateResult = await testDb.execute<{ current_tag: string | null }>(
+      sql`select current_tag from animal_current_state where animal_id = ${tagRow.animalId}`
+    );
+    expect(stateResult.rows[0].current_tag).toBe("AR000000000014");
+  });
+
+  it("creates a self-recategorize event for a new animal with an initial category", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [createdCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
+    const rows: ResolvedRow[] = [
+      { tag: "AR000000000015", eventDate: "2026-02-01", status: "new", categoryId: createdCategory.id },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000015"));
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
+    const recategorizeEvent = animalEvents.find((e) => e.eventType === "recategorize")!;
+    expect(recategorizeEvent).toBeDefined();
+
+    const [recategorize] = await testDb
+      .select()
+      .from(eventRecategorize)
+      .where(eq(eventRecategorize.eventId, recategorizeEvent.id));
+    expect(recategorize.newCategoryId).toBe(createdCategory.id);
+
+    const stateResult = await testDb.execute<{ current_category_id: string | null }>(
+      sql`select current_category_id from animal_current_state where animal_id = ${tagRow.animalId}`
+    );
+    expect(stateResult.rows[0].current_category_id).toBe(createdCategory.id);
+  });
+
+  it("does not create a recategorize event for a new animal without an initial category", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const rows: ResolvedRow[] = [{ tag: "AR000000000016", eventDate: "2026-02-01", status: "new", categoryId: null }];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000016"));
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
+    expect(animalEvents.some((e) => e.eventType === "recategorize")).toBe(false);
   });
 
   it("rejects a cross-farm transfer from a manager", async () => {

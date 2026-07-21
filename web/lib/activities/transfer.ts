@@ -1,6 +1,16 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animal, animalTagHistory, category, batchOperation, event, eventTransfer, paddock } from "@/db/schema";
+import {
+  animal,
+  animalTagHistory,
+  category,
+  batchOperation,
+  event,
+  eventTransfer,
+  eventRetag,
+  eventRecategorize,
+  paddock,
+} from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { requireTransferAuthorization } from "@/lib/dal/animal-access";
@@ -136,6 +146,42 @@ export async function confirmTransferBatch(input: {
         animalId = createdAnimal.id;
         originFarmId = operatingFarmId;
         originPaddockId = null;
+
+        // Self-retag: establishes the new animal's current_tag in the derived
+        // state view, which only reflects the *last event_retag*, not
+        // animal_tag_history directly.
+        const [retagEvent] = await tx
+          .insert(event)
+          .values({
+            eventType: "retag",
+            eventDate: row.eventDate,
+            animalId,
+            farmId: operatingFarmId,
+            batchOperationId: batch.id,
+            createdBy: userId,
+          })
+          .returning();
+        await tx.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: row.tag, newTag: row.tag });
+
+        // Self-recategorize: only when the Excel row carried an initial
+        // category — an animal with none stays uncategorized until a real
+        // recategorize event is loaded later.
+        if (row.categoryId) {
+          const [recategorizeEvent] = await tx
+            .insert(event)
+            .values({
+              eventType: "recategorize",
+              eventDate: row.eventDate,
+              animalId,
+              farmId: operatingFarmId,
+              batchOperationId: batch.id,
+              createdBy: userId,
+            })
+            .returning();
+          await tx
+            .insert(eventRecategorize)
+            .values({ eventId: recategorizeEvent.id, oldCategoryId: row.categoryId, newCategoryId: row.categoryId });
+        }
       }
 
       const [createdEvent] = await tx
