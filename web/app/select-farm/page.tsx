@@ -1,5 +1,6 @@
 import { getSelectableFarms, selectFarmAction } from "./actions";
 import { FarmPicker } from "@/components/farm-picker";
+import { AutoSelectFarm } from "@/components/auto-select-farm";
 
 export default async function SelectFarmPage() {
   const farms = await getSelectableFarms();
@@ -13,7 +14,7 @@ export default async function SelectFarmPage() {
   }
 
   if (farms.length === 1) {
-    await selectFarmAction(farms[0].id);
+    return <AutoSelectFarm farmId={farms[0].id} onSelect={selectFarmAction} />;
   }
 
   return (
