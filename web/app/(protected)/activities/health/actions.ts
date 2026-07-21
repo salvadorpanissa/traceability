@@ -10,6 +10,7 @@ import {
   computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
+  extractFirstDateValue,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
@@ -25,6 +26,7 @@ export type PreviewResult =
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
       productSuggestions: { rawValue: string; matchedProductId: string | null }[];
+      detectedEventDate: string | null;
     };
 
 function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
@@ -76,7 +78,9 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
     return { rawValue, matchedProductId: matched?.id ?? null };
   });
 
-  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, productSuggestions };
+  const detectedEventDate = extractFirstDateValue(headers, rows, mapping);
+
+  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, productSuggestions, detectedEventDate };
 }
 
 export async function confirmHealthBatchAction(input: {

@@ -144,6 +144,48 @@ describe("previewHealthBatch", () => {
       ]);
     }
   });
+
+  it("detects the first valid date from a mapped date column", async () => {
+    await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha"],
+      [
+        ["AR000000000111", ""],
+        ["AR000000000112", "2026-03-10"],
+      ]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) {
+      expect(result.detectedEventDate).toBe("2026-03-10");
+    }
+  });
+
+  it("returns a null detected date when no column is mapped as date", async () => {
+    await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000113"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) {
+      expect(result.detectedEventDate).toBeNull();
+    }
+  });
 });
 
 describe("confirmHealthBatchAction", () => {

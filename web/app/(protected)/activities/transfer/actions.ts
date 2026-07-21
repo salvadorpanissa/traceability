@@ -6,7 +6,12 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import {
+  computeHeaderSignature,
+  applyColumnMapping,
+  extractFirstDateValue,
+  type ColumnMapping,
+} from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
@@ -14,7 +19,13 @@ import { requireFarmAccess } from "@/lib/dal/farm-access";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; headerSignature: string; mapping: ColumnMapping[]; rows: ResolvedRow[] };
+  | {
+      mappingNeeded: false;
+      headerSignature: string;
+      mapping: ColumnMapping[];
+      rows: ResolvedRow[];
+      detectedEventDate: string | null;
+    };
 
 function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
   return mapping.some((m) => m.meaning === "ignore");
@@ -58,7 +69,9 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   const mappedRows = applyColumnMapping(headers, rows, mapping);
   const resolvedRows = await resolveBatchRows(mappedRows, eventDate);
 
-  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows };
+  const detectedEventDate = extractFirstDateValue(headers, rows, mapping);
+
+  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, detectedEventDate };
 }
 
 export async function confirmTransferBatchAction(input: {
