@@ -15,6 +15,13 @@
       "when": 1784593204177,
       "tag": "0001_shocking_random",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784640365436,
+      "tag": "0002_great_shiva",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,5 @@
 export * from "./role";
 export * from "./farm";
 export * from "./user";
+export * from "./category";
+export * from "./product";

@@ -7,4 +7,6 @@ export async function resetTestDb() {
   await testDb.execute(sql`TRUNCATE TABLE user_account RESTART IDENTITY CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE farm RESTART IDENTITY CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE role RESTART IDENTITY CASCADE`);
+  await testDb.execute(sql`TRUNCATE TABLE category RESTART IDENTITY CASCADE`);
+  await testDb.execute(sql`TRUNCATE TABLE product RESTART IDENTITY CASCADE`);
 }
