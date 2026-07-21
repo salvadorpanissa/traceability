@@ -16,7 +16,7 @@ import type { MappedRow } from "@/lib/activities/column-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { resolveBatchRows } = await import("@/lib/activities/transfer");
+const { resolveBatchRows } = await import("@/lib/activities/batch-resolution");
 
 beforeEach(async () => {
   await resetTestDb();
