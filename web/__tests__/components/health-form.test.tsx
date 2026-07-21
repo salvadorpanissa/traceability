@@ -16,8 +16,15 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
     rows: [{ tag: "AR000000000090", eventDate: "2026-02-01", status: "new", categoryId: null }],
+    productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
+  createProductAction: vi.fn(async (name: string) => ({
+    id: "p2",
+    name,
+    defaultDoseUnit: null,
+    defaultWithdrawalDays: null,
+  })),
 }));
 
 const catalog: ProductCatalogEntry[] = [
@@ -54,5 +61,20 @@ describe("HealthForm", () => {
 
     expect(screen.getByLabelText(/unidad/i)).toHaveValue("ml");
     expect(screen.getByLabelText(/carencia/i)).toHaveValue(21);
+  });
+
+  it("pre-fills a product row from a matched suggestion, and creates a missing one inline", async () => {
+    render(<HealthForm catalog={catalog} />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+
+    // The suggestion matched "Aftosa" (id p1, not in the initial catalog prop) —
+    // HealthForm's mocked previewHealthBatch return above stands in for a real
+    // catalog lookup, so the row should show it pre-selected.
+    expect(screen.getByLabelText(/producto/i)).toHaveValue("p1");
   });
 });

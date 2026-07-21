@@ -10,17 +10,42 @@ import { ProductListEditor, emptyProduct } from "@/components/activities/product
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
+  createProductAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import type { HealthProduct } from "@/lib/activities/health";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
-export function HealthForm({ catalog }: { catalog: ProductCatalogEntry[] }) {
+function buildInitialProducts(
+  suggestions: { rawValue: string; matchedProductId: string | null }[],
+  catalog: ProductCatalogEntry[]
+): { products: HealthProduct[]; suggestedNames: (string | null)[] } {
+  if (suggestions.length === 0) {
+    return { products: [emptyProduct()], suggestedNames: [null] };
+  }
+  const products = suggestions.map((s) => {
+    const matched = s.matchedProductId ? catalog.find((c) => c.id === s.matchedProductId) : undefined;
+    return {
+      productId: s.matchedProductId ?? "",
+      dose: "",
+      doseUnit: matched?.defaultDoseUnit ?? "",
+      route: "",
+      withdrawalDays: matched?.defaultWithdrawalDays ?? null,
+      notes: null,
+    };
+  });
+  const suggestedNames = suggestions.map((s) => (s.matchedProductId ? null : s.rawValue));
+  return { products, suggestedNames };
+}
+
+export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalogEntry[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
+  const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
 
   async function runPreview(mapping?: ColumnMapping[]) {
@@ -31,6 +56,17 @@ export function HealthForm({ catalog }: { catalog: ProductCatalogEntry[] }) {
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
     setPreview(result);
+    if (!result.mappingNeeded) {
+      const built = buildInitialProducts(result.productSuggestions, catalog);
+      setProducts(built.products);
+      setSuggestedNames(built.suggestedNames);
+    }
+  }
+
+  async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
+    const created = await createProductAction(name);
+    setCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
   }
 
   async function handleConfirm() {
@@ -75,7 +111,13 @@ export function HealthForm({ catalog }: { catalog: ProductCatalogEntry[] }) {
 
       {preview && !preview.mappingNeeded ? (
         <div className="flex flex-col gap-4">
-          <ProductListEditor catalog={catalog} products={products} onChange={setProducts} />
+          <ProductListEditor
+            catalog={catalog}
+            products={products}
+            suggestedNames={suggestedNames}
+            onChange={setProducts}
+            onCreateProduct={handleCreateProduct}
+          />
           <TransferPreviewTable rows={preview.rows} />
           <Button
             type="button"
