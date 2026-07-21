@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +59,12 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
+  const dateAutoFilledRef = useRef(false);
+
+  function handleFileChange(selected: File | null) {
+    setFile(selected);
+    dateAutoFilledRef.current = false;
+  }
 
   async function runPreview(mapping?: ColumnMapping[]) {
     if (!file) return;
@@ -73,6 +79,10 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
       const built = buildInitialProducts(result.productSuggestions, catalog);
       setProducts(built.products);
       setSuggestedNames(built.suggestedNames);
+      if (!dateAutoFilledRef.current && result.detectedEventDate) {
+        setEventDate(result.detectedEventDate);
+      }
+      dateAutoFilledRef.current = true;
     }
   }
 
@@ -114,7 +124,7 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <Input id="file" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="eventDate">Fecha</Label>

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HealthForm } from "@/components/activities/health-form";
+import { previewHealthBatch } from "@/app/(protected)/activities/health/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
 // This project's vitest config doesn't enable `globals`, so
@@ -27,6 +28,7 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
       },
     ],
     productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
+    detectedEventDate: null,
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
   createProductAction: vi.fn(async (name: string) => ({
@@ -113,5 +115,65 @@ describe("HealthForm", () => {
     await user.click(screen.getByRole("button", { name: /^crear$/i }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
+  });
+
+  it("auto-fills Fecha from the detected date once, without overriding a later manual edit", async () => {
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000095",
+          eventDate: "2026-03-10",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      productSuggestions: [],
+      detectedEventDate: "2026-03-10",
+    });
+
+    render(<HealthForm catalog={catalog} />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByLabelText("Fecha")).toHaveValue("2026-03-10"));
+
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-05-01" } });
+
+    // A second preview for the same file still detects a date from the
+    // file (e.g. the user re-mapped a column) — but since the field was
+    // already auto-filled once, the user's manual edit must win.
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000096",
+          eventDate: "2026-05-01",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      productSuggestions: [],
+      detectedEventDate: "2026-07-01",
+    });
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByText("AR000000000096")).toBeInTheDocument());
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-05-01");
   });
 });

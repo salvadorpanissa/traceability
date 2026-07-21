@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransferForm } from "@/components/activities/transfer-form";
+import { previewTransferBatch } from "@/app/(protected)/activities/transfer/actions";
 
 // This project's vitest config doesn't enable `globals`, so
 // @testing-library/react's automatic afterEach cleanup never registers —
@@ -25,6 +26,7 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
         pendingOwnerName: "Gómez",
       },
     ],
+    detectedEventDate: null,
   })),
   confirmTransferBatchAction: vi.fn(async () => undefined),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
@@ -71,5 +73,60 @@ describe("TransferForm", () => {
     await user.click(screen.getByRole("button", { name: /^crear$/i }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
+  });
+
+  it("auto-fills Fecha from the detected date once, without overriding a later manual edit", async () => {
+    vi.mocked(previewTransferBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000040",
+          eventDate: "2026-03-10",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      detectedEventDate: "2026-03-10",
+    });
+
+    render(<TransferForm farms={farms} />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByLabelText("Fecha")).toHaveValue("2026-03-10"));
+
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-05-01" } });
+
+    vi.mocked(previewTransferBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000041",
+          eventDate: "2026-05-01",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      detectedEventDate: "2026-07-01",
+    });
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByText("AR000000000041")).toBeInTheDocument());
+    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-05-01");
   });
 });

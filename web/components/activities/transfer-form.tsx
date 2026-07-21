@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,12 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
   const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const dateAutoFilledRef = useRef(false);
+
+  function handleFileChange(selected: File | null) {
+    setFile(selected);
+    dateAutoFilledRef.current = false;
+  }
 
   async function runPreview(mapping?: ColumnMapping[]) {
     if (!file) return;
@@ -48,6 +54,10 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     setPreview(result);
     if (!result.mappingNeeded) {
       setRows(result.rows);
+      if (!dateAutoFilledRef.current && result.detectedEventDate) {
+        setEventDate(result.detectedEventDate);
+      }
+      dateAutoFilledRef.current = true;
     }
   }
 
@@ -99,7 +109,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <Input id="file" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="eventDate">Fecha</Label>
