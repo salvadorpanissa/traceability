@@ -1,0 +1,1 @@
+ALTER TABLE "paddock" ADD CONSTRAINT "paddock_farm_id_name_unique" UNIQUE("farm_id","name");
