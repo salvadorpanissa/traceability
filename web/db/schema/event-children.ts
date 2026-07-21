@@ -3,6 +3,7 @@ import { event } from "./event";
 import { farm } from "./farm";
 import { product } from "./product";
 import { category } from "./category";
+import { paddock } from "./paddock";
 
 export const eventTransfer = pgTable("event_transfer", {
   eventId: uuid("event_id")
@@ -15,6 +16,8 @@ export const eventTransfer = pgTable("event_transfer", {
     .notNull()
     .references(() => farm.id),
   guideNumber: text("guide_number"),
+  originPaddockId: uuid("origin_paddock_id").references(() => paddock.id),
+  destinationPaddockId: uuid("destination_paddock_id").references(() => paddock.id),
 });
 
 export const eventHealth = pgTable("event_health", {

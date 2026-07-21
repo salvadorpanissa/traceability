@@ -1,0 +1,4 @@
+ALTER TABLE "event_transfer" ADD COLUMN "origin_paddock_id" uuid;--> statement-breakpoint
+ALTER TABLE "event_transfer" ADD COLUMN "destination_paddock_id" uuid;--> statement-breakpoint
+ALTER TABLE "event_transfer" ADD CONSTRAINT "event_transfer_origin_paddock_id_paddock_id_fk" FOREIGN KEY ("origin_paddock_id") REFERENCES "public"."paddock"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_transfer" ADD CONSTRAINT "event_transfer_destination_paddock_id_paddock_id_fk" FOREIGN KEY ("destination_paddock_id") REFERENCES "public"."paddock"("id") ON DELETE no action ON UPDATE no action;

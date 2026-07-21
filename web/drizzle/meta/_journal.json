@@ -57,6 +57,13 @@
       "when": 1784641829313,
       "tag": "0007_flowery_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784641904598,
+      "tag": "0008_good_roulette",
+      "breakpoints": true
     }
   ]
 }
