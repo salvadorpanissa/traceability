@@ -36,6 +36,13 @@
       "when": 1784640494844,
       "tag": "0004_naive_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784640577057,
+      "tag": "0005_smart_tinkerer",
+      "breakpoints": true
     }
   ]
 }
