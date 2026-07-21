@@ -6,6 +6,12 @@ function statusLabel(row: ResolvedRow): string {
   return "Error";
 }
 
+function detailText(row: ResolvedRow): string | null {
+  if (row.status === "error") return row.reason;
+  if (row.status === "new" && row.pendingOwnerName) return `Propietario pendiente: ${row.pendingOwnerName}`;
+  return null;
+}
+
 export function TransferPreviewTable({ rows }: { rows: ResolvedRow[] }) {
   return (
     <table className="w-full text-sm">
@@ -21,9 +27,7 @@ export function TransferPreviewTable({ rows }: { rows: ResolvedRow[] }) {
           <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
             <td className="py-1 pr-2">{row.tag}</td>
             <td className="py-1 pr-2">{statusLabel(row)}</td>
-            <td className="py-1 pr-2 text-muted-foreground">
-              {row.status === "error" ? row.reason : null}
-            </td>
+            <td className="py-1 pr-2 text-muted-foreground">{detailText(row)}</td>
           </tr>
         ))}
       </tbody>
