@@ -25,7 +25,6 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     <AppShell
       userName={session.user.name ?? session.user.email ?? ""}
       activeFarmId={activeFarm.id}
-      activeFarmName={activeFarm.name}
       selectableFarms={selectableFarms}
       onFarmChange={updateActiveFarmAction}
     >

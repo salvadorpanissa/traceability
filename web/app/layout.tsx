@@ -5,7 +5,6 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { parseLocaleCookie } from "@/lib/i18n/dictionaries";
-import { SettingsMenu } from "@/components/settings-menu";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,9 +38,6 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <LocaleProvider initialLocale={locale}>
-            <div className="flex justify-end border-b px-4 py-2">
-              <SettingsMenu />
-            </div>
             <div className="flex-1">{children}</div>
           </LocaleProvider>
         </ThemeProvider>
