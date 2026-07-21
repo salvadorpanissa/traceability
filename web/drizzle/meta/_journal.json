@@ -71,6 +71,13 @@
       "when": 1784641954929,
       "tag": "0009_add_paddock_to_derived_state",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784642815775,
+      "tag": "0010_dazzling_lifeguard",
+      "breakpoints": true
     }
   ]
 }
