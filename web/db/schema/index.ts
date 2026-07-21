@@ -3,6 +3,7 @@ export * from "./farm";
 export * from "./user";
 export * from "./category";
 export * from "./product";
+export * from "./owner";
 export * from "./animal";
 export * from "./event";
 export * from "./event-children";

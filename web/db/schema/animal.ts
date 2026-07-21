@@ -1,8 +1,13 @@
-import { pgTable, uuid, text, date, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, date, timestamp, index, pgEnum } from "drizzle-orm/pg-core";
+import { owner } from "./owner";
+
+export const animalSex = pgEnum("animal_sex", ["male", "female"]);
 
 export const animal = pgTable("animal", {
   id: uuid("id").primaryKey().defaultRandom(),
   birthDate: date("birth_date"),
+  sex: animalSex("sex"),
+  ownerId: uuid("owner_id").references(() => owner.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
