@@ -23,8 +23,25 @@ export default defineConfig({
     // files), so disabling file parallelism entirely is the simplest correct
     // fix rather than building partial-parallelism/test-isolation schemes.
     fileParallelism: false,
+    server: {
+      deps: {
+        // Force next-auth through Vite's transform pipeline (instead of
+        // being externalized to a bare `require`/`import`) so the
+        // "next/server" alias below actually applies to it.
+        inline: ["next-auth"],
+      },
+    },
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./") },
+    alias: {
+      "@": path.resolve(__dirname, "./"),
+      // next-auth imports "next/server" without a file extension. Next.js
+      // itself has no "exports" map for that subpath, so under Node/Vite's
+      // strict ESM resolution (unlike Next's own webpack/Turbopack build,
+      // which tolerates it) the bare specifier fails to resolve. Point it
+      // straight at the real file so components that pull in next-auth
+      // (e.g. via the logout Server Action) can be unit-tested.
+      "next/server": path.resolve(__dirname, "./node_modules/next/server.js"),
+    },
   },
 });
