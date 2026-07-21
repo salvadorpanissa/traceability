@@ -60,6 +60,12 @@ export default async function globalSetup() {
       "insert into product (name, default_dose_unit, default_withdrawal_days) values ('Ivermectina 1%', 'ml', 21) on conflict do nothing"
     );
     await client.query("insert into owner (name) values ('Pérez') on conflict do nothing");
+    const {
+      rows: [{ id: farmId }],
+    } = await client.query("select id from farm where name = 'Campo Norte'");
+    await client.query("insert into paddock (farm_id, name) values ($1, 'Potrero 1') on conflict do nothing", [
+      farmId,
+    ]);
   } finally {
     await client.end();
   }
