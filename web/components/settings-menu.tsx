@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun, SunMoon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,11 @@ const THEME_ICONS = { light: Sun, dark: Moon, system: SunMoon } as const;
 export function SettingsMenu() {
   const { locale, setLocale, t } = useLocale();
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const cycleTheme = () => {
     const order = ["light", "dark", "system"] as const;
@@ -19,7 +25,10 @@ export function SettingsMenu() {
     setTheme(next);
   };
 
-  const ThemeIcon = THEME_ICONS[(theme as keyof typeof THEME_ICONS) ?? "system"] ?? SunMoon;
+  // Server always renders the "system" icon; the real theme is only known
+  // after mount (next-themes reads it from localStorage), so swap in the
+  // resolved icon post-hydration to avoid a server/client mismatch.
+  const ThemeIcon = mounted ? THEME_ICONS[(theme as keyof typeof THEME_ICONS) ?? "system"] ?? SunMoon : SunMoon;
 
   return (
     <div className="flex items-center gap-2">
