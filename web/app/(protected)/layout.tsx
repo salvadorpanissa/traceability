@@ -1,41 +1,27 @@
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { getUserFarms } from '@/lib/farms'
-import { getCurrentUserProfile } from '@/lib/user'
-import { AppShell } from '@/components/app-shell'
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { requireSession } from "@/lib/dal/session";
+import { resolveActiveFarm } from "@/lib/dal/active-farm";
+import { AppShell } from "@/components/app-shell";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
+  const session = await requireSession();
+  const cookieStore = await cookies();
+  const activeFarmId = cookieStore.get("active_farm_id")?.value;
 
-  // proxy.ts already redirects unauthenticated requests to /login using a
-  // fast local JWT-claims check. Re-verify here with a server-validated
-  // getUser() call: a session can be revoked (e.g. sign-out) between the
-  // middleware's check and this render, and getCurrentUserProfile below
-  // requires a real user to be present.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
+  if (!activeFarmId) {
+    redirect("/select-farm");
   }
 
-  const cookieStore = await cookies()
-  const activeFarmId = cookieStore.get('active_farm_id')?.value
-
-  const farms = await getUserFarms(supabase)
-  const activeFarm = farms.find((f) => f.id === activeFarmId)
+  const activeFarm = await resolveActiveFarm(session.user.id, session.user.role, activeFarmId);
 
   if (!activeFarm) {
-    redirect('/select-farm')
+    redirect("/select-farm");
   }
 
-  const profile = await getCurrentUserProfile(supabase, user.id)
-
   return (
-    <AppShell activeFarm={activeFarm} showFarmSwitcher={farms.length > 1} profile={profile}>
+    <AppShell userName={session.user.name ?? session.user.email ?? ""} activeFarmName={activeFarm.name}>
       {children}
     </AppShell>
-  )
+  );
 }

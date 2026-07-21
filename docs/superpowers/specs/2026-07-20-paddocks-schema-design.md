@@ -4,6 +4,10 @@
 **Estado:** Aprobado, pendiente de plan de implementación
 **Sub-proyecto:** extiende el esquema de base de datos ya implementado (`docs/superpowers/specs/2026-07-18-database-schema-design.md`, mergeado a `main`). Es un prerrequisito del spec de "cargar caravanas y actividades" (pausado hasta que esto esté listo). Solo esquema — la pantalla de administración de potreros queda como spec de frontend aparte, junto con la de alta de usuarios y la de establecimientos (ninguna de las dos existe todavía; hoy se cargan a mano desde Supabase Studio).
 
+## Nota de migración (2026-07-20)
+
+Se decidió migrar el backend de Supabase a Postgres local + Auth.js (ver `docs/superpowers/specs/2026-07-20-frontend-auth-shell-design-v2.md`). Las referencias a RLS de este spec (por ejemplo, que `event_transfer_insert` "no necesita tocarse") describían política de RLS; el equivalente tras la migración es la misma regla de negocio (manager solo entre potreros del mismo `farm_id`) verificada en el DAL. El esquema de `paddock` en sí no cambia.
+
 ## Contexto
 
 Durante el brainstorming de "cargar caravanas y actividades" surgió que un establecimiento (`farm`) tiene subdivisiones internas de pastoreo — potreros — y que la trazabilidad necesita saber en qué potrero está cada animal, no solo en qué establecimiento. El modelo actual no tiene ese nivel. Este spec lo agrega, de forma aditiva sobre lo ya implementado y en producción (sin romper filas ni RLS existentes).

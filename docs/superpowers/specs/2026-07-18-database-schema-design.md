@@ -4,6 +4,10 @@
 **Estado:** Aprobado, pendiente de plan de implementación
 **Sub-proyecto:** 1 de 4 (esquema de datos + roles/RLS). Los siguientes son: lógica de carga por lote, importación/validación de Excel, reportes.
 
+## Nota de migración (2026-07-20)
+
+Se decidió migrar el backend de Supabase a Postgres local + Auth.js (ver `docs/superpowers/specs/2026-07-20-frontend-auth-shell-design-v2.md`). Las tablas y el modelo de eventos de este spec **siguen vigentes tal cual** (son SQL estándar de Postgres); lo que deja de ser vigente es la sección "Roles y RLS" más abajo — la autorización por `farm_id` pasa a enforzarse en el Data Access Layer (Server Actions), no en políticas RLS de Postgres/Supabase. El plan concreto de migración de datos y de las funciones `is_admin()`/`user_farm_ids()` a chequeos equivalentes en el DAL es un spec/plan aparte, todavía no escrito.
+
 ## Contexto
 
 Empresa ganadera en Uruguay, varios campos, miles de animales. Reemplaza un sistema de terceros deprecado y un flujo manual por Excel que no escala ni deja historial auditable. Uso interno (no requiere integración obligatoria con MGAP/SNIG desde el inicio, pero el modelo debe quedar compatible a futuro). Backend en Supabase (Postgres). Ver contexto completo en la conversación original con el usuario.

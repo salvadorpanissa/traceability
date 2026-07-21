@@ -1,76 +1,34 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
+import { loginAction, type LoginState } from "@/app/login/actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const initialState: LoginState = { error: null };
 
 export function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-      if (error) {
-        setError('Email o contraseña incorrectos.')
-        return
-      }
-
-      router.push('/select-farm')
-    } catch {
-      setError('No se pudo conectar. Intentá de nuevo.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") ?? "/dashboard";
+  const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Ingresar</CardTitle>
-        <CardDescription>Trazabilidad de ganado</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Ingresando...' : 'Ingresar'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  )
+    <form action={formAction} className="flex flex-col gap-4">
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" name="email" type="email" required autoComplete="email" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Contraseña</Label>
+        <Input id="password" name="password" type="password" required autoComplete="current-password" />
+      </div>
+      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+      <Button type="submit" disabled={pending}>
+        {pending ? "Ingresando..." : "Ingresar"}
+      </Button>
+    </form>
+  );
 }
