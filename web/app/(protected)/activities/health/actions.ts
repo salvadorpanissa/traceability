@@ -14,7 +14,7 @@ import {
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
-import { listProducts } from "@/lib/dal/product-catalog";
+import { listProducts, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -99,4 +99,9 @@ export async function confirmHealthBatchAction(input: {
     products: input.products,
     rows: input.rows,
   });
+}
+
+export async function createProductAction(name: string): Promise<ProductCatalogEntry> {
+  await requireSession();
+  return createProduct(name);
 }

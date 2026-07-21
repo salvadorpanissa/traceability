@@ -13,7 +13,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewHealthBatch, confirmHealthBatchAction } = await import(
+const { previewHealthBatch, confirmHealthBatchAction, createProductAction } = await import(
   "../../app/(protected)/activities/health/actions"
 );
 const { auth } = await import("@/auth");
@@ -165,5 +165,17 @@ describe("confirmHealthBatchAction", () => {
       .from(columnMapping)
       .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
     expect(savedMapping).toBeDefined();
+  });
+});
+
+describe("createProductAction", () => {
+  it("creates a product and returns it", async () => {
+    await seedManagerSession();
+
+    const created = await createProductAction("Ivermectina 1%");
+
+    expect(created.name).toBe("Ivermectina 1%");
+    const [stored] = await testDb.select().from(product).where(eq(product.name, "Ivermectina 1%"));
+    expect(stored).toBeDefined();
   });
 });
