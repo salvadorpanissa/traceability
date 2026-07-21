@@ -31,6 +31,7 @@ async function truncateTestDb(testUrl: string) {
     await client.query("TRUNCATE TABLE role RESTART IDENTITY CASCADE");
     await client.query("TRUNCATE TABLE category RESTART IDENTITY CASCADE");
     await client.query("TRUNCATE TABLE product RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE TABLE owner RESTART IDENTITY CASCADE");
     await client.query("TRUNCATE TABLE column_mapping RESTART IDENTITY CASCADE");
   } finally {
     await client.end();
@@ -58,6 +59,7 @@ export default async function globalSetup() {
     await client.query(
       "insert into product (name, default_dose_unit, default_withdrawal_days) values ('Ivermectina 1%', 'ml', 21) on conflict do nothing"
     );
+    await client.query("insert into owner (name) values ('Pérez') on conflict do nothing");
   } finally {
     await client.end();
   }
