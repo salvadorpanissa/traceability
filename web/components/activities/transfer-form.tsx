@@ -61,7 +61,11 @@ export function TransferForm() {
       </Button>
 
       {preview?.mappingNeeded ? (
-        <ColumnMapper headers={preview.headers} onSubmit={(mapping) => runPreview(mapping)} />
+        <ColumnMapper
+          headers={preview.headers}
+          initialMapping={preview.initialMapping}
+          onSubmit={(mapping) => runPreview(mapping)}
+        />
       ) : null}
 
       {preview && !preview.mappingNeeded ? (

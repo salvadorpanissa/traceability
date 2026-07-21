@@ -11,8 +11,12 @@ import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resol
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
 
 export type PreviewResult =
-  | { mappingNeeded: true; headers: string[] }
+  | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
   | { mappingNeeded: false; headerSignature: string; mapping: ColumnMapping[]; rows: ResolvedRow[] };
+
+function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
+  return mapping.some((m) => m.meaning === "ignore");
+}
 
 async function requireOperatingFarmId(): Promise<string> {
   const cookieStore = await cookies();
@@ -40,9 +44,13 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   } else {
     const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
     if (!existing) {
-      return { mappingNeeded: true, headers };
+      return { mappingNeeded: true, headers, initialMapping: null };
     }
-    mapping = existing.mapping as ColumnMapping[];
+    const existingMapping = existing.mapping as ColumnMapping[];
+    if (hasUnconfiguredColumn(existingMapping)) {
+      return { mappingNeeded: true, headers, initialMapping: existingMapping };
+    }
+    mapping = existingMapping;
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);

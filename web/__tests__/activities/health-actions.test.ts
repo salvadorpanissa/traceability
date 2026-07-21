@@ -74,6 +74,46 @@ describe("previewHealthBatch", () => {
       expect(result.rows[0].status).toBe("new");
     }
   });
+
+  it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
+    await seedManagerSession();
+    await testDb.insert(columnMapping).values({
+      headerSignature: JSON.stringify(["IDE", "SEXO"]),
+      mapping: [
+        { header: "IDE", meaning: "tag" },
+        { header: "SEXO", meaning: "ignore" },
+      ],
+    });
+
+    const buffer = await buildWorkbookBuffer(["IDE", "SEXO"], [["AR000000000100", "M"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(true);
+    if (result.mappingNeeded) {
+      expect(result.initialMapping).toEqual([
+        { header: "IDE", meaning: "tag" },
+        { header: "SEXO", meaning: "ignore" },
+      ]);
+    }
+  });
+
+  it("applies the saved mapping silently when no column is left ignored", async () => {
+    await seedManagerSession();
+    await testDb
+      .insert(columnMapping)
+      .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
+
+    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+  });
 });
 
 describe("confirmHealthBatchAction", () => {

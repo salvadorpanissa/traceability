@@ -65,7 +65,12 @@ export function HealthForm({ catalog }: { catalog: ProductCatalogEntry[] }) {
       </Button>
 
       {preview?.mappingNeeded ? (
-        <ColumnMapper headers={preview.headers} onSubmit={(mapping) => runPreview(mapping)} />
+        <ColumnMapper
+          headers={preview.headers}
+          availableMeanings={["tag", "date", "category", "product", "ignore"]}
+          initialMapping={preview.initialMapping}
+          onSubmit={(mapping) => runPreview(mapping)}
+        />
       ) : null}
 
       {preview && !preview.mappingNeeded ? (
