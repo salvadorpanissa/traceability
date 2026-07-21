@@ -31,6 +31,13 @@ const dictionaries = {
     "livestock.statusAlive": "Vivo",
     "livestock.statusSold": "Vendido",
     "livestock.statusDead": "Muerto",
+    "livestock.showAll": "Ver todos",
+    "livestock.showLess": "Ver menos",
+    "livestock.summaryTitle": "Resumen por campo y categoría",
+    "livestock.summaryEmpty": "No hay animales vivos para resumir.",
+    "livestock.summaryCount": "Cantidad",
+    "livestock.noCategory": "Sin categoría",
+    "livestock.noFarm": "Sin campo",
   },
   en: {
     "app.title": "Livestock traceability",
@@ -60,6 +67,13 @@ const dictionaries = {
     "livestock.statusAlive": "Alive",
     "livestock.statusSold": "Sold",
     "livestock.statusDead": "Dead",
+    "livestock.showAll": "Show all",
+    "livestock.showLess": "Show less",
+    "livestock.summaryTitle": "Summary by farm and category",
+    "livestock.summaryEmpty": "No live animals to summarize.",
+    "livestock.summaryCount": "Count",
+    "livestock.noCategory": "No category",
+    "livestock.noFarm": "No farm",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 
