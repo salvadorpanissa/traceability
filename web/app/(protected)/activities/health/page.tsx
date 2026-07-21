@@ -6,7 +6,7 @@ export default async function HealthActivityPage() {
   const catalog = await listProducts();
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
         <CardTitle>Sanidad</CardTitle>
       </CardHeader>
