@@ -51,4 +51,14 @@ export default async function globalSetup() {
       SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD ?? "changeme123",
     },
   });
+
+  const client = new Client({ connectionString: testUrl });
+  await client.connect();
+  try {
+    await client.query(
+      "insert into product (name, default_dose_unit, default_withdrawal_days) values ('Ivermectina 1%', 'ml', 21) on conflict do nothing"
+    );
+  } finally {
+    await client.end();
+  }
 }
