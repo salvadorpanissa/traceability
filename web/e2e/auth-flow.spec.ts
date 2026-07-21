@@ -10,9 +10,10 @@ test("login, farm selection (auto-skip for single farm), and logout", async ({ p
   await page.getByRole("button", { name: /ingresar/i }).click();
 
   await page.waitForURL(/\/dashboard/);
-  await expect(page.getByText("Dashboard")).toBeVisible();
-  await expect(page.getByText("Campo Norte")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "Campo Norte", selected: true })).toBeAttached();
 
+  await page.getByRole("button", { name: /menú de usuario/i }).click();
   await page.getByRole("button", { name: /cerrar sesión/i }).click();
   await page.waitForURL(/\/login/);
 });

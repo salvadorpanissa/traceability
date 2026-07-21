@@ -1,11 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "@/components/app-shell";
 import { LocaleProvider } from "@/lib/i18n/context";
 
+let mockedPathname = "/dashboard";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockedPathname,
+}));
+
+vi.mock("@/components/settings-menu", () => ({
+  SettingsMenu: () => <span>settings-menu</span>,
+}));
+
 describe("AppShell", () => {
-  it("shows the active farm selector, user name, and logout dropdown", async () => {
+  it("shows navigation, active farm selector, user name, and logout menu", async () => {
+    mockedPathname = "/activities/health";
     const onFarmChange = async () => {};
 
     render(
@@ -13,7 +24,6 @@ describe("AppShell", () => {
         <AppShell
           userName="Encargado Norte"
           activeFarmId="farm-norte"
-          activeFarmName="Campo Norte"
           selectableFarms={[
             { id: "farm-norte", name: "Campo Norte" },
             { id: "farm-sur", name: "Campo Sur" },
@@ -26,21 +36,20 @@ describe("AppShell", () => {
     );
 
     const user = userEvent.setup();
-    const farmSelector = screen.getByRole("combobox", { name: "Cambiar campo" });
-    const userSummary = screen.getByText("Encargado Norte");
-    const userMenu = userSummary.closest("details");
+    const desktopFarmSelector = screen.getByRole("combobox", { name: "Cambiar campo" });
+    const userButton = screen.getByRole("button", { name: "Menú de usuario" });
+    const activeNavLink = screen.getByRole("link", { name: "Sanidades" });
 
-    expect(screen.getByText("Campo Norte", { selector: "span" })).toBeInTheDocument();
-    expect(farmSelector).toHaveValue("farm-norte");
+    expect(screen.getByText("settings-menu")).toBeInTheDocument();
+    expect(desktopFarmSelector).toHaveValue("farm-norte");
     expect(screen.getByRole("option", { name: "Campo Norte" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Campo Sur" })).toBeInTheDocument();
-    expect(userSummary).toBeInTheDocument();
-    expect(userMenu).not.toHaveAttribute("open");
+    expect(activeNavLink).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 
-    await user.click(userSummary);
+    await user.click(userButton);
 
-    expect(userMenu).toHaveAttribute("open");
-    expect(screen.getByText("Cerrar sesión")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
 });
