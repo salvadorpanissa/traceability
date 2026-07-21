@@ -28,11 +28,18 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
   })),
   confirmTransferBatchAction: vi.fn(async () => undefined),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
+  listPaddocksAction: vi.fn(async () => [{ id: "p1", name: "Potrero 1", farmId: "farm-1" }]),
+  createPaddockAction: vi.fn(async (_farmId: string, name: string) => ({ id: "p2", name, farmId: "farm-1" })),
 }));
+
+const farms = [
+  { id: "farm-1", name: "Campo Norte" },
+  { id: "farm-2", name: "Campo Sur" },
+];
 
 describe("TransferForm", () => {
   it("shows the preview after uploading a file", async () => {
-    render(<TransferForm farms={[{ id: "farm-1", name: "Campo Norte" }]} />);
+    render(<TransferForm farms={farms} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -47,7 +54,7 @@ describe("TransferForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline plus a destination is set", async () => {
-    render(<TransferForm farms={[{ id: "farm-1", name: "Campo Norte" }]} />);
+    render(<TransferForm farms={farms} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -57,7 +64,7 @@ describe("TransferForm", () => {
     await user.click(screen.getByRole("button", { name: /subir/i }));
 
     await waitFor(() => expect(screen.getByText("AR000000000030")).toBeInTheDocument());
-    await user.type(screen.getByLabelText(/campo destino/i), "farm-1");
+    await user.selectOptions(screen.getByLabelText(/campo destino/i), "farm-1");
 
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
