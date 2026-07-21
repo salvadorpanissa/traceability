@@ -39,6 +39,22 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
   }));
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function extractFirstDateValue(headers: string[], rows: string[][], mapping: ColumnMapping[]): string | null {
+  const dateIndex = columnIndexFor(headers, mapping, "date");
+  if (dateIndex < 0) return null;
+
+  for (const row of rows) {
+    const value = row[dateIndex]?.trim();
+    if (value && ISO_DATE.test(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 export function extractProductColumnValues(headers: string[], rows: string[][], mapping: ColumnMapping[]): string[] {
   const productColumns = mapping.filter((m) => m.meaning === "product");
   const values: string[] = [];

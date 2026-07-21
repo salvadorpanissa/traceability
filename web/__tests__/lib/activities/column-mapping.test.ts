@@ -3,6 +3,7 @@ import {
   computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
+  extractFirstDateValue,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 
@@ -112,5 +113,55 @@ describe("extractProductColumnValues", () => {
   it("returns an empty array when no column is mapped as product", () => {
     const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
     expect(extractProductColumnValues(headers, rows, mapping)).toEqual([]);
+  });
+});
+
+describe("extractFirstDateValue", () => {
+  const headers = ["IDE", "Fecha"];
+
+  it("returns the first valid ISO date found, in row order", () => {
+    const rows = [
+      ["123456789012345", ""],
+      ["223456789012345", "2026-03-10"],
+      ["323456789012345", "2026-01-15"],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Fecha", meaning: "date" },
+    ];
+
+    expect(extractFirstDateValue(headers, rows, mapping)).toBe("2026-03-10");
+  });
+
+  it("skips values that aren't a valid ISO date", () => {
+    const rows = [
+      ["123456789012345", "15/01/2026"],
+      ["223456789012345", "2026-01-15"],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Fecha", meaning: "date" },
+    ];
+
+    expect(extractFirstDateValue(headers, rows, mapping)).toBe("2026-01-15");
+  });
+
+  it("returns null when no column is mapped as date", () => {
+    const rows = [["123456789012345", "2026-01-15"]];
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+    expect(extractFirstDateValue(headers, rows, mapping)).toBeNull();
+  });
+
+  it("returns null when every date value is empty or invalid", () => {
+    const rows = [
+      ["123456789012345", ""],
+      ["223456789012345", "no-date"],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Fecha", meaning: "date" },
+    ];
+
+    expect(extractFirstDateValue(headers, rows, mapping)).toBeNull();
   });
 });
