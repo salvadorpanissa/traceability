@@ -15,7 +15,17 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     mappingNeeded: false,
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
-    rows: [{ tag: "AR000000000090", eventDate: "2026-02-01", status: "new", categoryId: null }],
+    rows: [
+      {
+        tag: "AR000000000090",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: "Gómez",
+      },
+    ],
     productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
@@ -25,6 +35,7 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     defaultDoseUnit: null,
     defaultWithdrawalDays: null,
   })),
+  createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
 }));
 
 const catalog: ProductCatalogEntry[] = [
@@ -76,5 +87,31 @@ describe("HealthForm", () => {
     // HealthForm's mocked previewHealthBatch return above stands in for a real
     // catalog lookup, so the row should show it pre-selected.
     expect(screen.getByLabelText(/producto/i)).toHaveValue("p1");
+  });
+
+  it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
+    render(<HealthForm catalog={catalog} />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+
+    // Fill in the rest of the (auto-matched) product row so the only thing
+    // gating Confirmar in this test is the pending owner, not an incomplete
+    // product — the row already has productId "p1" and doseUnit "ml" from
+    // the matched suggestion's defaults, but dose/route still need values.
+    await user.type(screen.getByLabelText("Dosis"), "10");
+    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
+
+    expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /^crear$/i }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
   });
 });

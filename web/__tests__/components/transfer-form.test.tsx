@@ -1,16 +1,33 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransferForm } from "@/components/activities/transfer-form";
+
+// This project's vitest config doesn't enable `globals`, so
+// @testing-library/react's automatic afterEach cleanup never registers —
+// see __tests__/components/dashboard/livestock-status-table.test.tsx for
+// the full explanation.
+afterEach(cleanup);
 
 vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
   previewTransferBatch: vi.fn(async () => ({
     mappingNeeded: false,
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
-    rows: [{ tag: "AR000000000030", eventDate: "2026-02-01", status: "new", categoryId: null }],
+    rows: [
+      {
+        tag: "AR000000000030",
+        eventDate: "2026-02-01",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: "Gómez",
+      },
+    ],
   })),
   confirmTransferBatchAction: vi.fn(async () => undefined),
+  createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
 }));
 
 describe("TransferForm", () => {
@@ -27,5 +44,25 @@ describe("TransferForm", () => {
 
     await waitFor(() => expect(screen.getByText("AR000000000030")).toBeInTheDocument());
     expect(screen.getByText(/nuevo/i)).toBeInTheDocument();
+  });
+
+  it("disables Confirmar while an owner is pending, and enables it once created inline plus a destination is set", async () => {
+    render(<TransferForm />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+
+    await waitFor(() => expect(screen.getByText("AR000000000030")).toBeInTheDocument());
+    await user.type(screen.getByLabelText(/campo destino/i), "farm-1");
+
+    expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /^crear$/i }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
   });
 });
