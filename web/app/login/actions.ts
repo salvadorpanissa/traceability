@@ -22,7 +22,12 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
   }
 
   const returnTo = formData.get("returnTo");
-  const redirectTo = typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : "/dashboard";
+  // Only accept a same-origin relative path: a single leading "/" not followed by
+  // another "/". Rejects protocol-relative URLs like "//evil.com", which browsers
+  // resolve to "https://evil.com" and would otherwise enable an open redirect
+  // (CWE-601) since returnTo is fully attacker-controlled via the query string.
+  const isSafeRelativePath = typeof returnTo === "string" && /^\/(?!\/)/.test(returnTo);
+  const redirectTo = isSafeRelativePath ? returnTo : "/dashboard";
 
   try {
     await signIn("credentials", {
