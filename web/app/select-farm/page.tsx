@@ -1,14 +1,18 @@
+import { cookies } from "next/headers";
 import { getSelectableFarms, selectFarmAction } from "./actions";
 import { FarmPicker } from "@/components/farm-picker";
 import { AutoSelectFarm } from "@/components/auto-select-farm";
+import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 
 export default async function SelectFarmPage() {
   const farms = await getSelectableFarms();
 
   if (farms.length === 0) {
+    const cookieStore = await cookies();
+    const locale = parseLocaleCookie(cookieStore.get("locale")?.value);
     return (
       <div className="flex min-h-screen items-center justify-center p-4 text-center">
-        <p>No tenés campos asignados. Contactá al administrador.</p>
+        <p>{translate(locale, "selectFarm.noFarms")}</p>
       </div>
     );
   }

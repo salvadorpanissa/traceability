@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginForm } from "@/components/login-form";
+import { LocaleProvider } from "@/lib/i18n/context";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -13,7 +14,11 @@ vi.mock("@/app/login/actions", () => ({
 
 describe("LoginForm", () => {
   it("shows the server error after a failed submit", async () => {
-    render(<LoginForm />);
+    render(
+      <LocaleProvider initialLocale="es">
+        <LoginForm />
+      </LocaleProvider>
+    );
     const user = userEvent.setup();
 
     await user.type(screen.getByLabelText("Email"), "bad@example.com");

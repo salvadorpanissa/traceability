@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
+import { useLocale } from "@/lib/i18n/context";
 
 /**
  * Fires `onSelect` as a real Server Action invocation (via useTransition),
@@ -20,6 +21,7 @@ export function AutoSelectFarm({
   onSelect: (farmId: string) => Promise<void>;
 }) {
   const [, startTransition] = useTransition();
+  const { t } = useLocale();
 
   useEffect(() => {
     startTransition(() => {
@@ -29,7 +31,7 @@ export function AutoSelectFarm({
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 text-center">
-      <p className="text-muted-foreground">Seleccionando campo...</p>
+      <p className="text-muted-foreground">{t("selectFarm.selecting")}</p>
     </div>
   );
 }
