@@ -1,4 +1,4 @@
-export type ColumnMeaning = "tag" | "date" | "category" | "ignore";
+export type ColumnMeaning = "tag" | "date" | "category" | "product" | "ignore";
 
 export type ColumnMapping = {
   header: string;

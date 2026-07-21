@@ -39,3 +39,10 @@ describe("applyColumnMapping", () => {
     expect(result[0].tag).toBe("");
   });
 });
+
+describe("ColumnMeaning", () => {
+  it("includes product as a valid meaning", () => {
+    const mapping: ColumnMapping = { header: "SANIDAD", meaning: "product" };
+    expect(mapping.meaning).toBe("product");
+  });
+});
