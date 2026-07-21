@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { animal, animalTagHistory, batchOperation, event, eventTransfer, eventRetag, eventRecategorize, paddock } from "@/db/schema";
+import { batchOperation, event, eventTransfer, paddock } from "@/db/schema";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { requireTransferAuthorization } from "@/lib/dal/animal-access";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
+import { createNewAnimal } from "@/lib/activities/animal-creation";
 
 export { resolveBatchRows, type ResolvedRow };
 
@@ -49,47 +50,14 @@ export async function confirmTransferBatch(input: {
         originFarmId = row.currentFarmId ?? operatingFarmId;
         originPaddockId = row.currentPaddockId;
       } else {
-        const [createdAnimal] = await tx.insert(animal).values({}).returning();
-        await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag });
-        animalId = createdAnimal.id;
+        animalId = await createNewAnimal(tx, {
+          userId,
+          operatingFarmId,
+          batchId: batch.id,
+          row,
+        });
         originFarmId = operatingFarmId;
         originPaddockId = null;
-
-        // Self-retag: establishes the new animal's current_tag in the derived
-        // state view, which only reflects the *last event_retag*, not
-        // animal_tag_history directly.
-        const [retagEvent] = await tx
-          .insert(event)
-          .values({
-            eventType: "retag",
-            eventDate: row.eventDate,
-            animalId,
-            farmId: operatingFarmId,
-            batchOperationId: batch.id,
-            createdBy: userId,
-          })
-          .returning();
-        await tx.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: row.tag, newTag: row.tag });
-
-        // Self-recategorize: only when the Excel row carried an initial
-        // category — an animal with none stays uncategorized until a real
-        // recategorize event is loaded later.
-        if (row.categoryId) {
-          const [recategorizeEvent] = await tx
-            .insert(event)
-            .values({
-              eventType: "recategorize",
-              eventDate: row.eventDate,
-              animalId,
-              farmId: operatingFarmId,
-              batchOperationId: batch.id,
-              createdBy: userId,
-            })
-            .returning();
-          await tx
-            .insert(eventRecategorize)
-            .values({ eventId: recategorizeEvent.id, oldCategoryId: row.categoryId, newCategoryId: row.categoryId });
-        }
       }
 
       const [createdEvent] = await tx
