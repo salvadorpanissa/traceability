@@ -32,7 +32,7 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
 
 describe("TransferForm", () => {
   it("shows the preview after uploading a file", async () => {
-    render(<TransferForm />);
+    render(<TransferForm farms={[{ id: "farm-1", name: "Campo Norte" }]} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -47,7 +47,7 @@ describe("TransferForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline plus a destination is set", async () => {
-    render(<TransferForm />);
+    render(<TransferForm farms={[{ id: "farm-1", name: "Campo Norte" }]} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {

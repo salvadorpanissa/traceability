@@ -24,7 +24,7 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function TransferForm() {
+export function TransferForm({ farms }: { farms: { id: string; name: string }[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [preview, setPreview] = useState<PreviewResult | null>(null);
