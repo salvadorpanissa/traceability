@@ -13,7 +13,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewHealthBatch, confirmHealthBatchAction, createProductAction } = await import(
+const { previewHealthBatch, confirmHealthBatchAction, createProductAction, createOwnerAction } = await import(
   "../../app/(protected)/activities/health/actions"
 );
 const { auth } = await import("@/auth");
@@ -157,7 +157,17 @@ describe("confirmHealthBatchAction", () => {
       products: [
         { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
       ],
-      rows: [{ tag: "AR000000000082", eventDate: "2026-02-01", status: "new", categoryId: null }],
+      rows: [
+        {
+          tag: "AR000000000082",
+          eventDate: "2026-02-01",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
     });
 
     const [savedMapping] = await testDb
@@ -177,5 +187,15 @@ describe("createProductAction", () => {
     expect(created.name).toBe("Ivermectina 1%");
     const [stored] = await testDb.select().from(product).where(eq(product.name, "Ivermectina 1%"));
     expect(stored).toBeDefined();
+  });
+});
+
+describe("createOwnerAction", () => {
+  it("creates an owner and returns it", async () => {
+    await seedManagerSession();
+
+    const created = await createOwnerAction("Pérez");
+
+    expect(created.name).toBe("Pérez");
   });
 });

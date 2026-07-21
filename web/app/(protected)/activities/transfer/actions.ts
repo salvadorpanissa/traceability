@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/dal/session";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
+import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -81,4 +82,9 @@ export async function confirmTransferBatchAction(input: {
     destinationPaddockId: input.destinationPaddockId,
     rows: input.rows,
   });
+}
+
+export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
+  await requireSession();
+  return createOwner(name);
 }

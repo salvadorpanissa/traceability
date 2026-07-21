@@ -15,7 +15,9 @@ vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewTransferBatch, confirmTransferBatchAction } = await import("../../app/(protected)/activities/transfer/actions");
+const { previewTransferBatch, confirmTransferBatchAction, createOwnerAction } = await import(
+  "../../app/(protected)/activities/transfer/actions"
+);
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
@@ -143,7 +145,17 @@ describe("confirmTransferBatchAction", () => {
       mapping: [{ header: "IDE", meaning: "tag" }],
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
-      rows: [{ tag: "AR000000000023", eventDate: "2026-02-01", status: "new", categoryId: null }],
+      rows: [
+        {
+          tag: "AR000000000023",
+          eventDate: "2026-02-01",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
     });
 
     const [savedMapping] = await testDb
@@ -151,5 +163,15 @@ describe("confirmTransferBatchAction", () => {
       .from(columnMapping)
       .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
     expect(savedMapping).toBeDefined();
+  });
+});
+
+describe("createOwnerAction", () => {
+  it("creates an owner and returns it", async () => {
+    await seedManagerSession();
+
+    const created = await createOwnerAction("Pérez");
+
+    expect(created.name).toBe("Pérez");
   });
 });
