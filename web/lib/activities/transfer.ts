@@ -1,7 +1,9 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animal, animalTagHistory, category } from "@/db/schema";
+import { animal, animalTagHistory, category, batchOperation, event, eventTransfer, paddock } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireTransferAuthorization } from "@/lib/dal/animal-access";
 
 export type ResolvedRow = { tag: string; eventDate: string } & (
   | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
@@ -85,4 +87,76 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
   }
 
   return result;
+}
+
+export async function confirmTransferBatch(input: {
+  userId: string;
+  role: string | undefined;
+  operatingFarmId: string;
+  destinationFarmId: string;
+  destinationPaddockId: string | null;
+  rows: ResolvedRow[];
+}): Promise<void> {
+  const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
+
+  await requireFarmAccess(userId, role, operatingFarmId);
+  requireTransferAuthorization(role, operatingFarmId, destinationFarmId);
+
+  if (rows.some((row) => row.status === "error")) {
+    throw new Error("El lote tiene filas con error; no se puede confirmar");
+  }
+
+  if (destinationPaddockId) {
+    const [destinationPaddockRow] = await db.select().from(paddock).where(eq(paddock.id, destinationPaddockId));
+    if (!destinationPaddockRow || destinationPaddockRow.farmId !== destinationFarmId) {
+      throw new Error("El potrero destino no pertenece al campo destino");
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    const [batch] = await tx
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: operatingFarmId, animalCount: rows.length, createdBy: userId })
+      .returning();
+
+    for (const row of rows) {
+      if (row.status === "error") continue;
+
+      let animalId: string;
+      let originFarmId: string;
+      let originPaddockId: string | null;
+
+      if (row.status === "existing") {
+        animalId = row.animalId;
+        originFarmId = row.currentFarmId ?? operatingFarmId;
+        originPaddockId = row.currentPaddockId;
+      } else {
+        const [createdAnimal] = await tx.insert(animal).values({}).returning();
+        await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag });
+        animalId = createdAnimal.id;
+        originFarmId = operatingFarmId;
+        originPaddockId = null;
+      }
+
+      const [createdEvent] = await tx
+        .insert(event)
+        .values({
+          eventType: "transfer",
+          eventDate: row.eventDate,
+          animalId,
+          farmId: operatingFarmId,
+          batchOperationId: batch.id,
+          createdBy: userId,
+        })
+        .returning();
+
+      await tx.insert(eventTransfer).values({
+        eventId: createdEvent.id,
+        originFarmId,
+        destinationFarmId,
+        originPaddockId,
+        destinationPaddockId,
+      });
+    }
+  });
 }
