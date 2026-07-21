@@ -14,10 +14,24 @@ async function truncateTestDb(testUrl: string) {
   const client = new Client({ connectionString: testUrl });
   await client.connect();
   try {
+    await client.query("TRUNCATE TABLE event_transfer CASCADE");
+    await client.query("TRUNCATE TABLE event_health CASCADE");
+    await client.query("TRUNCATE TABLE event_retag CASCADE");
+    await client.query("TRUNCATE TABLE event_recategorize CASCADE");
+    await client.query("TRUNCATE TABLE event_sale CASCADE");
+    await client.query("TRUNCATE TABLE event_death CASCADE");
+    await client.query("TRUNCATE TABLE event CASCADE");
+    await client.query("TRUNCATE TABLE batch_operation CASCADE");
+    await client.query("TRUNCATE TABLE animal_tag_history CASCADE");
+    await client.query("TRUNCATE TABLE animal RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE TABLE paddock CASCADE");
     await client.query("TRUNCATE TABLE user_farm CASCADE");
     await client.query("TRUNCATE TABLE user_account RESTART IDENTITY CASCADE");
     await client.query("TRUNCATE TABLE farm RESTART IDENTITY CASCADE");
     await client.query("TRUNCATE TABLE role RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE TABLE category RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE TABLE product RESTART IDENTITY CASCADE");
+    await client.query("TRUNCATE TABLE column_mapping RESTART IDENTITY CASCADE");
   } finally {
     await client.end();
   }
