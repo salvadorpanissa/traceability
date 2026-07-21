@@ -1,11 +1,18 @@
 import { inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animalTagHistory, category } from "@/db/schema";
+import { animalTagHistory, category, owner } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
+import { normalizeSex } from "@/lib/activities/sex-normalization";
 
 export type ResolvedRow = { tag: string; eventDate: string } & (
   | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
-  | { status: "new"; categoryId: string | null }
+  | {
+      status: "new";
+      categoryId: string | null;
+      sex: "male" | "female" | null;
+      ownerId: string | null;
+      pendingOwnerName: string | null;
+    }
   | { status: "error"; reason: string }
 );
 
@@ -36,6 +43,9 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
 
   const categoryRows = await db.select({ id: category.id, name: category.name }).from(category);
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
+
+  const ownerRows = await db.select({ id: owner.id, name: owner.name }).from(owner);
+  const ownerIdByName = new Map(ownerRows.map((o) => [o.name.trim().toLowerCase(), o.id]));
 
   const result: ResolvedRow[] = [];
   for (const row of rows) {
@@ -71,17 +81,29 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
       continue;
     }
 
+    const sex = normalizeSex(row.sex);
+    let ownerId: string | null = null;
+    let pendingOwnerName: string | null = null;
+    if (row.ownerName) {
+      const matchedOwnerId = ownerIdByName.get(row.ownerName.trim().toLowerCase());
+      if (matchedOwnerId) {
+        ownerId = matchedOwnerId;
+      } else {
+        pendingOwnerName = row.ownerName.trim();
+      }
+    }
+
     if (row.category) {
       const categoryId = categoryIdByName.get(row.category);
       if (!categoryId) {
         result.push({ tag: row.tag, eventDate, status: "error", reason: "Categoría no reconocida" });
         continue;
       }
-      result.push({ tag: row.tag, eventDate, status: "new", categoryId });
+      result.push({ tag: row.tag, eventDate, status: "new", categoryId, sex, ownerId, pendingOwnerName });
       continue;
     }
 
-    result.push({ tag: row.tag, eventDate, status: "new", categoryId: null });
+    result.push({ tag: row.tag, eventDate, status: "new", categoryId: null, sex, ownerId, pendingOwnerName });
   }
 
   return result;

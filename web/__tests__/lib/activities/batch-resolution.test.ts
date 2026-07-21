@@ -11,6 +11,7 @@ import {
   event,
   eventTransfer,
   category,
+  owner,
 } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 
@@ -77,7 +78,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
 describe("resolveBatchRows", () => {
   it("resolves an existing, alive animal with its current location", async () => {
     const { seededFarm, createdAnimal } = await seedExistingAnimal("AR000000000001");
-    const rows: MappedRow[] = [{ tag: "AR000000000001", date: null, category: null }];
+    const rows: MappedRow[] = [{ tag: "AR000000000001", date: null, category: null, sex: null, ownerName: null }];
 
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
 
@@ -92,7 +93,7 @@ describe("resolveBatchRows", () => {
 
   it("errors a sold or dead animal", async () => {
     await seedExistingAnimal("AR000000000002", { sold: true });
-    const rows: MappedRow[] = [{ tag: "AR000000000002", date: null, category: null }];
+    const rows: MappedRow[] = [{ tag: "AR000000000002", date: null, category: null, sex: null, ownerName: null }];
 
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved.status).toBe("error");
@@ -100,22 +101,22 @@ describe("resolveBatchRows", () => {
 
   it("resolves a new tag with a matching category", async () => {
     const [createdCategory] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const rows: MappedRow[] = [{ tag: "AR000000000003", date: null, category: "Vaca" }];
+    const rows: MappedRow[] = [{ tag: "AR000000000003", date: null, category: "Vaca", sex: null, ownerName: null }];
 
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved).toMatchObject({ status: "new", tag: "AR000000000003", categoryId: createdCategory.id });
   });
 
   it("errors a new tag with an unrecognized category", async () => {
-    const rows: MappedRow[] = [{ tag: "AR000000000004", date: null, category: "NoExiste" }];
+    const rows: MappedRow[] = [{ tag: "AR000000000004", date: null, category: "NoExiste", sex: null, ownerName: null }];
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved.status).toBe("error");
   });
 
   it("errors both rows of a duplicated tag within the same file", async () => {
     const rows: MappedRow[] = [
-      { tag: "AR000000000005", date: null, category: null },
-      { tag: "AR000000000005", date: null, category: null },
+      { tag: "AR000000000005", date: null, category: null, sex: null, ownerName: null },
+      { tag: "AR000000000005", date: null, category: null, sex: null, ownerName: null },
     ];
     const resolved = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved[0].status).toBe("error");
@@ -123,14 +124,52 @@ describe("resolveBatchRows", () => {
   });
 
   it("errors an empty tag", async () => {
-    const rows: MappedRow[] = [{ tag: "", date: null, category: null }];
+    const rows: MappedRow[] = [{ tag: "", date: null, category: null, sex: null, ownerName: null }];
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved.status).toBe("error");
   });
 
   it("uses the row's own date over the form date when present and valid", async () => {
-    const rows: MappedRow[] = [{ tag: "AR000000000006", date: "2026-03-10", category: null }];
+    const rows: MappedRow[] = [{ tag: "AR000000000006", date: "2026-03-10", category: null, sex: null, ownerName: null }];
     const [resolved] = await resolveBatchRows(rows, "2026-02-01");
     expect(resolved.eventDate).toBe("2026-03-10");
+  });
+
+  it("normalizes a recognized sex value for a new animal", async () => {
+    const rows: MappedRow[] = [{ tag: "AR000000000030", date: null, category: null, sex: "MACHO", ownerName: null }];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01");
+    expect(resolved).toMatchObject({ status: "new", sex: "male" });
+  });
+
+  it("leaves sex null for an unrecognized value, without erroring the row", async () => {
+    const rows: MappedRow[] = [{ tag: "AR000000000031", date: null, category: null, sex: "???", ownerName: null }];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01");
+    expect(resolved).toMatchObject({ status: "new", sex: null });
+  });
+
+  it("resolves a new animal's owner when the name matches the catalog, case-insensitively", async () => {
+    const [createdOwner] = await testDb.insert(owner).values({ name: "Pérez" }).returning();
+    const rows: MappedRow[] = [
+      { tag: "AR000000000032", date: null, category: null, sex: null, ownerName: "  pérez  " },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01");
+    expect(resolved).toMatchObject({ status: "new", ownerId: createdOwner.id, pendingOwnerName: null });
+  });
+
+  it("carries an unmatched owner name as pending, without erroring the row", async () => {
+    const rows: MappedRow[] = [{ tag: "AR000000000033", date: null, category: null, sex: null, ownerName: "Gómez" }];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01");
+    expect(resolved).toMatchObject({ status: "new", ownerId: null, pendingOwnerName: "Gómez" });
+  });
+
+  it("ignores the owner column for an existing animal's row", async () => {
+    await seedExistingAnimal("AR000000000034");
+    const rows: MappedRow[] = [
+      { tag: "AR000000000034", date: null, category: null, sex: "M", ownerName: "Gómez" },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01");
+    expect(resolved.status).toBe("existing");
+    expect(resolved).not.toHaveProperty("ownerId");
+    expect(resolved).not.toHaveProperty("pendingOwnerName");
   });
 });
