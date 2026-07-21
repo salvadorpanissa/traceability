@@ -1,4 +1,4 @@
-export type ColumnMeaning = "tag" | "date" | "category" | "product" | "ignore";
+export type ColumnMeaning = "tag" | "date" | "category" | "product" | "sex" | "owner" | "ignore";
 
 export type ColumnMapping = {
   header: string;
@@ -9,6 +9,8 @@ export type MappedRow = {
   tag: string;
   date: string | null;
   category: string | null;
+  sex: string | null;
+  ownerName: string | null;
 };
 
 export function computeHeaderSignature(headers: string[]): string {
@@ -25,11 +27,15 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
   const tagIndex = columnIndexFor(headers, mapping, "tag");
   const dateIndex = columnIndexFor(headers, mapping, "date");
   const categoryIndex = columnIndexFor(headers, mapping, "category");
+  const sexIndex = columnIndexFor(headers, mapping, "sex");
+  const ownerIndex = columnIndexFor(headers, mapping, "owner");
 
   return rows.map((row) => ({
     tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
     date: dateIndex >= 0 ? (row[dateIndex] ?? null) : null,
     category: categoryIndex >= 0 ? (row[categoryIndex] || null) : null,
+    sex: sexIndex >= 0 ? (row[sexIndex] || null) : null,
+    ownerName: ownerIndex >= 0 ? (row[ownerIndex] || null) : null,
   }));
 }
 

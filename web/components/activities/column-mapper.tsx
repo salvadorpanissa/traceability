@@ -9,6 +9,8 @@ const MEANING_LABELS: Record<ColumnMeaning, string> = {
   date: "Fecha",
   category: "Categoría",
   product: "Producto",
+  sex: "Sexo",
+  owner: "Propietario",
   ignore: "Ignorar",
 };
 

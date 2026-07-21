@@ -33,8 +33,8 @@ describe("applyColumnMapping", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: "2026-01-15", category: null },
-      { tag: "223456789012345", date: "", category: null },
+      { tag: "123456789012345", date: "2026-01-15", category: null, sex: null, ownerName: null },
+      { tag: "223456789012345", date: "", category: null, sex: null, ownerName: null },
     ]);
   });
 
@@ -42,6 +42,32 @@ describe("applyColumnMapping", () => {
     const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "ignore" }];
     const result = applyColumnMapping(headers, rows, mapping);
     expect(result[0].tag).toBe("");
+  });
+});
+
+describe("applyColumnMapping with sex and owner columns", () => {
+  it("maps sex and owner columns, leaving them null when unmapped", () => {
+    const headers = ["IDE", "SEXO", "PROPIETARIO"];
+    const rows = [["123456789012345", "M", "Pérez"]];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "SEXO", meaning: "sex" },
+      { header: "PROPIETARIO", meaning: "owner" },
+    ];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result).toEqual([{ tag: "123456789012345", date: null, category: null, sex: "M", ownerName: "Pérez" }]);
+  });
+
+  it("leaves sex and owner null when their columns aren't mapped", () => {
+    const headers = ["IDE"];
+    const rows = [["123456789012345"]];
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result).toEqual([{ tag: "123456789012345", date: null, category: null, sex: null, ownerName: null }]);
   });
 });
 

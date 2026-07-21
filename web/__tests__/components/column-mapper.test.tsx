@@ -53,4 +53,16 @@ describe("ColumnMapper", () => {
     expect(screen.getByLabelText("IDE")).toHaveValue("tag");
     expect(screen.getByLabelText("Fecha")).toHaveValue("ignore");
   });
+
+  it("offers Sexo and Propietario when availableMeanings includes them", () => {
+    render(
+      <ColumnMapper
+        headers={["SEXO", "PROPIETARIO"]}
+        availableMeanings={["tag", "date", "category", "sex", "owner", "ignore"]}
+        onSubmit={vi.fn()}
+      />
+    );
+    expect(screen.getAllByRole("option", { name: "Sexo" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("option", { name: "Propietario" }).length).toBeGreaterThan(0);
+  });
 });
