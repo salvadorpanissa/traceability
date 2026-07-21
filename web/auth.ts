@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { userAccount, role } from "@/db/schema";
 
+// Fixed dummy bcrypt hash (not a real credential) used to compare against when
+// no user is found, so authorize() takes the same amount of time whether or
+// not the email exists. This prevents a timing-based user-enumeration attack.
+const DUMMY_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8FoJHF9M5H0Y0GaTMd/lyOgP8gsC1O";
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
@@ -31,10 +36,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .where(eq(userAccount.email, email))
           .limit(1);
 
-        if (!user) return null;
-
-        const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-        if (!passwordMatches) return null;
+        const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+        if (!user || !passwordMatches) return null;
 
         return { id: user.id, name: user.name, email: user.email, role: user.roleName };
       },
