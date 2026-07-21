@@ -15,7 +15,7 @@ export async function createNewAnimal(
 ): Promise<string> {
   const { userId, operatingFarmId, batchId, row } = input;
 
-  const [createdAnimal] = await tx.insert(animal).values({}).returning();
+  const [createdAnimal] = await tx.insert(animal).values({ sex: row.sex, ownerId: row.ownerId }).returning();
   await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag });
 
   // Self-retag: establishes the new animal's current_tag in the derived

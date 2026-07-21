@@ -2,7 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { role, farm, userAccount, category, batchOperation, event, eventRetag, eventRecategorize, animalTagHistory } from "@/db/schema";
+import {
+  role,
+  farm,
+  userAccount,
+  category,
+  owner,
+  batchOperation,
+  event,
+  eventRetag,
+  eventRecategorize,
+  animalTagHistory,
+  animal,
+} from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -35,6 +47,9 @@ describe("createNewAnimal", () => {
       eventDate: "2026-02-01",
       status: "new",
       categoryId: null,
+      sex: null,
+      ownerId: null,
+      pendingOwnerName: null,
     };
 
     const animalId = await testDb.transaction(async (tx) =>
@@ -61,6 +76,9 @@ describe("createNewAnimal", () => {
       eventDate: "2026-02-01",
       status: "new",
       categoryId: createdCategory.id,
+      sex: null,
+      ownerId: null,
+      pendingOwnerName: null,
     };
 
     const animalId = await testDb.transaction(async (tx) =>
@@ -76,5 +94,27 @@ describe("createNewAnimal", () => {
       .from(eventRecategorize)
       .where(eq(eventRecategorize.eventId, recategorizeEvent.id));
     expect(recategorize.newCategoryId).toBe(createdCategory.id);
+  });
+
+  it("writes sex and ownerId onto the created animal", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const [createdOwner] = await testDb.insert(owner).values({ name: "Pérez" }).returning();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000062",
+      eventDate: "2026-02-01",
+      status: "new",
+      categoryId: null,
+      sex: "female",
+      ownerId: createdOwner.id,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.sex).toBe("female");
+    expect(createdAnimal.ownerId).toBe(createdOwner.id);
   });
 });
