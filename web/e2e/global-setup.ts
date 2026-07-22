@@ -66,6 +66,22 @@ export default async function globalSetup() {
     await client.query("insert into paddock (farm_id, name) values ($1, 'Potrero 1') on conflict do nothing", [
       farmId,
     ]);
+
+    const {
+      rows: [{ id: e2eOwnerId }],
+    } = await client.query("insert into owner (name) values ('E2E Owner') returning id");
+    const {
+      rows: [{ id: dicoseRegistrationId }],
+    } = await client.query(
+      "insert into dicose_registration (owner_id, farm_id, dicose_code) values ($1, $2, '999999999') returning id",
+      [e2eOwnerId, farmId]
+    );
+    for (const tag of ["AR000000000099", "AR000000000199", "AR000000000299"]) {
+      await client.query(
+        "insert into own_tag (tag, dicose_registration_id, created_by) values ($1, $2, (select id from user_account limit 1))",
+        [tag, dicoseRegistrationId]
+      );
+    }
   } finally {
     await client.end();
   }

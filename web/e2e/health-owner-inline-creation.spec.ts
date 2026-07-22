@@ -32,6 +32,13 @@ test("maps a Propietario column, gets a matched and an unmatched owner, and crea
   await expect(page.getByText("AR000000000400")).toBeVisible();
   await expect(page.getByText("Propietario pendiente: Propietario Nuevo")).toBeVisible();
 
+  // Neither tag is registered in own_tag for this fixture — both rows are
+  // "foreign" by design, since this spec exists to test owner-name matching,
+  // which only still applies to foreign rows. Force both so they're included.
+  const forceCheckboxes = page.getByLabel("Es mía de todos modos");
+  await forceCheckboxes.nth(0).check();
+  await forceCheckboxes.nth(1).check();
+
   // Confirmar is disabled while the owner is pending, and the product step
   // still needs a valid product row filled in — Ivermectina 1% is seeded
   // for E2E in global-setup.ts, same as the other health specs.
