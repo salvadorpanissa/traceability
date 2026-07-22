@@ -15,8 +15,6 @@ const dictionaries = {
     "appShell.navHealth": "Sanidades",
     "appShell.navTransfer": "Traslados",
     "dashboard.title": "Dashboard",
-    "dashboard.reportsNotice":
-      "Los reportes (stock por potrero, existencias por categoría) se agregan en un plan aparte.",
     "login.email": "Email",
     "login.password": "Contraseña",
     "login.submit": "Ingresar",
@@ -53,8 +51,6 @@ const dictionaries = {
     "appShell.navHealth": "Sanities",
     "appShell.navTransfer": "Transfers",
     "dashboard.title": "Dashboard",
-    "dashboard.reportsNotice":
-      "Reports (stock per paddock, headcount per category) are added in a separate plan.",
     "login.email": "Email",
     "login.password": "Password",
     "login.submit": "Sign in",
