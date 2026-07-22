@@ -23,6 +23,11 @@ test("maps a Propietario column, gets a matched and an unmatched owner, and crea
   await page.getByLabel("PROPIETARIO").selectOption("owner");
   await page.getByRole("button", { name: /continuar/i }).click();
 
+  // health-owner-lote.xlsx has no date column, so the app asks for a single
+  // date for the whole batch before showing the preview.
+  await page.getByLabel("Fecha del lote").fill("2026-02-01");
+  await page.getByRole("button", { name: /continuar/i }).click();
+
   await expect(page.getByText("AR000000000399")).toBeVisible();
   await expect(page.getByText("AR000000000400")).toBeVisible();
   await expect(page.getByText("Propietario pendiente: Propietario Nuevo")).toBeVisible();

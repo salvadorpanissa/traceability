@@ -22,6 +22,11 @@ test("uploads a health Excel, maps columns, adds a product, and confirms the bat
   await page.getByLabel("CARAVANA").selectOption("tag");
   await page.getByRole("button", { name: /continuar/i }).click();
 
+  // health-lote.xlsx has no date column, so the app asks for a single date
+  // for the whole batch before showing the preview.
+  await page.getByLabel("Fecha del lote").fill("2026-02-01");
+  await page.getByRole("button", { name: /continuar/i }).click();
+
   await expect(page.getByText("AR000000000199")).toBeVisible();
 
   await page.getByLabel("Producto").selectOption({ label: "Ivermectina 1%" });

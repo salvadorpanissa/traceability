@@ -19,6 +19,11 @@ test("picks a destination farm and an existing paddock, then creates a new paddo
   await page.getByLabel("IDE").selectOption("tag");
   await page.getByRole("button", { name: /continuar/i }).click();
 
+  // transfer-lote.xlsx has no date column, so the app asks for a single date
+  // for the whole batch before showing the preview.
+  await page.getByLabel("Fecha del lote").fill("2026-02-01");
+  await page.getByRole("button", { name: /continuar/i }).click();
+
   await expect(page.getByText("AR000000000099")).toBeVisible();
 
   await page.getByLabel("Campo destino").selectOption({ label: "Campo Norte" });
@@ -46,6 +51,11 @@ test("creates a new destination paddock inline before confirming", async ({ page
   await page.getByRole("button", { name: /^subir$/i }).click();
 
   await page.getByLabel("CARAVANA_TRASLADO").selectOption("tag");
+  await page.getByRole("button", { name: /continuar/i }).click();
+
+  // transfer-lote-paddock.xlsx has no date column, so the app asks for a
+  // single date for the whole batch before showing the preview.
+  await page.getByLabel("Fecha del lote").fill("2026-02-01");
   await page.getByRole("button", { name: /continuar/i }).click();
 
   await expect(page.getByText("AR000000000199")).toBeVisible();
