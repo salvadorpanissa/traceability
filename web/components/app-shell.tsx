@@ -34,6 +34,11 @@ const navItems: NavItem[] = [
     labelKey: "appShell.navTransfer",
     isActive: (pathname) => pathname.startsWith("/activities/transfer"),
   },
+  {
+    href: "/settings/dicose",
+    labelKey: "appShell.navDicose",
+    isActive: (pathname) => pathname.startsWith("/settings/dicose"),
+  },
 ];
 
 export function AppShell({
