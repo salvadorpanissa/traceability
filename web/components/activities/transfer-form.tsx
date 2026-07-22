@@ -22,9 +22,11 @@ import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 function pendingOwnerNames(rows: ResolvedRow[]): string[] {
-  const names = rows
-    .filter((r): r is Extract<ResolvedRow, { status: "new" }> => r.status === "new" && !!r.pendingOwnerName)
-    .map((r) => r.pendingOwnerName as string);
+  const names: string[] = [];
+  for (const row of rows) {
+    if (row.status === "new" && row.pendingOwnerName) names.push(row.pendingOwnerName);
+    if (row.status === "foreign" && row.forced && row.pendingOwnerName) names.push(row.pendingOwnerName);
+  }
   return Array.from(new Set(names));
 }
 
@@ -83,8 +85,16 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
 
   function handleOwnerResolved(rawName: string, ownerId: string) {
     setRows((prev) =>
-      prev.map((r) => (r.status === "new" && r.pendingOwnerName === rawName ? { ...r, ownerId, pendingOwnerName: null } : r))
+      prev.map((r) => {
+        if (r.status === "new" && r.pendingOwnerName === rawName) return { ...r, ownerId, pendingOwnerName: null };
+        if (r.status === "foreign" && r.pendingOwnerName === rawName) return { ...r, ownerId, pendingOwnerName: null };
+        return r;
+      })
     );
+  }
+
+  function handleToggleForced(tag: string) {
+    setRows((prev) => prev.map((r) => (r.status === "foreign" && r.tag === tag ? { ...r, forced: !r.forced } : r)));
   }
 
   async function handleConfirm() {
@@ -104,6 +114,10 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   }
 
   const pendingNames = pendingOwnerNames(rows);
+  const hasConfirmableRow = rows.some(
+    (r) =>
+      r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,10 +179,12 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
             />
           ) : null}
           <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
-          <TransferPreviewTable rows={rows} />
+          <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
           <Button
             type="button"
-            disabled={rows.some((r) => r.status === "error") || !destinationFarmId || pendingNames.length > 0}
+            disabled={
+              rows.some((r) => r.status === "error") || !destinationFarmId || pendingNames.length > 0 || !hasConfirmableRow
+            }
             onClick={handleConfirm}
           >
             Confirmar
