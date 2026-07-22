@@ -65,4 +65,15 @@ describe("ColumnMapper", () => {
     expect(screen.getAllByRole("option", { name: "Sexo" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("option", { name: "Propietario" }).length).toBeGreaterThan(0);
   });
+
+  it("offers Notas when availableMeanings includes it", () => {
+    render(
+      <ColumnMapper
+        headers={["OBSERVACIONES"]}
+        availableMeanings={["tag", "date", "category", "notes", "ignore"]}
+        onSubmit={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("option", { name: "Notas" })).toBeInTheDocument();
+  });
 });

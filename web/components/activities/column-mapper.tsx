@@ -11,6 +11,7 @@ const MEANING_LABELS: Record<ColumnMeaning, string> = {
   product: "Producto",
   sex: "Sexo",
   owner: "Propietario",
+  notes: "Notas",
   ignore: "Ignorar",
 };
 
