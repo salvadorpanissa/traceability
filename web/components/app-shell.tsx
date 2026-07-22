@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { SettingsMenu } from "@/components/settings-menu";
@@ -61,9 +61,20 @@ export function AppShell({
 }) {
   const { t } = useLocale();
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [, startFarmChangeTransition] = useTransition();
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  function handleFarmChange(farmId: string) {
+    const formData = new FormData();
+    formData.set("farmId", farmId);
+    startFarmChangeTransition(async () => {
+      await onFarmChange(formData);
+      router.refresh();
+    });
+  }
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent | TouchEvent) => {
@@ -137,7 +148,7 @@ export function AppShell({
           <div className="flex min-w-0 items-center justify-end gap-2 md:gap-3">
             <SettingsMenu />
 
-            <form action={onFarmChange} className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-2 sm:flex">
               <label className="sr-only" htmlFor="active-farm-select">
                 {t("appShell.changeFarm")}
               </label>
@@ -145,7 +156,7 @@ export function AppShell({
                 id="active-farm-select"
                 name="farmId"
                 value={activeFarmId}
-                onChange={(event) => event.currentTarget.form?.requestSubmit()}
+                onChange={(event) => handleFarmChange(event.target.value)}
                 className="h-8 max-w-44 rounded border-0 bg-background pl-2 pr-8 text-sm"
               >
                 {selectableFarms.map((farm) => (
@@ -154,7 +165,7 @@ export function AppShell({
                   </option>
                 ))}
               </select>
-            </form>
+            </div>
 
             <div className="relative" ref={userMenuRef}>
               <Button
@@ -201,7 +212,7 @@ export function AppShell({
                 );
               })}
             </nav>
-            <form action={onFarmChange} className="mt-3 flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-2">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="active-farm-select-mobile">
                 {t("appShell.changeFarm")}
               </label>
@@ -209,7 +220,7 @@ export function AppShell({
                 id="active-farm-select-mobile"
                 name="farmId"
                 value={activeFarmId}
-                onChange={(event) => event.currentTarget.form?.requestSubmit()}
+                onChange={(event) => handleFarmChange(event.target.value)}
                 className="h-8 rounded border-0 bg-background pl-2 pr-8 text-sm"
               >
                 {selectableFarms.map((farm) => (
@@ -218,7 +229,7 @@ export function AppShell({
                   </option>
                 ))}
               </select>
-            </form>
+            </div>
           </div>
         ) : null}
       </header>

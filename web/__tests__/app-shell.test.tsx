@@ -5,9 +5,11 @@ import { AppShell } from "@/components/app-shell";
 import { LocaleProvider } from "@/lib/i18n/context";
 
 let mockedPathname = "/dashboard";
+const mockRouterRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockedPathname,
+  useRouter: () => ({ refresh: mockRouterRefresh }),
 }));
 
 vi.mock("@/components/settings-menu", () => ({

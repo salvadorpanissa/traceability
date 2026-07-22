@@ -3,6 +3,7 @@
 import { inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { farm } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
@@ -54,4 +55,5 @@ export async function updateActiveFarmAction(formData: FormData) {
 
   const cookieStore = await cookies();
   cookieStore.set("active_farm_id", farmId, { httpOnly: true, sameSite: "lax", path: "/" });
+  revalidatePath("/", "layout");
 }
