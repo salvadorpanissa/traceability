@@ -38,6 +38,7 @@ async function requireOperatingFarmId(): Promise<string> {
 
 export async function previewTransferBatch(formData: FormData): Promise<PreviewResult> {
   await requireSession();
+  const operatingFarmId = await requireOperatingFarmId();
 
   const file = formData.get("file") as File;
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -69,7 +70,7 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate);
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
 
   return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
 }

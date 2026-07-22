@@ -9,7 +9,7 @@ import ExcelJS from "exceljs";
 import { cookies } from "next/headers";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, userFarm, columnMapping } from "@/db/schema";
+import { role, farm, userAccount, userFarm, columnMapping, owner, dicoseRegistration, ownTag } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
@@ -48,6 +48,16 @@ async function seedManagerSession() {
   return { manager, seededFarm };
 }
 
+async function seedOwnTag(tag: string, farmId: string, userId: string, ownerName: string) {
+  const [createdOwner] = await testDb.insert(owner).values({ name: ownerName }).returning();
+  const [registration] = await testDb
+    .insert(dicoseRegistration)
+    .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
+    .returning();
+  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id, createdBy: userId });
+  return createdOwner;
+}
+
 describe("previewTransferBatch", () => {
   it("asks for a column mapping the first time a header signature is seen", async () => {
     await seedManagerSession();
@@ -61,7 +71,8 @@ describe("previewTransferBatch", () => {
   });
 
   it("applies a submitted mapping and resolves rows without saving it yet", async () => {
-    await seedManagerSession();
+    const { manager, seededFarm } = await seedManagerSession();
+    await seedOwnTag("AR000000000021", seededFarm.id, manager.id, "AIP");
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000021"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -188,6 +199,21 @@ describe("previewTransferBatch", () => {
       }
     }
   });
+
+  it("marks an unregistered tag as foreign when there is no matching own_tag record", async () => {
+    await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000199"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("eventDate", "2026-02-01");
+    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+
+    const result = await previewTransferBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded && !result.eventDateNeeded) {
+      expect(result.rows[0].status).toBe("foreign");
+    }
+  });
 });
 
 describe("confirmTransferBatchAction", () => {
@@ -218,6 +244,101 @@ describe("confirmTransferBatchAction", () => {
       .from(columnMapping)
       .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
     expect(savedMapping).toBeDefined();
+  });
+
+  it("excludes an unforced foreign row from the confirmed batch", async () => {
+    const { seededFarm } = await seedManagerSession();
+
+    await confirmTransferBatchAction({
+      headerSignature: JSON.stringify(["IDE"]),
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows: [
+        {
+          tag: "AR000000000024",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "foreign",
+          forced: false,
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+    });
+
+    const { animal } = await import("@/db/schema");
+    const created = await testDb.select().from(animal);
+    expect(created).toHaveLength(0);
+  });
+
+  it("creates the animal for a forced foreign row", async () => {
+    const { seededFarm } = await seedManagerSession();
+
+    await confirmTransferBatchAction({
+      headerSignature: JSON.stringify(["IDE"]),
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows: [
+        {
+          tag: "AR000000000025",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "foreign",
+          forced: true,
+          categoryId: null,
+          sex: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+    });
+
+    const { animal, animalTagHistory } = await import("@/db/schema");
+    const createdAnimals = await testDb.select().from(animal);
+    expect(createdAnimals).toHaveLength(1);
+    const tagRows = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, createdAnimals[0].id));
+    expect(tagRows[0].tag).toBe("AR000000000025");
+  });
+
+  it("confirms a wrong_farm row, creating the animal with its DICOSE-inferred owner", async () => {
+    const { seededFarm } = await seedManagerSession();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [createdOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    await testDb
+      .insert(dicoseRegistration)
+      .values({ ownerId: createdOwner.id, farmId: otherFarm.id, dicoseCode: "151518192" });
+
+    await confirmTransferBatchAction({
+      headerSignature: JSON.stringify(["IDE"]),
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows: [
+        {
+          tag: "AR000000000026",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "wrong_farm",
+          categoryId: null,
+          sex: null,
+          ownerId: createdOwner.id,
+          registeredFarmId: otherFarm.id,
+          registeredFarmName: "Cuatro Cerros",
+        },
+      ],
+    });
+
+    const { animal } = await import("@/db/schema");
+    const createdAnimals = await testDb.select().from(animal);
+    expect(createdAnimals).toHaveLength(1);
+    expect(createdAnimals[0].ownerId).toBe(createdOwner.id);
   });
 });
 

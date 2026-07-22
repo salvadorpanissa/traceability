@@ -24,7 +24,11 @@ export async function confirmTransferBatch(input: {
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
-  if (rows.some((row) => row.status === "new" && row.pendingOwnerName)) {
+  if (
+    rows.some(
+      (row) => (row.status === "new" || (row.status === "foreign" && row.forced)) && row.pendingOwnerName
+    )
+  ) {
     throw new Error("El lote tiene propietarios pendientes de crear; no se puede confirmar");
   }
 
@@ -43,6 +47,7 @@ export async function confirmTransferBatch(input: {
 
     for (const row of rows) {
       if (row.status === "error") continue;
+      if (row.status === "foreign" && !row.forced) continue;
 
       let animalId: string;
       let originFarmId: string;
