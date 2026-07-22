@@ -1,4 +1,4 @@
-export type ColumnMeaning = "tag" | "date" | "category" | "product" | "sex" | "owner" | "ignore";
+export type ColumnMeaning = "tag" | "date" | "category" | "product" | "sex" | "owner" | "notes" | "ignore";
 
 export type ColumnMapping = {
   header: string;
@@ -11,6 +11,7 @@ export type MappedRow = {
   category: string | null;
   sex: string | null;
   ownerName: string | null;
+  notes: string | null;
 };
 
 export function computeHeaderSignature(headers: string[]): string {
@@ -29,6 +30,7 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
   const categoryIndex = columnIndexFor(headers, mapping, "category");
   const sexIndex = columnIndexFor(headers, mapping, "sex");
   const ownerIndex = columnIndexFor(headers, mapping, "owner");
+  const notesIndex = columnIndexFor(headers, mapping, "notes");
 
   return rows.map((row) => ({
     tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
@@ -36,23 +38,8 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     category: categoryIndex >= 0 ? (row[categoryIndex] || null) : null,
     sex: sexIndex >= 0 ? (row[sexIndex] || null) : null,
     ownerName: ownerIndex >= 0 ? (row[ownerIndex] || null) : null,
+    notes: notesIndex >= 0 ? (row[notesIndex] || null) : null,
   }));
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-export function extractFirstDateValue(headers: string[], rows: string[][], mapping: ColumnMapping[]): string | null {
-  const dateIndex = columnIndexFor(headers, mapping, "date");
-  if (dateIndex < 0) return null;
-
-  for (const row of rows) {
-    const value = row[dateIndex]?.trim();
-    if (value && ISO_DATE.test(value)) {
-      return value;
-    }
-  }
-
-  return null;
 }
 
 export function extractProductColumnValues(headers: string[], rows: string[][], mapping: ColumnMapping[]): string[] {

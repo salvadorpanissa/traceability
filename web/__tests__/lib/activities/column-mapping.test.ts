@@ -3,7 +3,6 @@ import {
   computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
-  extractFirstDateValue,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 
@@ -34,8 +33,8 @@ describe("applyColumnMapping", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: "2026-01-15", category: null, sex: null, ownerName: null },
-      { tag: "223456789012345", date: "", category: null, sex: null, ownerName: null },
+      { tag: "123456789012345", date: "2026-01-15", category: null, sex: null, ownerName: null, notes: null },
+      { tag: "223456789012345", date: "", category: null, sex: null, ownerName: null, notes: null },
     ]);
   });
 
@@ -58,7 +57,9 @@ describe("applyColumnMapping with sex and owner columns", () => {
 
     const result = applyColumnMapping(headers, rows, mapping);
 
-    expect(result).toEqual([{ tag: "123456789012345", date: null, category: null, sex: "M", ownerName: "Pérez" }]);
+    expect(result).toEqual([
+      { tag: "123456789012345", date: null, category: null, sex: "M", ownerName: "Pérez", notes: null },
+    ]);
   });
 
   it("leaves sex and owner null when their columns aren't mapped", () => {
@@ -68,7 +69,36 @@ describe("applyColumnMapping with sex and owner columns", () => {
 
     const result = applyColumnMapping(headers, rows, mapping);
 
-    expect(result).toEqual([{ tag: "123456789012345", date: null, category: null, sex: null, ownerName: null }]);
+    expect(result).toEqual([
+      { tag: "123456789012345", date: null, category: null, sex: null, ownerName: null, notes: null },
+    ]);
+  });
+});
+
+describe("applyColumnMapping with a notes column", () => {
+  it("maps the notes column", () => {
+    const headers = ["IDE", "OBSERVACIONES"];
+    const rows = [["123456789012345", "Cojera leve"]];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "OBSERVACIONES", meaning: "notes" },
+    ];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result).toEqual([
+      { tag: "123456789012345", date: null, category: null, sex: null, ownerName: null, notes: "Cojera leve" },
+    ]);
+  });
+
+  it("leaves notes null when no column is mapped as notes", () => {
+    const headers = ["IDE"];
+    const rows = [["123456789012345"]];
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result[0].notes).toBeNull();
   });
 });
 
@@ -113,55 +143,5 @@ describe("extractProductColumnValues", () => {
   it("returns an empty array when no column is mapped as product", () => {
     const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
     expect(extractProductColumnValues(headers, rows, mapping)).toEqual([]);
-  });
-});
-
-describe("extractFirstDateValue", () => {
-  const headers = ["IDE", "Fecha"];
-
-  it("returns the first valid ISO date found, in row order", () => {
-    const rows = [
-      ["123456789012345", ""],
-      ["223456789012345", "2026-03-10"],
-      ["323456789012345", "2026-01-15"],
-    ];
-    const mapping: ColumnMapping[] = [
-      { header: "IDE", meaning: "tag" },
-      { header: "Fecha", meaning: "date" },
-    ];
-
-    expect(extractFirstDateValue(headers, rows, mapping)).toBe("2026-03-10");
-  });
-
-  it("skips values that aren't a valid ISO date", () => {
-    const rows = [
-      ["123456789012345", "15/01/2026"],
-      ["223456789012345", "2026-01-15"],
-    ];
-    const mapping: ColumnMapping[] = [
-      { header: "IDE", meaning: "tag" },
-      { header: "Fecha", meaning: "date" },
-    ];
-
-    expect(extractFirstDateValue(headers, rows, mapping)).toBe("2026-01-15");
-  });
-
-  it("returns null when no column is mapped as date", () => {
-    const rows = [["123456789012345", "2026-01-15"]];
-    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
-    expect(extractFirstDateValue(headers, rows, mapping)).toBeNull();
-  });
-
-  it("returns null when every date value is empty or invalid", () => {
-    const rows = [
-      ["123456789012345", ""],
-      ["223456789012345", "no-date"],
-    ];
-    const mapping: ColumnMapping[] = [
-      { header: "IDE", meaning: "tag" },
-      { header: "Fecha", meaning: "date" },
-    ];
-
-    expect(extractFirstDateValue(headers, rows, mapping)).toBeNull();
   });
 });
