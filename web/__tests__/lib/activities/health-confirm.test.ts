@@ -47,6 +47,7 @@ describe("confirmHealthBatch", () => {
       {
         tag: "AR000000000070",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -94,6 +95,7 @@ describe("confirmHealthBatch", () => {
       {
         tag: "AR000000000071",
         eventDate: "2026-02-01",
+        notes: null,
         status: "existing",
         animalId: createdAnimal.id,
         currentFarmId: seededFarm.id,
@@ -117,6 +119,7 @@ describe("confirmHealthBatch", () => {
       {
         tag: "AR000000000072",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -133,7 +136,7 @@ describe("confirmHealthBatch", () => {
   it("rejects the whole batch if any row is an error", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000073", eventDate: "2026-02-01", status: "error", reason: "x" }];
+    const rows: ResolvedRow[] = [{ tag: "AR000000000073", eventDate: "2026-02-01", notes: null, status: "error", reason: "x" }];
     const products: HealthProduct[] = [
       { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
     ];
@@ -153,6 +156,7 @@ describe("confirmHealthBatch", () => {
       {
         tag: "AR000000000074",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,

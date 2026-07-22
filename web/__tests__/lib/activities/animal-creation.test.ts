@@ -45,6 +45,7 @@ describe("createNewAnimal", () => {
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000060",
       eventDate: "2026-02-01",
+      notes: null,
       status: "new",
       categoryId: null,
       sex: null,
@@ -74,6 +75,7 @@ describe("createNewAnimal", () => {
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000061",
       eventDate: "2026-02-01",
+      notes: null,
       status: "new",
       categoryId: createdCategory.id,
       sex: null,
@@ -102,6 +104,7 @@ describe("createNewAnimal", () => {
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000062",
       eventDate: "2026-02-01",
+      notes: null,
       status: "new",
       categoryId: null,
       sex: "female",

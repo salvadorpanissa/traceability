@@ -4,7 +4,7 @@ import { animalTagHistory, category, owner } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 
-export type ResolvedRow = { tag: string; eventDate: string } & (
+export type ResolvedRow = { tag: string; eventDate: string; notes: string | null } & (
   | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
   | {
       status: "new";
@@ -18,13 +18,14 @@ export type ResolvedRow = { tag: string; eventDate: string } & (
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-function resolveEventDate(rowDate: string | null, formEventDate: string): string {
-  return rowDate && ISO_DATE.test(rowDate) ? rowDate : formEventDate;
+function resolveEventDate(rowDate: string | null, formEventDate: string | null): string | null {
+  if (rowDate && ISO_DATE.test(rowDate)) return rowDate;
+  return formEventDate;
 }
 
 type CurrentStateRow = { current_farm_id: string | null; current_paddock_id: string | null; status: string };
 
-export async function resolveBatchRows(rows: MappedRow[], formEventDate: string): Promise<ResolvedRow[]> {
+export async function resolveBatchRows(rows: MappedRow[], formEventDate: string | null): Promise<ResolvedRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
     if (!row.tag) continue;
@@ -50,13 +51,19 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
   const result: ResolvedRow[] = [];
   for (const row of rows) {
     const eventDate = resolveEventDate(row.date, formEventDate);
+    const notes = row.notes;
+
+    if (!eventDate) {
+      result.push({ tag: row.tag, eventDate: "", notes, status: "error", reason: "Falta la fecha" });
+      continue;
+    }
 
     if (!row.tag) {
-      result.push({ tag: row.tag, eventDate, status: "error", reason: "Falta la caravana" });
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Falta la caravana" });
       continue;
     }
     if ((tagCounts.get(row.tag) ?? 0) > 1) {
-      result.push({ tag: row.tag, eventDate, status: "error", reason: "Caravana duplicada en el archivo" });
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana duplicada en el archivo" });
       continue;
     }
 
@@ -67,12 +74,13 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
       );
       const state = stateResult.rows[0];
       if (state && state.status !== "alive") {
-        result.push({ tag: row.tag, eventDate, status: "error", reason: "El animal está vendido o muerto" });
+        result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal está vendido o muerto" });
         continue;
       }
       result.push({
         tag: row.tag,
         eventDate,
+        notes,
         status: "existing",
         animalId,
         currentFarmId: state?.current_farm_id ?? null,
@@ -96,14 +104,14 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string)
     if (row.category) {
       const categoryId = categoryIdByName.get(row.category);
       if (!categoryId) {
-        result.push({ tag: row.tag, eventDate, status: "error", reason: "Categoría no reconocida" });
+        result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Categoría no reconocida" });
         continue;
       }
-      result.push({ tag: row.tag, eventDate, status: "new", categoryId, sex, ownerId, pendingOwnerName });
+      result.push({ tag: row.tag, eventDate, notes, status: "new", categoryId, sex, ownerId, pendingOwnerName });
       continue;
     }
 
-    result.push({ tag: row.tag, eventDate, status: "new", categoryId: null, sex, ownerId, pendingOwnerName });
+    result.push({ tag: row.tag, eventDate, notes, status: "new", categoryId: null, sex, ownerId, pendingOwnerName });
   }
 
   return result;

@@ -50,6 +50,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000010",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -88,6 +89,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000014",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -130,6 +132,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000015",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: createdCategory.id,
         sex: null,
@@ -170,6 +173,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000016",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -200,6 +204,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000011",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -222,7 +227,7 @@ describe("confirmTransferBatch", () => {
 
   it("rejects the whole batch if any row is an error", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000012", eventDate: "2026-02-01", status: "error", reason: "x" }];
+    const rows: ResolvedRow[] = [{ tag: "AR000000000012", eventDate: "2026-02-01", notes: null, status: "error", reason: "x" }];
 
     await expect(
       confirmTransferBatch({
@@ -248,6 +253,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000013",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -274,6 +280,7 @@ describe("confirmTransferBatch", () => {
       {
         tag: "AR000000000017",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,

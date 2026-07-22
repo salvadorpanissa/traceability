@@ -8,7 +8,7 @@ afterEach(cleanup);
 describe("TransferPreviewTable", () => {
   it("shows the error reason for an error row", () => {
     const rows: ResolvedRow[] = [
-      { tag: "AR1", eventDate: "2026-02-01", status: "error", reason: "Falta la caravana" },
+      { tag: "AR1", eventDate: "2026-02-01", notes: null, status: "error", reason: "Falta la caravana" },
     ];
     render(<TransferPreviewTable rows={rows} />);
     expect(screen.getByText("Falta la caravana")).toBeInTheDocument();
@@ -19,6 +19,7 @@ describe("TransferPreviewTable", () => {
       {
         tag: "AR2",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
