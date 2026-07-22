@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
   computeHeaderSignature,
@@ -102,6 +103,7 @@ export async function confirmHealthBatchAction(input: {
 }): Promise<void> {
   const session = await requireSession();
   const operatingFarmId = await requireOperatingFarmId();
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
 
   await db
     .insert(columnMapping)

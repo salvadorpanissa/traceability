@@ -83,6 +83,8 @@ export async function confirmTransferBatchAction(input: {
 }): Promise<void> {
   const session = await requireSession();
   const operatingFarmId = await requireOperatingFarmId();
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  await requireFarmAccess(session.user.id, session.user.role, input.destinationFarmId);
 
   await db
     .insert(columnMapping)
