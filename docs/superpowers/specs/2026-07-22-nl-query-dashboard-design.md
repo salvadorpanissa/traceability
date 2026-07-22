@@ -54,7 +54,7 @@ El scoping por campo en las vistas de eventos se aplica sobre `event.farm_id` (e
 
 1. **Autorización**: `requireSession()` + `isAdmin(role)` / `userFarmIds(userId)`.
 2. Abrir conexión con el pool de reporting, `BEGIN TRANSACTION READ ONLY`.
-3. Crear las 11 vistas temporales (`my_animal_state`, catálogos, y las 6 de eventos) con el filtro de campo aplicado (o sin filtro si es admin).
+3. Crear las 12 vistas temporales (`my_animal_state`, los 5 catálogos, y las 6 de eventos) con el filtro de campo aplicado (o sin filtro si es admin).
 4. Prompt a Gemini: esquema (columnas y tipos) de esas vistas + la pregunta del usuario + instrucción de devolver únicamente el SQL, un solo `SELECT`, sin explicación ni markdown.
 5. Validar el SQL con `node-sql-parser` (dialecto Postgres):
    - Exactamente un statement `SELECT` (rechaza múltiples statements separados por `;`, DDL, DML, `COPY`, etc.).
