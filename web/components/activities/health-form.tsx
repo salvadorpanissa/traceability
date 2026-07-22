@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,18 +52,17 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 
 export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalogEntry[] }) {
   const [file, setFile] = useState<File | null>(null);
-  const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
-  const dateAutoFilledRef = useRef(false);
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
-    dateAutoFilledRef.current = false;
+    setEventDate("");
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
@@ -74,16 +73,17 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
     setPreview(result);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.eventDateNeeded) {
       setRows(result.rows);
       const built = buildInitialProducts(result.productSuggestions, catalog);
       setProducts(built.products);
       setSuggestedNames(built.suggestedNames);
-      if (!dateAutoFilledRef.current && result.detectedEventDate) {
-        setEventDate(result.detectedEventDate);
-      }
-      dateAutoFilledRef.current = true;
     }
+  }
+
+  async function handleSubmitEventDate() {
+    if (!preview || preview.mappingNeeded || !preview.eventDateNeeded) return;
+    await runPreview(preview.mapping);
   }
 
   async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
@@ -103,7 +103,7 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
   }
 
   async function handleConfirm() {
-    if (!preview || preview.mappingNeeded) return;
+    if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
     await confirmHealthBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
@@ -126,10 +126,6 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="eventDate">Fecha</Label>
-        <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-      </div>
       <Button type="button" onClick={() => runPreview()}>
         Subir
       </Button>
@@ -137,13 +133,26 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
       {preview?.mappingNeeded ? (
         <ColumnMapper
           headers={preview.headers}
-          availableMeanings={["tag", "date", "category", "product", "sex", "owner", "ignore"]}
+          availableMeanings={["tag", "date", "category", "product", "sex", "owner", "notes", "ignore"]}
           initialMapping={preview.initialMapping}
           onSubmit={(mapping) => runPreview(mapping)}
         />
       ) : null}
 
-      {preview && !preview.mappingNeeded ? (
+      {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
+          </p>
+          <Label htmlFor="eventDate">Fecha del lote</Label>
+          <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+          <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
+            Continuar
+          </Button>
+        </div>
+      ) : null}
+
+      {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
         <div className="flex flex-col gap-4">
           <ProductListEditor
             catalog={catalog}

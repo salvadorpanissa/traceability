@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransferForm } from "@/components/activities/transfer-form";
 import { previewTransferBatch } from "@/app/(protected)/activities/transfer/actions";
@@ -13,12 +13,14 @@ afterEach(cleanup);
 vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
   previewTransferBatch: vi.fn(async () => ({
     mappingNeeded: false,
+    eventDateNeeded: false,
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
     rows: [
       {
         tag: "AR000000000030",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -26,7 +28,6 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
         pendingOwnerName: "Gómez",
       },
     ],
-    detectedEventDate: null,
   })),
   confirmTransferBatchAction: vi.fn(async () => undefined),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
@@ -75,15 +76,23 @@ describe("TransferForm", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
   });
 
-  it("auto-fills Fecha from the detected date once, without overriding a later manual edit", async () => {
+  it("does not show a Fecha field upfront, and asks for one only when the file has no date column", async () => {
     vi.mocked(previewTransferBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      eventDateNeeded: true,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+    });
+    vi.mocked(previewTransferBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      eventDateNeeded: false,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
-          tag: "AR000000000040",
-          eventDate: "2026-03-10",
+          tag: "AR000000000042",
+          eventDate: "2026-04-01",
+          notes: null,
           status: "new",
           categoryId: null,
           sex: null,
@@ -91,11 +100,12 @@ describe("TransferForm", () => {
           pendingOwnerName: null,
         },
       ],
-      detectedEventDate: "2026-03-10",
     });
 
     render(<TransferForm farms={farms} />);
     const user = userEvent.setup();
+
+    expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
 
     const file = new File(["dummy"], "lote.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -103,30 +113,13 @@ describe("TransferForm", () => {
     await user.upload(screen.getByLabelText(/archivo/i), file);
     await user.click(screen.getByRole("button", { name: /subir/i }));
 
-    await waitFor(() => expect(screen.getByLabelText("Fecha")).toHaveValue("2026-03-10"));
+    await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /continuar/i })).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-05-01" } });
+    await user.type(screen.getByLabelText("Fecha del lote"), "2026-04-01");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
 
-    vi.mocked(previewTransferBatch).mockResolvedValueOnce({
-      mappingNeeded: false,
-      headerSignature: '["IDE"]',
-      mapping: [{ header: "IDE", meaning: "tag" }],
-      rows: [
-        {
-          tag: "AR000000000041",
-          eventDate: "2026-05-01",
-          status: "new",
-          categoryId: null,
-          sex: null,
-          ownerId: null,
-          pendingOwnerName: null,
-        },
-      ],
-      detectedEventDate: "2026-07-01",
-    });
-    await user.click(screen.getByRole("button", { name: /subir/i }));
-
-    await waitFor(() => expect(screen.getByText("AR000000000041")).toBeInTheDocument());
-    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-05-01");
+    await waitFor(() => expect(screen.getByText("AR000000000042")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
   });
 });

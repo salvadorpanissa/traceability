@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HealthForm } from "@/components/activities/health-form";
 import { previewHealthBatch } from "@/app/(protected)/activities/health/actions";
@@ -14,12 +14,14 @@ afterEach(cleanup);
 vi.mock("@/app/(protected)/activities/health/actions", () => ({
   previewHealthBatch: vi.fn(async () => ({
     mappingNeeded: false,
+    eventDateNeeded: false,
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
     rows: [
       {
         tag: "AR000000000090",
         eventDate: "2026-02-01",
+        notes: null,
         status: "new",
         categoryId: null,
         sex: null,
@@ -28,7 +30,6 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
       },
     ],
     productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
-    detectedEventDate: null,
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
   createProductAction: vi.fn(async (name: string) => ({
@@ -117,15 +118,23 @@ describe("HealthForm", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled());
   });
 
-  it("auto-fills Fecha from the detected date once, without overriding a later manual edit", async () => {
+  it("does not show a Fecha field upfront, and asks for one only when the file has no date column", async () => {
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      eventDateNeeded: true,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+    });
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      eventDateNeeded: false,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
-          tag: "AR000000000095",
-          eventDate: "2026-03-10",
+          tag: "AR000000000097",
+          eventDate: "2026-04-01",
+          notes: null,
           status: "new",
           categoryId: null,
           sex: null,
@@ -134,11 +143,12 @@ describe("HealthForm", () => {
         },
       ],
       productSuggestions: [],
-      detectedEventDate: "2026-03-10",
     });
 
     render(<HealthForm catalog={catalog} />);
     const user = userEvent.setup();
+
+    expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
 
     const file = new File(["dummy"], "lote.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -146,34 +156,13 @@ describe("HealthForm", () => {
     await user.upload(screen.getByLabelText(/archivo/i), file);
     await user.click(screen.getByRole("button", { name: /subir/i }));
 
-    await waitFor(() => expect(screen.getByLabelText("Fecha")).toHaveValue("2026-03-10"));
+    await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /continuar/i })).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-05-01" } });
+    await user.type(screen.getByLabelText("Fecha del lote"), "2026-04-01");
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
 
-    // A second preview for the same file still detects a date from the
-    // file (e.g. the user re-mapped a column) — but since the field was
-    // already auto-filled once, the user's manual edit must win.
-    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
-      mappingNeeded: false,
-      headerSignature: '["IDE"]',
-      mapping: [{ header: "IDE", meaning: "tag" }],
-      rows: [
-        {
-          tag: "AR000000000096",
-          eventDate: "2026-05-01",
-          status: "new",
-          categoryId: null,
-          sex: null,
-          ownerId: null,
-          pendingOwnerName: null,
-        },
-      ],
-      productSuggestions: [],
-      detectedEventDate: "2026-07-01",
-    });
-    await user.click(screen.getByRole("button", { name: /subir/i }));
-
-    await waitFor(() => expect(screen.getByText("AR000000000096")).toBeInTheDocument());
-    expect(screen.getByLabelText("Fecha")).toHaveValue("2026-05-01");
+    await waitFor(() => expect(screen.getByText("AR000000000097")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
   });
 });
