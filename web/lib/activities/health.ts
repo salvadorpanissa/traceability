@@ -84,6 +84,7 @@ export async function confirmHealthBatch(input: {
             farmId: operatingFarmId,
             batchOperationId: batch.id,
             createdBy: userId,
+            notes: row.notes,
           })
           .returning();
 

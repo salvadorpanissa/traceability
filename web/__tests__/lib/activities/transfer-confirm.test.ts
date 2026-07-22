@@ -300,4 +300,34 @@ describe("confirmTransferBatch", () => {
       })
     ).rejects.toThrow("propietarios pendientes");
   });
+
+  it("persists the row's notes on the transfer event", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000018",
+        eventDate: "2026-02-01",
+        notes: "Cojera leve",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000018"));
+    const events = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
+    const transferEvent = events.find((e) => e.eventType === "transfer")!;
+    expect(transferEvent.notes).toBe("Cojera leve");
+  });
 });

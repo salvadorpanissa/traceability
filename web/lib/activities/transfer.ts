@@ -72,6 +72,7 @@ export async function confirmTransferBatch(input: {
           farmId: operatingFarmId,
           batchOperationId: batch.id,
           createdBy: userId,
+          notes: row.notes,
         })
         .returning();
 

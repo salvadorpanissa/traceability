@@ -172,4 +172,36 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows })
     ).rejects.toThrow("propietarios pendientes");
   });
+
+  it("persists the row's notes on every health event created for that row", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [productB] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000075",
+        eventDate: "2026-02-01",
+        notes: "Animal nervioso",
+        status: "new",
+        categoryId: null,
+        sex: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+      { productId: productB.id, dose: "2", doseUnit: "ml", route: "intramuscular", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000075"));
+    const healthEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, tagRow.animalId));
+    const notes = healthEvents.filter((e) => e.eventType === "health").map((e) => e.notes);
+    expect(notes).toEqual(["Animal nervioso", "Animal nervioso"]);
+  });
 });

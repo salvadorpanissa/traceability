@@ -38,6 +38,7 @@ export const event = pgTable(
       .references(() => userAccount.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     voidsEventId: uuid("voids_event_id").references((): AnyPgColumn => event.id),
+    notes: text("notes"),
   },
   (table) => [
     index("event_animal_id_idx").on(table.animalId),
