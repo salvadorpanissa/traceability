@@ -6,12 +6,7 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import {
-  computeHeaderSignature,
-  applyColumnMapping,
-  extractFirstDateValue,
-  type ColumnMapping,
-} from "@/lib/activities/column-mapping";
+import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
@@ -19,12 +14,13 @@ import { requireFarmAccess } from "@/lib/dal/farm-access";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
+  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
+      eventDateNeeded: false;
       headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
-      detectedEventDate: string | null;
     };
 
 function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
@@ -44,7 +40,8 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   await requireSession();
 
   const file = formData.get("file") as File;
-  const eventDate = formData.get("eventDate") as string;
+  const eventDateInput = formData.get("eventDate") as string | null;
+  const eventDate = eventDateInput && eventDateInput.length > 0 ? eventDateInput : null;
   const mappingOverride = formData.get("mapping") as string | null;
 
   const buffer = await file.arrayBuffer();
@@ -66,12 +63,15 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
     mapping = existingMapping;
   }
 
+  const hasDateColumn = mapping.some((m) => m.meaning === "date");
+  if (!hasDateColumn && !eventDate) {
+    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+  }
+
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, eventDate);
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate);
 
-  const detectedEventDate = extractFirstDateValue(headers, rows, mapping);
-
-  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, detectedEventDate };
+  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
 }
 
 export async function confirmTransferBatchAction(input: {

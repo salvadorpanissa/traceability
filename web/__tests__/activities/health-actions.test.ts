@@ -69,7 +69,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.eventDateNeeded) {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].status).toBe("new");
     }
@@ -137,7 +137,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.eventDateNeeded) {
       expect(result.productSuggestions).toEqual([
         { rawValue: "ASPERSIN", matchedProductId: null },
         { rawValue: "Aftosa", matchedProductId: matchedProduct.id },
@@ -145,18 +145,14 @@ describe("previewHealthBatch", () => {
     }
   });
 
-  it("detects the first valid date from a mapped date column", async () => {
+  it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
     await seedManagerSession();
     const buffer = await buildWorkbookBuffer(
       ["IDE", "Fecha"],
-      [
-        ["AR000000000111", ""],
-        ["AR000000000112", "2026-03-10"],
-      ]
+      [["AR000000000111", "2026-03-10"]]
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
       JSON.stringify([
@@ -168,11 +164,28 @@ describe("previewHealthBatch", () => {
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
     if (!result.mappingNeeded) {
-      expect(result.detectedEventDate).toBe("2026-03-10");
+      expect(result.eventDateNeeded).toBe(false);
+      if (!result.eventDateNeeded) {
+        expect(result.rows[0].eventDate).toBe("2026-03-10");
+      }
     }
   });
 
-  it("returns a null detected date when no column is mapped as date", async () => {
+  it("asks for an event date when no column is mapped as date and none was supplied", async () => {
+    await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000112"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) {
+      expect(result.eventDateNeeded).toBe(true);
+    }
+  });
+
+  it("resolves rows once an event date is supplied for a file with no date column", async () => {
     await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000113"]]);
     const formData = new FormData();
@@ -183,7 +196,10 @@ describe("previewHealthBatch", () => {
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
     if (!result.mappingNeeded) {
-      expect(result.detectedEventDate).toBeNull();
+      expect(result.eventDateNeeded).toBe(false);
+      if (!result.eventDateNeeded) {
+        expect(result.rows[0].eventDate).toBe("2026-02-01");
+      }
     }
   });
 });
@@ -203,6 +219,7 @@ describe("confirmHealthBatchAction", () => {
         {
           tag: "AR000000000082",
           eventDate: "2026-02-01",
+          notes: null,
           status: "new",
           categoryId: null,
           sex: null,

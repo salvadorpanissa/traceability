@@ -10,7 +10,6 @@ import {
   computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
-  extractFirstDateValue,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
@@ -20,13 +19,14 @@ import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
+  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
+      eventDateNeeded: false;
       headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
       productSuggestions: { rawValue: string; matchedProductId: string | null }[];
-      detectedEventDate: string | null;
     };
 
 function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
@@ -46,7 +46,8 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   await requireSession();
 
   const file = formData.get("file") as File;
-  const eventDate = formData.get("eventDate") as string;
+  const eventDateInput = formData.get("eventDate") as string | null;
+  const eventDate = eventDateInput && eventDateInput.length > 0 ? eventDateInput : null;
   const mappingOverride = formData.get("mapping") as string | null;
 
   const buffer = await file.arrayBuffer();
@@ -68,8 +69,13 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
     mapping = existingMapping;
   }
 
+  const hasDateColumn = mapping.some((m) => m.meaning === "date");
+  if (!hasDateColumn && !eventDate) {
+    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+  }
+
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, eventDate);
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate);
 
   const productValues = extractProductColumnValues(headers, rows, mapping);
   const catalog = await listProducts();
@@ -78,9 +84,14 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
     return { rawValue, matchedProductId: matched?.id ?? null };
   });
 
-  const detectedEventDate = extractFirstDateValue(headers, rows, mapping);
-
-  return { mappingNeeded: false, headerSignature, mapping, rows: resolvedRows, productSuggestions, detectedEventDate };
+  return {
+    mappingNeeded: false,
+    eventDateNeeded: false,
+    headerSignature,
+    mapping,
+    rows: resolvedRows,
+    productSuggestions,
+  };
 }
 
 export async function confirmHealthBatchAction(input: {
