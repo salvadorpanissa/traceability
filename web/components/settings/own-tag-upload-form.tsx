@@ -68,7 +68,7 @@ export function OwnTagUploadForm({
           id="own-tag-dicose"
           value={dicoseRegistrationId}
           onChange={(e) => setDicoseRegistrationId(e.target.value)}
-          className="h-8 rounded border px-2 text-sm"
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir...</option>
           {registrations.map((registration) => (

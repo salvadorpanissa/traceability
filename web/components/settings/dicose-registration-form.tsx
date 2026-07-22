@@ -56,7 +56,7 @@ export function DicoseRegistrationForm({
           id="dicose-owner"
           value={ownerId}
           onChange={(e) => setOwnerId(e.target.value)}
-          className="h-8 rounded border px-2 text-sm"
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir...</option>
           {owners.map((owner) => (
@@ -71,7 +71,7 @@ export function DicoseRegistrationForm({
           id="dicose-farm"
           value={farmId}
           onChange={(e) => setFarmId(e.target.value)}
-          className="h-8 rounded border px-2 text-sm"
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir...</option>
           {farms.map((farm) => (

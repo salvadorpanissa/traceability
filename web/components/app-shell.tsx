@@ -144,7 +144,7 @@ export function AppShell({
               <select
                 id="active-farm-select"
                 name="farmId"
-                defaultValue={activeFarmId}
+                value={activeFarmId}
                 onChange={(event) => event.currentTarget.form?.requestSubmit()}
                 className="h-8 max-w-44 rounded border-0 bg-background pl-2 pr-8 text-sm"
               >
@@ -208,7 +208,7 @@ export function AppShell({
               <select
                 id="active-farm-select-mobile"
                 name="farmId"
-                defaultValue={activeFarmId}
+                value={activeFarmId}
                 onChange={(event) => event.currentTarget.form?.requestSubmit()}
                 className="h-8 rounded border-0 bg-background pl-2 pr-8 text-sm"
               >
