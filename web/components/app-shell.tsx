@@ -39,6 +39,11 @@ const navItems: NavItem[] = [
     labelKey: "appShell.navDicose",
     isActive: (pathname) => pathname.startsWith("/settings/dicose"),
   },
+  {
+    href: "/settings/own-tags",
+    labelKey: "appShell.navOwnTags",
+    isActive: (pathname) => pathname.startsWith("/settings/own-tags"),
+  },
 ];
 
 export function AppShell({
