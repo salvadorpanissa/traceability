@@ -1,5 +1,5 @@
 import { animal, animalTagHistory, event, eventRetag, eventRecategorize } from "@/db/schema";
-import type { ResolvedRow } from "@/lib/activities/batch-resolution";
+import type { CreatableRow } from "@/lib/activities/batch-resolution";
 import type { db } from "@/db";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -10,7 +10,7 @@ export async function createNewAnimal(
     userId: string;
     operatingFarmId: string;
     batchId: string;
-    row: Extract<ResolvedRow, { status: "new" }>;
+    row: CreatableRow;
   }
 ): Promise<string> {
   const { userId, operatingFarmId, batchId, row } = input;

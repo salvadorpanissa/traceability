@@ -1,6 +1,6 @@
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animalTagHistory, category, owner } from "@/db/schema";
+import { animalTagHistory, category, owner, ownTag, dicoseRegistration, farm } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 
@@ -13,8 +13,26 @@ export type ResolvedRow = { tag: string; eventDate: string; notes: string | null
       ownerId: string | null;
       pendingOwnerName: string | null;
     }
+  | {
+      status: "wrong_farm";
+      categoryId: string | null;
+      sex: "male" | "female" | null;
+      ownerId: string;
+      registeredFarmId: string;
+      registeredFarmName: string;
+    }
+  | {
+      status: "foreign";
+      forced: boolean;
+      categoryId: string | null;
+      sex: "male" | "female" | null;
+      ownerId: string | null;
+      pendingOwnerName: string | null;
+    }
   | { status: "error"; reason: string }
 );
+
+export type CreatableRow = Extract<ResolvedRow, { status: "new" | "wrong_farm" | "foreign" }>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -25,7 +43,11 @@ function resolveEventDate(rowDate: string | null, formEventDate: string | null):
 
 type CurrentStateRow = { current_farm_id: string | null; current_paddock_id: string | null; status: string };
 
-export async function resolveBatchRows(rows: MappedRow[], formEventDate: string | null): Promise<ResolvedRow[]> {
+export async function resolveBatchRows(
+  rows: MappedRow[],
+  formEventDate: string | null,
+  operatingFarmId: string
+): Promise<ResolvedRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
     if (!row.tag) continue;
@@ -47,6 +69,22 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string 
 
   const ownerRows = await db.select({ id: owner.id, name: owner.name }).from(owner);
   const ownerIdByName = new Map(ownerRows.map((o) => [o.name.trim().toLowerCase(), o.id]));
+
+  const ownTagRows =
+    nonEmptyTags.length > 0
+      ? await db
+          .select({
+            tag: ownTag.tag,
+            ownerId: dicoseRegistration.ownerId,
+            farmId: dicoseRegistration.farmId,
+            farmName: farm.name,
+          })
+          .from(ownTag)
+          .innerJoin(dicoseRegistration, eq(dicoseRegistration.id, ownTag.dicoseRegistrationId))
+          .innerJoin(farm, eq(farm.id, dicoseRegistration.farmId))
+          .where(inArray(ownTag.tag, nonEmptyTags))
+      : [];
+  const ownTagByTag = new Map(ownTagRows.map((r) => [r.tag, r]));
 
   const result: ResolvedRow[] = [];
   for (const row of rows) {
@@ -89,29 +127,68 @@ export async function resolveBatchRows(rows: MappedRow[], formEventDate: string 
       continue;
     }
 
-    const sex = normalizeSex(row.sex);
-    let ownerId: string | null = null;
-    let pendingOwnerName: string | null = null;
-    if (row.ownerName) {
-      const matchedOwnerId = ownerIdByName.get(row.ownerName.trim().toLowerCase());
-      if (matchedOwnerId) {
-        ownerId = matchedOwnerId;
-      } else {
-        pendingOwnerName = row.ownerName.trim();
-      }
-    }
-
+    let categoryId: string | null = null;
     if (row.category) {
-      const categoryId = categoryIdByName.get(row.category);
-      if (!categoryId) {
+      const matchedCategoryId = categoryIdByName.get(row.category);
+      if (!matchedCategoryId) {
         result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Categoría no reconocida" });
         continue;
       }
-      result.push({ tag: row.tag, eventDate, notes, status: "new", categoryId, sex, ownerId, pendingOwnerName });
+      categoryId = matchedCategoryId;
+    }
+
+    const sex = normalizeSex(row.sex);
+    const ownTagMatch = ownTagByTag.get(row.tag);
+
+    if (!ownTagMatch) {
+      let ownerId: string | null = null;
+      let pendingOwnerName: string | null = null;
+      if (row.ownerName) {
+        const matchedOwnerId = ownerIdByName.get(row.ownerName.trim().toLowerCase());
+        if (matchedOwnerId) {
+          ownerId = matchedOwnerId;
+        } else {
+          pendingOwnerName = row.ownerName.trim();
+        }
+      }
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        status: "foreign",
+        forced: false,
+        categoryId,
+        sex,
+        ownerId,
+        pendingOwnerName,
+      });
       continue;
     }
 
-    result.push({ tag: row.tag, eventDate, notes, status: "new", categoryId: null, sex, ownerId, pendingOwnerName });
+    if (ownTagMatch.farmId === operatingFarmId) {
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        status: "new",
+        categoryId,
+        sex,
+        ownerId: ownTagMatch.ownerId,
+        pendingOwnerName: null,
+      });
+    } else {
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        status: "wrong_farm",
+        categoryId,
+        sex,
+        ownerId: ownTagMatch.ownerId,
+        registeredFarmId: ownTagMatch.farmId,
+        registeredFarmName: ownTagMatch.farmName,
+      });
+    }
   }
 
   return result;
