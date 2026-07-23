@@ -6,23 +6,32 @@ import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 // unfiltered for admins. `source` and `farmColumn` come from this fixed,
 // developer-controlled list — never from user or LLM input — so the string
 // interpolation used to build the CREATE TEMP VIEW statements below is safe.
+// `source` values are schema-qualified with `reporting_named.` — the 0019
+// migration moved all 12 named views into a dedicated `reporting_named`
+// schema that is never on reporting_ro's search_path, so an LLM-generated
+// query can no longer reach them unqualified (see
+// drizzle/0019_isolate_reporting_named_views.sql for the full rationale).
 const SCOPED_VIEWS_BY_FARM = [
-  { name: "my_animal_state", source: "animal_current_state_named", farmColumn: "current_farm_id" },
-  { name: "my_farms", source: "farm_named", farmColumn: "id" },
-  { name: "my_paddocks", source: "paddock_named", farmColumn: "farm_id" },
-  { name: "my_transfer_events", source: "transfer_events_named", farmColumn: "farm_id" },
-  { name: "my_health_events", source: "health_events_named", farmColumn: "farm_id" },
-  { name: "my_retag_events", source: "retag_events_named", farmColumn: "farm_id" },
-  { name: "my_recategorize_events", source: "recategorize_events_named", farmColumn: "farm_id" },
-  { name: "my_sale_events", source: "sale_events_named", farmColumn: "farm_id" },
-  { name: "my_death_events", source: "death_events_named", farmColumn: "farm_id" },
+  { name: "my_animal_state", source: "reporting_named.animal_current_state_named", farmColumn: "current_farm_id" },
+  { name: "my_farms", source: "reporting_named.farm_named", farmColumn: "id" },
+  { name: "my_paddocks", source: "reporting_named.paddock_named", farmColumn: "farm_id" },
+  { name: "my_transfer_events", source: "reporting_named.transfer_events_named", farmColumn: "farm_id" },
+  { name: "my_health_events", source: "reporting_named.health_events_named", farmColumn: "farm_id" },
+  { name: "my_retag_events", source: "reporting_named.retag_events_named", farmColumn: "farm_id" },
+  {
+    name: "my_recategorize_events",
+    source: "reporting_named.recategorize_events_named",
+    farmColumn: "farm_id",
+  },
+  { name: "my_sale_events", source: "reporting_named.sale_events_named", farmColumn: "farm_id" },
+  { name: "my_death_events", source: "reporting_named.death_events_named", farmColumn: "farm_id" },
 ] as const;
 
 // Global catalogs: no farm scoping — same for every user.
 const GLOBAL_CATALOG_VIEWS = [
-  { name: "my_categories", source: "category_named" },
-  { name: "my_products", source: "product_named" },
-  { name: "my_owners", source: "owner_named" },
+  { name: "my_categories", source: "reporting_named.category_named" },
+  { name: "my_products", source: "reporting_named.product_named" },
+  { name: "my_owners", source: "reporting_named.owner_named" },
 ] as const;
 
 export const REPORTING_VIEW_NAMES: readonly string[] = [

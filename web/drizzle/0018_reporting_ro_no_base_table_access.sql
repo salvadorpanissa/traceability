@@ -40,6 +40,12 @@ revoke select on
 from reporting_ro;
 --> statement-breakpoint
 
+-- No explicit OWNER TO here: these 5 views rely on implicit ownership by
+-- whichever role runs this migration (the same role that owns every base
+-- table), which is what makes the owner-privilege trick described above
+-- work. If migrations are ever run as a different role, these must be
+-- re-owned (or re-created) by the role that owns the base tables.
+
 create view farm_named as
 select id, name
 from farm;

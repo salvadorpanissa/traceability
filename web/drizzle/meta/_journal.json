@@ -134,6 +134,13 @@
       "when": 1784766200000,
       "tag": "0018_reporting_ro_no_base_table_access",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784766300000,
+      "tag": "0019_isolate_reporting_named_views",
+      "breakpoints": true
     }
   ]
 }
