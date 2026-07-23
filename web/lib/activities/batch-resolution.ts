@@ -83,9 +83,6 @@ export async function resolveBatchRows(
             ownerId: dicoseRegistration.ownerId,
             farmId: dicoseRegistration.farmId,
             farmName: farm.name,
-            sex: ownTag.sex,
-            categoryId: ownTag.categoryId,
-            birthDate: ownTag.birthDate,
           })
           .from(ownTag)
           .innerJoin(dicoseRegistration, eq(dicoseRegistration.id, ownTag.dicoseRegistrationId))
@@ -145,12 +142,11 @@ export async function resolveBatchRows(
       categoryId = matchedCategoryId;
     }
 
-    // The Excel column (if mapped) wins; otherwise fall back to what was
-    // registered for this tag when it was uploaded as an "own tag".
+    // own_tag is a pure ownership registry now (no sex/category/birth date) —
+    // this batch's own columns are the only source for those fields.
     const ownTagMatch = ownTagByTag.get(row.tag);
-    categoryId = categoryId ?? ownTagMatch?.categoryId ?? null;
-    const sex = normalizeSex(row.sex) ?? ownTagMatch?.sex ?? null;
-    const birthDate = ownTagMatch?.birthDate ?? null;
+    const sex = normalizeSex(row.sex);
+    const birthDate: string | null = null;
 
     if (!ownTagMatch) {
       let ownerId: string | null = null;

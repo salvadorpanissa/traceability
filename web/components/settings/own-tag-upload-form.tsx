@@ -13,7 +13,7 @@ import {
   createOwnTagCategoryAction,
   type OwnTagPreviewResult,
 } from "@/app/(protected)/settings/own-tags/actions";
-import { ownTagMappingHasPaddock, type ColumnMapping } from "@/lib/activities/column-mapping";
+import { ownTagMappingHasAnimalData, type ColumnMapping } from "@/lib/activities/column-mapping";
 import type { DicoseRegistrationEntry } from "@/lib/dal/dicose-registration";
 import type { OwnTagImportResult } from "@/lib/dal/own-tag";
 
@@ -70,7 +70,7 @@ export function OwnTagUploadForm({
     setCounts((prev) =>
       prev.map((row) =>
         row.registration.id === dicoseRegistrationId
-          ? { ...row, count: row.count + importResult.inserted, lastUploadedAt: new Date().toISOString() }
+          ? { ...row, count: row.count + importResult.registered, lastUploadedAt: new Date().toISOString() }
           : row
       )
     );
@@ -151,9 +151,9 @@ export function OwnTagUploadForm({
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
               {preview.rows.length} caravanas encontradas en el archivo.
-              {ownTagMappingHasPaddock(preview.mapping)
-                ? " Se van a ubicar directamente en su potrero."
-                : " No mapeaste una columna de potrero, así que solo se registran (sin ubicación) hasta el próximo traslado o sanidad."}
+              {ownTagMappingHasAnimalData(preview.mapping)
+                ? " Las filas con sexo, categoría, fecha de nacimiento o potrero van a crear el animal ya mismo; el resto solo queda registrado."
+                : " No mapeaste ningún dato del animal, así que solo se registran las caravanas hasta que aparezcan en un traslado o sanidad."}
             </p>
 
             {remainingPaddockNames.length > 0 ? (
@@ -186,7 +186,7 @@ export function OwnTagUploadForm({
 
         {result ? (
           <p className="text-sm text-muted-foreground">
-            {result.inserted} caravanas nuevas, {result.updated} actualizadas, {result.located} ubicadas,{" "}
+            {result.registered} caravanas registradas, {result.located} con animal creado,{" "}
             {result.recategorized} recategorizadas, {result.skipped} sin cambios, {result.invalid} filas inválidas
             ignoradas.
           </p>

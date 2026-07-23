@@ -34,33 +34,46 @@ async function seedRegistration() {
 }
 
 describe("importOwnTags", () => {
-  it("inserts new tags, ignoring blank and invalid values", async () => {
+  it("registers bare tags, ignoring blank and invalid values, without creating any animal", async () => {
     const { registration, user } = await seedRegistration();
 
     const result = await importOwnTags(registration.id, user.id, tagRows(["100", "", "abc", "  200  "]));
 
-    expect(result).toEqual({ inserted: 2, updated: 0, located: 0, recategorized: 0, skipped: 0, invalid: 1 });
+    expect(result).toEqual({ registered: 2, located: 0, recategorized: 0, skipped: 0, invalid: 1 });
+
+    const animals = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "100"));
+    expect(animals).toHaveLength(0);
   });
 
-  it("ignores duplicates within the same file and against already-imported tags with nothing new to add", async () => {
+  it("ignores duplicates within the same file and re-uploading a bare tag with nothing new", async () => {
     const { registration, user } = await seedRegistration();
     await importOwnTags(registration.id, user.id, tagRows(["100"]));
 
     const result = await importOwnTags(registration.id, user.id, tagRows(["100", "100", "200"]));
 
-    expect(result).toEqual({ inserted: 1, updated: 0, located: 0, recategorized: 0, skipped: 2, invalid: 0 });
+    expect(result).toEqual({ registered: 1, located: 0, recategorized: 0, skipped: 2, invalid: 0 });
   });
 
-  it("stores sex, category, and birth date when the columns are mapped", async () => {
+  it("creates the animal right away when sex, category, or birth date is given — even with no paddock", async () => {
     const { registration, user } = await seedRegistration();
     const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
 
-    await importOwnTags(registration.id, user.id, [
+    const result = await importOwnTags(registration.id, user.id, [
       { tag: "300", sex: "HEMBRA", category: "Vaca", birthDate: "8/7/2026", paddock: null, date: null },
     ]);
 
-    const [stored] = await testDb.select().from(ownTag).where(eq(ownTag.tag, "300"));
-    expect(stored).toMatchObject({ sex: "female", categoryId: vaca.id, birthDate: "2026-07-08" });
+    expect(result).toEqual({ registered: 1, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
+
+    const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "300"));
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, history.animalId));
+    expect(createdAnimal).toMatchObject({ sex: "female", birthDate: "2026-07-08" });
+
+    const state = await testDb.execute<{ current_category_id: string | null; current_farm_id: string; current_paddock_id: string | null }>(
+      sql`select current_category_id, current_farm_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`
+    );
+    expect(state.rows[0].current_category_id).toBe(vaca.id);
+    expect(state.rows[0].current_farm_id).toBe(registration.farmId);
+    expect(state.rows[0].current_paddock_id).toBeNull();
   });
 
   it("stores a month/year-only birth date (herd records rarely track the exact day)", async () => {
@@ -70,77 +83,41 @@ describe("importOwnTags", () => {
       { tag: "304", sex: null, category: null, birthDate: "01/2021", paddock: null, date: null },
     ]);
 
-    const [stored] = await testDb.select().from(ownTag).where(eq(ownTag.tag, "304"));
-    expect(stored.birthDate).toBe("2021-01-01");
+    const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "304"));
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, history.animalId));
+    expect(createdAnimal.birthDate).toBe("2021-01-01");
   });
 
-  it("leaves sex, category, and birth date null when unrecognized or unmapped", async () => {
+  it("leaves sex, category, and birth date null and does not create an animal when unrecognized or unmapped", async () => {
     const { registration, user } = await seedRegistration();
 
-    await importOwnTags(registration.id, user.id, [
+    const result = await importOwnTags(registration.id, user.id, [
       { tag: "301", sex: "???", category: "No existe", birthDate: null, paddock: null, date: null },
     ]);
 
-    const [stored] = await testDb.select().from(ownTag).where(eq(ownTag.tag, "301"));
-    expect(stored).toMatchObject({ sex: null, categoryId: null, birthDate: null });
+    expect(result).toEqual({ registered: 1, located: 0, recategorized: 0, skipped: 0, invalid: 0 });
+    const animals = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "301"));
+    expect(animals).toHaveLength(0);
   });
 
-  it("fills in category on a re-upload for a tag already registered without it", async () => {
-    const { registration, user } = await seedRegistration();
-    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-
-    // First upload: category column wasn't mapped.
-    const first = await importOwnTags(registration.id, user.id, tagRows(["302"]));
-    expect(first).toEqual({ inserted: 1, updated: 0, located: 0, recategorized: 0, skipped: 0, invalid: 0 });
-
-    // Second upload: same tag, now with category mapped.
-    const second = await importOwnTags(registration.id, user.id, [
-      { tag: "302", sex: null, category: "Vaca", birthDate: null, paddock: null, date: null },
-    ]);
-    expect(second).toEqual({ inserted: 0, updated: 1, located: 0, recategorized: 0, skipped: 0, invalid: 0 });
-
-    const [stored] = await testDb.select().from(ownTag).where(eq(ownTag.tag, "302"));
-    expect(stored.categoryId).toBe(vaca.id);
-  });
-
-  it("does not overwrite an already-set field with a different value on re-upload", async () => {
-    const { registration, user } = await seedRegistration();
-    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const [toro] = await testDb.insert(category).values({ name: "Toro" }).returning();
-
-    await importOwnTags(registration.id, user.id, [
-      { tag: "303", sex: null, category: "Vaca", birthDate: null, paddock: null, date: null },
-    ]);
-    await importOwnTags(registration.id, user.id, [
-      { tag: "303", sex: null, category: "Toro", birthDate: null, paddock: null, date: null },
-    ]);
-
-    const [stored] = await testDb.select().from(ownTag).where(eq(ownTag.tag, "303"));
-    expect(stored.categoryId).toBe(vaca.id);
-    expect(stored.categoryId).not.toBe(toro.id);
-  });
-
-  it("does not create an animal when no paddock column is mapped (locate: false)", async () => {
+  it("does not create an animal for a bare tag with no sex/category/birth date/paddock", async () => {
     const { registration, user } = await seedRegistration();
 
-    await importOwnTags(registration.id, user.id, tagRows(["400"]), { locate: false });
+    await importOwnTags(registration.id, user.id, tagRows(["400"]));
 
     const animals = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "400"));
     expect(animals).toHaveLength(0);
   });
 
-  it("creates and locates an animal in the given paddock when locate: true", async () => {
+  it("creates and locates an animal in the given paddock", async () => {
     const { registration, user } = await seedRegistration();
     const [potrero] = await testDb.insert(paddock).values({ farmId: registration.farmId, name: "Potrero 1" }).returning();
 
-    const result = await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "500", sex: "MACHO", category: null, birthDate: null, paddock: "Potrero 1", date: "2026-01-15" }],
-      { locate: true }
-    );
+    const result = await importOwnTags(registration.id, user.id, [
+      { tag: "500", sex: "MACHO", category: null, birthDate: null, paddock: "Potrero 1", date: "2026-01-15" },
+    ]);
 
-    expect(result).toEqual({ inserted: 1, updated: 0, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
+    expect(result).toEqual({ registered: 1, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
 
     const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "500"));
     expect(history).toBeDefined();
@@ -157,12 +134,9 @@ describe("importOwnTags", () => {
   it("does NOT auto-create a missing paddock — leaves the animal farm-located without a paddock instead", async () => {
     const { registration, user } = await seedRegistration();
 
-    await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "501", sex: null, category: null, birthDate: null, paddock: "Potrero Nuevo", date: null }],
-      { locate: true }
-    );
+    await importOwnTags(registration.id, user.id, [
+      { tag: "501", sex: null, category: null, birthDate: null, paddock: "Potrero Nuevo", date: null },
+    ]);
 
     const [createdPaddock] = await testDb.select().from(paddock).where(eq(paddock.name, "Potrero Nuevo"));
     expect(createdPaddock).toBeUndefined();
@@ -175,19 +149,16 @@ describe("importOwnTags", () => {
     expect(state.rows[0].current_paddock_id).toBeNull();
   });
 
-  it("locates a tag on re-upload that was registered earlier without a paddock column", async () => {
+  it("creates the animal on re-upload for a tag registered earlier as bare, once a paddock is given", async () => {
     const { registration, user } = await seedRegistration();
     const [potrero] = await testDb.insert(paddock).values({ farmId: registration.farmId, name: "Potrero 1" }).returning();
 
-    await importOwnTags(registration.id, user.id, tagRows(["502"]), { locate: false });
-    const result = await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "502", sex: null, category: null, birthDate: null, paddock: "Potrero 1", date: null }],
-      { locate: true }
-    );
+    await importOwnTags(registration.id, user.id, tagRows(["502"]));
+    const result = await importOwnTags(registration.id, user.id, [
+      { tag: "502", sex: null, category: null, birthDate: null, paddock: "Potrero 1", date: null },
+    ]);
 
-    expect(result).toEqual({ inserted: 0, updated: 0, located: 1, recategorized: 0, skipped: 1, invalid: 0 });
+    expect(result).toEqual({ registered: 0, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
 
     const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "502"));
     expect(history).toBeDefined();
@@ -203,13 +174,10 @@ describe("importOwnTags", () => {
     const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
 
     // First upload: paddock mapped (creates the animal), category not mapped yet.
-    const first = await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "600", sex: null, category: null, birthDate: null, paddock: "Potrero 1", date: null }],
-      { locate: true }
-    );
-    expect(first).toEqual({ inserted: 1, updated: 0, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
+    const first = await importOwnTags(registration.id, user.id, [
+      { tag: "600", sex: null, category: null, birthDate: null, paddock: "Potrero 1", date: null },
+    ]);
+    expect(first).toEqual({ registered: 1, located: 1, recategorized: 0, skipped: 0, invalid: 0 });
 
     const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "600"));
     const beforeState = await testDb.execute<{ current_category_id: string | null }>(
@@ -221,7 +189,7 @@ describe("importOwnTags", () => {
     const second = await importOwnTags(registration.id, user.id, [
       { tag: "600", sex: null, category: "Vaca", birthDate: null, paddock: null, date: null },
     ]);
-    expect(second).toEqual({ inserted: 0, updated: 1, located: 0, recategorized: 1, skipped: 0, invalid: 0 });
+    expect(second).toEqual({ registered: 0, located: 0, recategorized: 1, skipped: 0, invalid: 0 });
 
     const afterState = await testDb.execute<{ current_category_id: string | null; current_paddock_id: string | null }>(
       sql`select current_category_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`
@@ -234,12 +202,9 @@ describe("importOwnTags", () => {
   it("backfills sex and birth date on an already-existing animal that didn't have them", async () => {
     const { registration, user } = await seedRegistration();
 
-    await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "601", sex: null, category: null, birthDate: null, paddock: "Potrero X", date: null }],
-      { locate: true }
-    );
+    await importOwnTags(registration.id, user.id, [
+      { tag: "601", sex: null, category: null, birthDate: null, paddock: "Potrero X", date: null },
+    ]);
     const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "601"));
     const [beforeAnimal] = await testDb.select().from(animal).where(eq(animal.id, history.animalId));
     expect(beforeAnimal.sex).toBeNull();
@@ -259,12 +224,9 @@ describe("importOwnTags", () => {
     const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
     const [toro] = await testDb.insert(category).values({ name: "Toro" }).returning();
 
-    await importOwnTags(
-      registration.id,
-      user.id,
-      [{ tag: "602", sex: null, category: "Vaca", birthDate: null, paddock: "Potrero Y", date: null }],
-      { locate: true }
-    );
+    await importOwnTags(registration.id, user.id, [
+      { tag: "602", sex: null, category: "Vaca", birthDate: null, paddock: "Potrero Y", date: null },
+    ]);
     const [history] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "602"));
 
     const result = await importOwnTags(registration.id, user.id, [

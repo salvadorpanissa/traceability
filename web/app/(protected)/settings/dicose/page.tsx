@@ -10,7 +10,7 @@ export default async function DicoseSettingsPage() {
   return (
     <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
-        <CardTitle>Registros DICOSE</CardTitle>
+        <CardTitle>Registrar DICOSE</CardTitle>
       </CardHeader>
       <CardContent>
         <DicoseRegistrationForm registrations={registrations} owners={owners} farms={farms} />

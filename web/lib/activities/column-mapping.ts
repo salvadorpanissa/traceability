@@ -83,6 +83,12 @@ export function ownTagMappingHasPaddock(mapping: ColumnMapping[]): boolean {
   return mapping.some((m) => m.meaning === "paddock");
 }
 
+// Any of these means a row can carry enough to create a real animal (not
+// just register the tag) — see lib/dal/own-tag.ts's hasAnimalSignal.
+export function ownTagMappingHasAnimalData(mapping: ColumnMapping[]): boolean {
+  return mapping.some((m) => m.meaning === "sex" || m.meaning === "category" || m.meaning === "birthDate" || m.meaning === "paddock");
+}
+
 export function extractProductColumnValues(headers: string[], rows: string[][], mapping: ColumnMapping[]): string[] {
   const productColumns = mapping.filter((m) => m.meaning === "product");
   const values: string[] = [];

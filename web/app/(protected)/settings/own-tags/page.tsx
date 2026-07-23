@@ -9,7 +9,7 @@ export default async function OwnTagsSettingsPage() {
   return (
     <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
-        <CardTitle>Caravanas propias</CardTitle>
+        <CardTitle>Registrar caravanas propias</CardTitle>
       </CardHeader>
       <CardContent>
         <OwnTagUploadForm registrations={registrations} counts={counts} />

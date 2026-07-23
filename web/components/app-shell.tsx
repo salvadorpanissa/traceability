@@ -20,11 +20,6 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
-    href: "/dashboard",
-    labelKey: "appShell.navDashboard",
-    isActive: (pathname) => pathname === "/dashboard",
-  },
-  {
     href: "/activities/health",
     labelKey: "appShell.navHealth",
     isActive: (pathname) => pathname.startsWith("/activities/health"),
@@ -35,13 +30,8 @@ const navItems: NavItem[] = [
     isActive: (pathname) => pathname.startsWith("/activities/transfer"),
   },
   {
-    href: "/settings/dicose",
-    labelKey: "appShell.navDicose",
-    isActive: (pathname) => pathname.startsWith("/settings/dicose"),
-  },
-  {
     href: "/settings/own-tags",
-    labelKey: "appShell.navOwnTags",
+    labelKey: "appShell.navRegisterTags",
     isActive: (pathname) => pathname.startsWith("/settings/own-tags"),
   },
 ];

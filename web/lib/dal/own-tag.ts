@@ -18,8 +18,7 @@ import { createNewAnimal } from "@/lib/activities/animal-creation";
 import type { MappedOwnTagRow } from "@/lib/activities/column-mapping";
 
 export type OwnTagImportResult = {
-  inserted: number;
-  updated: number;
+  registered: number;
   located: number;
   recategorized: number;
   skipped: number;
@@ -40,10 +39,17 @@ type OwnTagRowDetails = {
   eventDate: string | null;
 };
 
+// A tag is a legal/DICOSE fact ("this caravana is ours") that can exist with
+// or without a real animal behind it yet. If the row carries any biological
+// or location data, there's a real animal to create now; a bare tag with
+// none of these just registers the caravana.
+function hasAnimalSignal(details: OwnTagRowDetails): boolean {
+  return !!(details.sex || details.categoryId || details.birthDate || details.paddockName);
+}
+
 // Names referenced by a "paddock"-mapped column that don't exist yet for the
 // registration's farm — the caller should let the user create them (or fix a
-// typo) before calling importOwnTags with locate: true, since paddocks are
-// never auto-created silently.
+// typo) before confirming, since paddocks are never auto-created silently.
 export async function findMissingPaddockNames(dicoseRegistrationId: string, paddockNames: string[]): Promise<string[]> {
   const distinctNames = [...new Set(paddockNames.map((n) => n.trim()).filter(Boolean))];
   if (distinctNames.length === 0) return [];
@@ -75,8 +81,7 @@ export async function findMissingCategoryNames(categoryNames: string[]): Promise
 export async function importOwnTags(
   dicoseRegistrationId: string,
   userId: string,
-  rawRows: MappedOwnTagRow[],
-  options: { locate: boolean } = { locate: false }
+  rawRows: MappedOwnTagRow[]
 ): Promise<OwnTagImportResult> {
   const categoryRows = await db.select({ id: category.id, name: category.name }).from(category);
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
@@ -105,13 +110,12 @@ export async function importOwnTags(
   const candidateTags = [...rowByTag.keys()];
   const duplicatesWithinFile = validCount - candidateTags.length;
   if (candidateTags.length === 0) {
-    return { inserted: 0, updated: 0, located: 0, recategorized: 0, skipped: validCount, invalid };
+    return { registered: 0, located: 0, recategorized: 0, skipped: validCount, invalid };
   }
 
-  const existingRows = await db.select().from(ownTag).where(inArray(ownTag.tag, candidateTags));
-  const existingByTag = new Map(existingRows.map((r) => [r.tag, r]));
-  const brandNewTags = candidateTags.filter((tag) => !existingByTag.has(tag));
-  const alreadyRegisteredTags = candidateTags.filter((tag) => existingByTag.has(tag));
+  const existingOwnTagRows = await db.select({ tag: ownTag.tag }).from(ownTag).where(inArray(ownTag.tag, candidateTags));
+  const existingOwnTagSet = new Set(existingOwnTagRows.map((r) => r.tag));
+  const brandNewOwnTags = candidateTags.filter((tag) => !existingOwnTagSet.has(tag));
 
   const historyRows = await db
     .select({ tag: animalTagHistory.tag, animalId: animalTagHistory.animalId })
@@ -119,139 +123,104 @@ export async function importOwnTags(
     .where(inArray(animalTagHistory.tag, candidateTags));
   const animalIdByTag = new Map(historyRows.map((r) => [r.tag, r.animalId]));
 
-  // Registration/farm is needed both for placing brand-new animals (locate)
-  // and for enriching already-existing ones with data this upload adds that
-  // they didn't have yet (sex, birth date, category) — so it's fetched
-  // unconditionally, not just when options.locate is set.
   const [registration] = await db
     .select()
     .from(dicoseRegistration)
     .where(eq(dicoseRegistration.id, dicoseRegistrationId));
 
+  const needsPaddockLookup = candidateTags.some((tag) => rowByTag.get(tag)!.paddockName);
   let paddockIdByName: Map<string, string> | undefined;
-  if (options.locate) {
+  if (needsPaddockLookup) {
     const existingPaddocks = await db.select().from(paddock).where(eq(paddock.farmId, registration.farmId));
     paddockIdByName = new Map(existingPaddocks.map((p) => [p.name.trim().toLowerCase(), p.id]));
   }
 
-  let inserted = 0;
-  let updated = 0;
+  let registered = 0;
   let located = 0;
   let recategorized = 0;
-  let skipped = duplicatesWithinFile;
+  const productiveTags = new Set<string>();
 
   await db.transaction(async (tx) => {
-    if (brandNewTags.length > 0) {
-      await tx.insert(ownTag).values(
-        brandNewTags.map((tag) => {
-          const details = rowByTag.get(tag)!;
-          return {
-            tag,
-            dicoseRegistrationId,
-            createdBy: userId,
-            sex: details.sex,
-            categoryId: details.categoryId,
-            birthDate: details.birthDate,
-          };
-        })
-      );
-      inserted = brandNewTags.length;
-    }
-
-    // A tag already registered can still be missing fields it didn't carry
-    // the first time around (e.g. category wasn't mapped yet) — fill those
-    // gaps now instead of silently treating the row as a no-op.
-    for (const tag of alreadyRegisteredTags) {
-      const details = rowByTag.get(tag)!;
-      const existing = existingByTag.get(tag)!;
-      const patch: Partial<{ sex: "male" | "female"; categoryId: string; birthDate: string }> = {};
-      if (details.sex && !existing.sex) patch.sex = details.sex;
-      if (details.categoryId && !existing.categoryId) patch.categoryId = details.categoryId;
-      if (details.birthDate && !existing.birthDate) patch.birthDate = details.birthDate;
-
-      if (Object.keys(patch).length > 0) {
-        await tx.update(ownTag).set(patch).where(eq(ownTag.tag, tag));
-        updated++;
-      } else {
-        skipped++;
-      }
+    if (brandNewOwnTags.length > 0) {
+      await tx.insert(ownTag).values(brandNewOwnTags.map((tag) => ({ tag, dicoseRegistrationId })));
+      registered = brandNewOwnTags.length;
+      brandNewOwnTags.forEach((tag) => productiveTags.add(tag));
     }
 
     let needsRefresh = false;
 
-    if (options.locate) {
-      const tagsNeedingPlacement = candidateTags.filter((tag) => !animalIdByTag.has(tag));
+    // Tags with no animal yet: a bare registration stays that way, but any
+    // biological or location data means there's a real animal to create now
+    // (placed on the registration's farm, in a paddock if one was given).
+    const tagsNeedingCreation = candidateTags.filter(
+      (tag) => !animalIdByTag.has(tag) && hasAnimalSignal(rowByTag.get(tag)!)
+    );
 
-      if (tagsNeedingPlacement.length > 0) {
-        const [batch] = await tx
-          .insert(batchOperation)
+    if (tagsNeedingCreation.length > 0) {
+      const [batch] = await tx
+        .insert(batchOperation)
+        .values({
+          eventType: "transfer",
+          farmId: registration.farmId,
+          animalCount: tagsNeedingCreation.length,
+          createdBy: userId,
+        })
+        .returning();
+
+      for (const tag of tagsNeedingCreation) {
+        const details = rowByTag.get(tag)!;
+        const eventDate = details.eventDate ?? today();
+
+        const destinationPaddockId = details.paddockName
+          ? (paddockIdByName!.get(details.paddockName.toLowerCase()) ?? null)
+          : null;
+
+        const animalId = await createNewAnimal(tx, {
+          userId,
+          operatingFarmId: registration.farmId,
+          batchId: batch.id,
+          row: {
+            tag,
+            eventDate,
+            notes: null,
+            status: "new",
+            categoryId: details.categoryId,
+            sex: details.sex,
+            birthDate: details.birthDate,
+            ownerId: registration.ownerId,
+            pendingOwnerName: null,
+          },
+        });
+
+        const [placementEvent] = await tx
+          .insert(event)
           .values({
             eventType: "transfer",
+            eventDate,
+            animalId,
             farmId: registration.farmId,
-            animalCount: tagsNeedingPlacement.length,
+            batchOperationId: batch.id,
             createdBy: userId,
           })
           .returning();
-
-        for (const tag of tagsNeedingPlacement) {
-          const details = rowByTag.get(tag)!;
-          const existing = existingByTag.get(tag);
-          const sex = existing?.sex ?? details.sex ?? null;
-          const categoryId = existing?.categoryId ?? details.categoryId ?? null;
-          const birthDate = existing?.birthDate ?? details.birthDate ?? null;
-          const eventDate = details.eventDate ?? today();
-
-          const destinationPaddockId = details.paddockName
-            ? (paddockIdByName!.get(details.paddockName.toLowerCase()) ?? null)
-            : null;
-
-          const animalId = await createNewAnimal(tx, {
-            userId,
-            operatingFarmId: registration.farmId,
-            batchId: batch.id,
-            row: {
-              tag,
-              eventDate,
-              notes: null,
-              status: "new",
-              categoryId,
-              sex,
-              birthDate,
-              ownerId: registration.ownerId,
-              pendingOwnerName: null,
-            },
-          });
-
-          const [placementEvent] = await tx
-            .insert(event)
-            .values({
-              eventType: "transfer",
-              eventDate,
-              animalId,
-              farmId: registration.farmId,
-              batchOperationId: batch.id,
-              createdBy: userId,
-            })
-            .returning();
-          await tx.insert(eventTransfer).values({
-            eventId: placementEvent.id,
-            originFarmId: registration.farmId,
-            destinationFarmId: registration.farmId,
-            originPaddockId: null,
-            destinationPaddockId,
-          });
-          located++;
-        }
-
-        needsRefresh = true;
+        await tx.insert(eventTransfer).values({
+          eventId: placementEvent.id,
+          originFarmId: registration.farmId,
+          destinationFarmId: registration.farmId,
+          originPaddockId: null,
+          destinationPaddockId,
+        });
+        located++;
+        productiveTags.add(tag);
       }
+
+      needsRefresh = true;
     }
 
-    // A tag can already have a real animal from an earlier upload (or from a
-    // transfer/health load) that never got a category, sex, or birth date —
-    // e.g. this same upload flow before the category column was mapped. Fill
-    // those gaps on the actual animal now instead of only updating the
-    // own_tag registry copy, which never reaches animal_current_state.
+    // A tag can already have a real animal (from an earlier upload, or from
+    // a transfer/health load) that's still missing sex, birth date, or a
+    // category — fill those gaps on the animal now instead of treating the
+    // row as a no-op.
     const tagsWithAnimal = candidateTags.filter((tag) => animalIdByTag.has(tag));
     if (tagsWithAnimal.length > 0) {
       const animalIds = tagsWithAnimal.map((tag) => animalIdByTag.get(tag)!);
@@ -269,17 +238,12 @@ export async function importOwnTags(
       for (const tag of tagsWithAnimal) {
         const animalId = animalIdByTag.get(tag)!;
         const details = rowByTag.get(tag)!;
-        const existing = existingByTag.get(tag);
         const currentAnimal = animalById.get(animalId)!;
 
-        const mergedSex = details.sex ?? existing?.sex ?? null;
-        const mergedBirthDate = details.birthDate ?? existing?.birthDate ?? null;
-        const mergedCategoryId = details.categoryId ?? existing?.categoryId ?? null;
-
         const plan: (typeof plans)[number] = { tag, animalId };
-        if (mergedSex && !currentAnimal.sex) plan.sex = mergedSex;
-        if (mergedBirthDate && !currentAnimal.birthDate) plan.birthDate = mergedBirthDate;
-        if (mergedCategoryId && !animalsWithCategory.has(animalId)) plan.categoryId = mergedCategoryId;
+        if (details.sex && !currentAnimal.sex) plan.sex = details.sex;
+        if (details.birthDate && !currentAnimal.birthDate) plan.birthDate = details.birthDate;
+        if (details.categoryId && !animalsWithCategory.has(animalId)) plan.categoryId = details.categoryId;
 
         if (plan.sex || plan.birthDate || plan.categoryId) plans.push(plan);
       }
@@ -328,6 +292,8 @@ export async function importOwnTags(
           recategorized++;
           needsRefresh = true;
         }
+
+        productiveTags.add(plan.tag);
       }
     }
 
@@ -338,7 +304,9 @@ export async function importOwnTags(
     }
   });
 
-  return { inserted, updated, located, recategorized, skipped, invalid };
+  const skipped = duplicatesWithinFile + (candidateTags.length - productiveTags.size);
+
+  return { registered, located, recategorized, skipped, invalid };
 }
 
 export async function countOwnTagsByRegistration(): Promise<

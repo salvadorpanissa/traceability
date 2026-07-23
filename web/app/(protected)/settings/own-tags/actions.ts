@@ -100,9 +100,9 @@ export async function confirmOwnTagUpload(
   await db
     .insert(columnMapping)
     .values({ headerSignature, mapping })
-    .onConflictDoNothing({ target: columnMapping.headerSignature });
+    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping } });
 
-  return importOwnTags(dicoseRegistrationId, session.user.id, rows, { locate: ownTagMappingHasPaddock(mapping) });
+  return importOwnTags(dicoseRegistrationId, session.user.id, rows);
 }
 
 export async function listOwnTagCounts(): Promise<

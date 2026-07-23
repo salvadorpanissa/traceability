@@ -41,8 +41,7 @@ describe("OwnTagUploadForm", () => {
       pendingCategoryNames: [],
     });
     vi.mocked(confirmOwnTagUpload).mockResolvedValue({
-      inserted: 1,
-      updated: 0,
+      registered: 1,
       located: 0,
       recategorized: 0,
       skipped: 1,
@@ -66,7 +65,7 @@ describe("OwnTagUploadForm", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "2 caravanas encontradas en el archivo. No mapeaste una columna de potrero, así que solo se registran (sin ubicación) hasta el próximo traslado o sanidad."
+          "2 caravanas encontradas en el archivo. No mapeaste ningún dato del animal, así que solo se registran las caravanas hasta que aparezcan en un traslado o sanidad."
         )
       ).toBeInTheDocument()
     );
@@ -76,9 +75,7 @@ describe("OwnTagUploadForm", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(
-          "1 caravanas nuevas, 0 actualizadas, 0 ubicadas, 0 recategorizadas, 1 sin cambios, 0 filas inválidas ignoradas."
-        )
+        screen.getByText("1 caravanas registradas, 0 con animal creado, 0 recategorizadas, 1 sin cambios, 0 filas inválidas ignoradas.")
       ).toBeInTheDocument()
     );
     expect(confirmOwnTagUpload).toHaveBeenCalledWith("reg-1", "sig", [{ header: "Caravana", meaning: "tag" }], [
@@ -109,7 +106,9 @@ describe("OwnTagUploadForm", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("1 caravanas encontradas en el archivo. Se van a ubicar directamente en su potrero.")
+        screen.getByText(
+          "1 caravanas encontradas en el archivo. Las filas con sexo, categoría, fecha de nacimiento o potrero van a crear el animal ya mismo; el resto solo queda registrado."
+        )
       ).toBeInTheDocument()
     );
     expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeEnabled();

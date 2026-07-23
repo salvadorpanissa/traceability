@@ -86,13 +86,13 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
   return { seededFarm, user, createdAnimal };
 }
 
-async function seedOwnTag(tag: string, farmId: string, userId: string, ownerName: string) {
+async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
   const [ownerRow] = await testDb.insert(owner).values({ name: ownerName }).returning();
   const [registration] = await testDb
     .insert(dicoseRegistration)
     .values({ ownerId: ownerRow.id, farmId, dicoseCode: "999999999" })
     .returning();
-  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id, createdBy: userId });
+  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id });
   return ownerRow;
 }
 
@@ -126,7 +126,7 @@ describe("resolveBatchRows", () => {
 
   it("resolves a registered tag at its own farm with a matching category", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    await seedOwnTag("AR000000000003", seededFarm.id, user.id, "AIP");
+    await seedOwnTag("AR000000000003", seededFarm.id, "AIP");
     const [createdCategory] = await testDb.insert(category).values({ name: "Vaca" }).returning();
     const rows: MappedRow[] = [
       { tag: "AR000000000003", date: null, category: "Vaca", sex: null, ownerName: null, notes: null },
@@ -201,7 +201,7 @@ describe("resolveBatchRows", () => {
 
   it("normalizes a recognized sex value for a registered tag", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    await seedOwnTag("AR000000000030", seededFarm.id, user.id, "AIP");
+    await seedOwnTag("AR000000000030", seededFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000030", date: null, category: null, sex: "MACHO", ownerName: null, notes: null },
     ];
@@ -211,7 +211,7 @@ describe("resolveBatchRows", () => {
 
   it("leaves sex null for an unrecognized value, without erroring the row", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    await seedOwnTag("AR000000000031", seededFarm.id, user.id, "AIP");
+    await seedOwnTag("AR000000000031", seededFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000031", date: null, category: null, sex: "???", ownerName: null, notes: null },
     ];
@@ -221,7 +221,7 @@ describe("resolveBatchRows", () => {
 
   it("infers the owner from the tag's DICOSE registration, ignoring the Excel owner column", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    const registeredOwner = await seedOwnTag("AR000000000032", seededFarm.id, user.id, "AIP");
+    const registeredOwner = await seedOwnTag("AR000000000032", seededFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000032", date: null, category: null, sex: null, ownerName: "Gómez", notes: null },
     ];
@@ -242,7 +242,7 @@ describe("resolveBatchRows", () => {
 
   it("uses the row's own date when there is no fallback", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    await seedOwnTag("AR000000000035", seededFarm.id, user.id, "AIP");
+    await seedOwnTag("AR000000000035", seededFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000035", date: "2026-03-10", category: null, sex: null, ownerName: null, notes: null },
     ];
@@ -261,7 +261,7 @@ describe("resolveBatchRows", () => {
 
   it("carries the row's notes through for a registered tag", async () => {
     const { seededFarm, user } = await seedFarmUserRole();
-    await seedOwnTag("AR000000000037", seededFarm.id, user.id, "AIP");
+    await seedOwnTag("AR000000000037", seededFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000037", date: null, category: null, sex: null, ownerName: null, notes: "Cojera leve" },
     ];
@@ -295,7 +295,7 @@ describe("resolveBatchRows", () => {
   it("marks a tag registered at a different farm as wrong_farm, with the owner inferred from its DICOSE", async () => {
     const { seededFarm: homeFarm, user } = await seedFarmUserRole("Campo San Antonio");
     const { seededFarm: otherFarm } = await seedFarmUserRole("Cuatro Cerros");
-    const registeredOwner = await seedOwnTag("AR000000000041", homeFarm.id, user.id, "AIP");
+    const registeredOwner = await seedOwnTag("AR000000000041", homeFarm.id, "AIP");
     const rows: MappedRow[] = [
       { tag: "AR000000000041", date: null, category: null, sex: null, ownerName: null, notes: null },
     ];
