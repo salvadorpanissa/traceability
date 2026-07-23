@@ -28,11 +28,6 @@ const navItems: NavItem[] = [
     labelKey: "appShell.navTransfer",
     isActive: (pathname) => pathname.startsWith("/activities/transfer"),
   },
-  {
-    href: "/settings/own-tags",
-    labelKey: "appShell.navRegisterTags",
-    isActive: (pathname) => pathname.startsWith("/settings/own-tags"),
-  },
 ];
 
 export function AppShell({
@@ -134,6 +129,16 @@ export function AppShell({
               </Button>
               {isUserMenuOpen ? (
                 <div className="absolute right-0 z-10 mt-2 min-w-40 rounded-md border bg-background p-1 shadow-md">
+                  <Link
+                    href="/settings"
+                    onClick={() => {
+                      setIsMobileNavOpen(false);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="block rounded-md px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-muted"
+                  >
+                    {t("appShell.navFarmSettings")}
+                  </Link>
                   <LogoutButton className="w-full justify-start" />
                 </div>
               ) : null}

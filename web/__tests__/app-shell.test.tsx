@@ -17,7 +17,7 @@ vi.mock("@/components/settings-menu", () => ({
 afterEach(cleanup);
 
 describe("AppShell", () => {
-  it("shows navigation, user name, and logout menu", async () => {
+  it("shows navigation, user name, and the user menu items", async () => {
     mockedPathname = "/activities/health";
 
     render(
@@ -34,11 +34,13 @@ describe("AppShell", () => {
 
     expect(screen.getByText("settings-menu")).toBeInTheDocument();
     expect(activeNavLink).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Registro de Caravanas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: "Cambiar campo" })).not.toBeInTheDocument();
 
     await user.click(userButton);
 
+    const settingsLink = screen.getByRole("link", { name: "Configuración del campo" });
+    expect(settingsLink).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
