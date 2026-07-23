@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { HealthForm } from "@/components/activities/health-form";
 import { previewHealthBatch } from "@/app/(protected)/activities/health/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
+import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
+import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 // This project's vitest config doesn't enable `globals`, so
 // @testing-library/react's automatic afterEach cleanup never registers —
@@ -39,15 +41,18 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     defaultWithdrawalDays: null,
   })),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
+  createHealthPaddockAction: vi.fn(async (name: string) => ({ id: "pd2", name, farmId: "farm-1" })),
 }));
 
 const catalog: ProductCatalogEntry[] = [
   { id: "p1", name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
 ];
+const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
+const paddocks: PaddockCatalogEntry[] = [{ id: "pd1", name: "Potrero 1", farmId: "farm-1" }];
 
 describe("HealthForm", () => {
   it("shows the preview and lets the user add a product row", async () => {
-    render(<HealthForm catalog={catalog} />);
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -63,7 +68,7 @@ describe("HealthForm", () => {
   });
 
   it("prefills dose unit and withdrawal days from the selected product's defaults", async () => {
-    render(<HealthForm catalog={catalog} />);
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -78,7 +83,7 @@ describe("HealthForm", () => {
   });
 
   it("pre-fills a product row from a matched suggestion, and creates a missing one inline", async () => {
-    render(<HealthForm catalog={catalog} />);
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -93,7 +98,7 @@ describe("HealthForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
-    render(<HealthForm catalog={catalog} />);
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
     const user = userEvent.setup();
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -146,7 +151,7 @@ describe("HealthForm", () => {
       productSuggestions: [],
     });
 
-    render(<HealthForm catalog={catalog} />);
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
     const user = userEvent.setup();
 
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
@@ -165,5 +170,34 @@ describe("HealthForm", () => {
 
     await waitFor(() => expect(screen.getByText("AR000000000097")).toBeInTheDocument());
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
+  });
+
+  it("lets the user pick an existing owner for a pending name instead of creating a new one, and confirms with the chosen potrero", async () => {
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />);
+    const user = userEvent.setup();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText("Dosis"), "10");
+    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
+    expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Usar un propietario existente"), "existing-owner");
+    expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Potrero"), "pd1");
+    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
+    await waitFor(() =>
+      expect(confirmHealthBatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({ paddockId: "pd1", rows: [expect.objectContaining({ ownerId: "existing-owner" })] })
+      )
+    );
   });
 });

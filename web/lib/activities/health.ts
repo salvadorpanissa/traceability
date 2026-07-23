@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { batchOperation, event, eventTransfer, eventHealth } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { batchOperation, event, eventTransfer, eventHealth, paddock } from "@/db/schema";
 import { db } from "@/db";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
@@ -20,8 +20,9 @@ export async function confirmHealthBatch(input: {
   operatingFarmId: string;
   products: HealthProduct[];
   rows: ResolvedRow[];
+  paddockId: string | null;
 }): Promise<void> {
-  const { userId, role, operatingFarmId, products, rows } = input;
+  const { userId, role, operatingFarmId, products, rows, paddockId } = input;
 
   await requireFarmAccess(userId, role, operatingFarmId);
 
@@ -37,6 +38,12 @@ export async function confirmHealthBatch(input: {
     )
   ) {
     throw new Error("El lote tiene propietarios pendientes de crear; no se puede confirmar");
+  }
+  if (paddockId) {
+    const [paddockRow] = await db.select().from(paddock).where(eq(paddock.id, paddockId));
+    if (!paddockRow || paddockRow.farmId !== operatingFarmId) {
+      throw new Error("El potrero no pertenece al campo activo");
+    }
   }
 
   await db.transaction(async (tx) => {
@@ -102,6 +109,7 @@ export async function confirmHealthBatch(input: {
           route: healthProduct.route,
           withdrawalDays: healthProduct.withdrawalDays,
           notes: healthProduct.notes,
+          paddockId,
         });
       }
     }

@@ -1,0 +1,2 @@
+ALTER TABLE "event_health" ADD COLUMN "paddock_id" uuid;--> statement-breakpoint
+ALTER TABLE "event_health" ADD CONSTRAINT "event_health_paddock_id_paddock_id_fk" FOREIGN KEY ("paddock_id") REFERENCES "public"."paddock"("id") ON DELETE no action ON UPDATE no action;

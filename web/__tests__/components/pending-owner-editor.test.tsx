@@ -54,4 +54,35 @@ describe("PendingOwnerEditor", () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("resolves a pending name by picking an existing owner, without creating a new one", async () => {
+    const onCreateOwner = vi.fn(async (name: string) => ({ id: "should-not-be-used", name }));
+    const onResolved = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <PendingOwnerEditor
+        pendingNames={["SA SG"]}
+        ownerCatalog={[
+          { id: "o1", name: "SASG" },
+          { id: "o2", name: "AIP" },
+        ]}
+        onCreateOwner={onCreateOwner}
+        onResolved={onResolved}
+      />
+    );
+
+    await user.selectOptions(screen.getByLabelText("Usar un propietario existente"), "o1");
+
+    expect(onResolved).toHaveBeenCalledWith("SA SG", "o1");
+    expect(onCreateOwner).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByText("SA SG")).not.toBeInTheDocument());
+  });
+
+  it("does not show the existing-owner select when the catalog is empty", () => {
+    render(
+      <PendingOwnerEditor pendingNames={["Gómez"]} ownerCatalog={[]} onCreateOwner={vi.fn()} onResolved={vi.fn()} />
+    );
+    expect(screen.queryByLabelText("Usar un propietario existente")).not.toBeInTheDocument();
+  });
 });

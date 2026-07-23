@@ -17,6 +17,7 @@ import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resol
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
 import { listProducts, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
+import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -101,6 +102,7 @@ export async function confirmHealthBatchAction(input: {
   mapping: ColumnMapping[];
   products: HealthProduct[];
   rows: ResolvedRow[];
+  paddockId: string | null;
 }): Promise<void> {
   const session = await requireSession();
   const operatingFarmId = await requireOperatingFarmId();
@@ -109,7 +111,7 @@ export async function confirmHealthBatchAction(input: {
   await db
     .insert(columnMapping)
     .values({ headerSignature: input.headerSignature, mapping: input.mapping })
-    .onConflictDoNothing({ target: columnMapping.headerSignature });
+    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
 
   await confirmHealthBatch({
     userId: session.user.id,
@@ -117,6 +119,7 @@ export async function confirmHealthBatchAction(input: {
     operatingFarmId,
     products: input.products,
     rows: input.rows,
+    paddockId: input.paddockId,
   });
 }
 
@@ -128,4 +131,18 @@ export async function createProductAction(name: string): Promise<ProductCatalogE
 export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
   await requireSession();
   return createOwner(name);
+}
+
+export async function listHealthPaddocksAction(): Promise<PaddockCatalogEntry[]> {
+  const session = await requireSession();
+  const operatingFarmId = await requireOperatingFarmId();
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  return listPaddocksByFarm(operatingFarmId);
+}
+
+export async function createHealthPaddockAction(name: string): Promise<PaddockCatalogEntry> {
+  const session = await requireSession();
+  const operatingFarmId = await requireOperatingFarmId();
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  return createPaddock(operatingFarmId, name);
 }

@@ -90,7 +90,7 @@ export async function confirmTransferBatchAction(input: {
   await db
     .insert(columnMapping)
     .values({ headerSignature: input.headerSignature, mapping: input.mapping })
-    .onConflictDoNothing({ target: columnMapping.headerSignature });
+    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
 
   await confirmTransferBatch({
     userId: session.user.id,

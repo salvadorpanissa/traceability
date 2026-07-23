@@ -32,6 +32,7 @@ export const eventHealth = pgTable("event_health", {
   route: text("route").notNull(),
   withdrawalDays: integer("withdrawal_days"),
   notes: text("notes"),
+  paddockId: uuid("paddock_id").references(() => paddock.id),
 });
 
 export const eventRetag = pgTable("event_retag", {

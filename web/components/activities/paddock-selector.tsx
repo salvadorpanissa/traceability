@@ -14,11 +14,13 @@ export function PaddockSelector({
   paddockId,
   onChange,
   onCreatePaddock,
+  label = "Potrero destino",
 }: {
   paddocks: PaddockCatalogEntry[];
   paddockId: string | null;
   onChange: (paddockId: string | null) => void;
   onCreatePaddock: (name: string) => Promise<PaddockCatalogEntry>;
+  label?: string;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -49,10 +51,10 @@ export function PaddockSelector({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="destinationPaddock">Potrero destino</Label>
+      <Label htmlFor="destinationPaddock">{label}</Label>
       <select
         id="destinationPaddock"
-        aria-label="Potrero destino"
+        aria-label={label}
         value={paddockId ?? NONE_VALUE}
         onChange={(e) => handleSelect(e.target.value)}
         className="h-8 rounded-lg border border-border bg-background px-2 text-sm"

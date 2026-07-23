@@ -48,13 +48,13 @@ async function seedManagerSession() {
   return { manager, seededFarm };
 }
 
-async function seedOwnTag(tag: string, farmId: string, userId: string, ownerName: string) {
+async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
   const [createdOwner] = await testDb.insert(owner).values({ name: ownerName }).returning();
   const [registration] = await testDb
     .insert(dicoseRegistration)
     .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
     .returning();
-  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id, createdBy: userId });
+  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id });
   return createdOwner;
 }
 
@@ -72,7 +72,7 @@ describe("previewTransferBatch", () => {
 
   it("applies a submitted mapping and resolves rows without saving it yet", async () => {
     const { manager, seededFarm } = await seedManagerSession();
-    await seedOwnTag("AR000000000021", seededFarm.id, manager.id, "AIP");
+    await seedOwnTag("AR000000000021", seededFarm.id, "AIP");
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000021"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");

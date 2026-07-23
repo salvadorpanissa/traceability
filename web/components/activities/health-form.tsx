@@ -8,11 +8,13 @@ import { ColumnMapper } from "@/components/activities/column-mapper";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
+import { PaddockSelector } from "@/components/activities/paddock-selector";
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
   createProductAction,
   createOwnerAction,
+  createHealthPaddockAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -20,6 +22,7 @@ import type { HealthProduct } from "@/lib/activities/health";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
+import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 function buildInitialProducts(
   suggestions: { rawValue: string; matchedProductId: string | null }[],
@@ -52,12 +55,23 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalogEntry[] }) {
+export function HealthForm({
+  catalog: initialCatalog,
+  ownerCatalog: initialOwnerCatalog,
+  paddocks: initialPaddocks,
+}: {
+  catalog: ProductCatalogEntry[];
+  ownerCatalog: OwnerCatalogEntry[];
+  paddocks: PaddockCatalogEntry[];
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
+  const [ownerCatalog, setOwnerCatalog] = useState<OwnerCatalogEntry[]>(initialOwnerCatalog);
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>(initialPaddocks);
+  const [paddockId, setPaddockId] = useState<string | null>(null);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
@@ -95,7 +109,15 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
   }
 
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    return createOwnerAction(name);
+    const created = await createOwnerAction(name);
+    setOwnerCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
+  }
+
+  async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
+    const created = await createHealthPaddockAction(name);
+    setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
   }
 
   function handleOwnerResolved(rawName: string, ownerId: string) {
@@ -119,6 +141,7 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
       mapping: preview.mapping,
       products,
       rows,
+      paddockId,
     });
     setConfirmed(true);
   }
@@ -175,7 +198,19 @@ export function HealthForm({ catalog: initialCatalog }: { catalog: ProductCatalo
             onChange={setProducts}
             onCreateProduct={handleCreateProduct}
           />
-          <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
+          <PaddockSelector
+            paddocks={paddocks}
+            paddockId={paddockId}
+            onChange={setPaddockId}
+            onCreatePaddock={handleCreatePaddock}
+            label="Potrero"
+          />
+          <PendingOwnerEditor
+            pendingNames={pendingNames}
+            ownerCatalog={ownerCatalog}
+            onCreateOwner={handleCreateOwner}
+            onResolved={handleOwnerResolved}
+          />
           <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
           <Button
             type="button"

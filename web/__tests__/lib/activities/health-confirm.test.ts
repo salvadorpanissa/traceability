@@ -14,6 +14,7 @@ import {
   event,
   eventTransfer,
   eventHealth,
+  paddock,
 } from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { HealthProduct } from "@/lib/activities/health";
@@ -61,7 +62,7 @@ describe("confirmHealthBatch", () => {
       { productId: productB.id, dose: "2", doseUnit: "ml", route: "intramuscular", withdrawalDays: null, notes: null },
     ];
 
-    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows });
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null });
 
     const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000070"));
     const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
@@ -107,7 +108,7 @@ describe("confirmHealthBatch", () => {
       { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
     ];
 
-    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows });
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null });
 
     const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
     expect(animalEvents).toHaveLength(1);
@@ -131,7 +132,7 @@ describe("confirmHealthBatch", () => {
     ];
 
     await expect(
-      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products: [], rows })
+      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products: [], rows, paddockId: null })
     ).rejects.toThrow();
   });
 
@@ -144,7 +145,7 @@ describe("confirmHealthBatch", () => {
     ];
 
     await expect(
-      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows })
+      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null })
     ).rejects.toThrow();
 
     const batches = await testDb.select().from(batchOperation);
@@ -172,7 +173,7 @@ describe("confirmHealthBatch", () => {
     ];
 
     await expect(
-      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows })
+      confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null })
     ).rejects.toThrow("propietarios pendientes");
   });
 
@@ -198,7 +199,7 @@ describe("confirmHealthBatch", () => {
       { productId: productB.id, dose: "2", doseUnit: "ml", route: "intramuscular", withdrawalDays: null, notes: null },
     ];
 
-    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows });
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null });
 
     const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000075"));
     const healthEvents = await testDb
@@ -207,5 +208,77 @@ describe("confirmHealthBatch", () => {
       .where(eq(event.animalId, tagRow.animalId));
     const notes = healthEvents.filter((e) => e.eventType === "health").map((e) => e.notes);
     expect(notes).toEqual(["Animal nervioso", "Animal nervioso"]);
+  });
+
+  it("stores the chosen paddock on every health event created for the batch", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [createdPaddock] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero 1" }).returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000076",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      products,
+      rows,
+      paddockId: createdPaddock.id,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000076"));
+    const healthEvent = (await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId))).find(
+      (e) => e.eventType === "health"
+    )!;
+    const [healthRow] = await testDb.select().from(eventHealth).where(eq(eventHealth.eventId, healthEvent.id));
+    expect(healthRow.paddockId).toBe(createdPaddock.id);
+  });
+
+  it("rejects a paddock that belongs to a different farm", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [foreignPaddock] = await testDb.insert(paddock).values({ farmId: otherFarm.id, name: "Potrero Ajeno" }).returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000077",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await expect(
+      confirmHealthBatch({
+        userId: manager.id,
+        role: "manager",
+        operatingFarmId: seededFarm.id,
+        products,
+        rows,
+        paddockId: foreignPaddock.id,
+      })
+    ).rejects.toThrow("El potrero no pertenece al campo activo");
   });
 });

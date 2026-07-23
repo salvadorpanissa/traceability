@@ -47,13 +47,13 @@ async function seedManagerSession() {
   return { manager, seededFarm };
 }
 
-async function seedOwnTag(tag: string, farmId: string, userId: string, ownerName: string) {
+async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
   const [createdOwner] = await testDb.insert(owner).values({ name: ownerName }).returning();
   const [registration] = await testDb
     .insert(dicoseRegistration)
     .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
     .returning();
-  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id, createdBy: userId });
+  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id });
   return createdOwner;
 }
 
@@ -71,7 +71,7 @@ describe("previewHealthBatch", () => {
 
   it("applies a submitted mapping and resolves rows", async () => {
     const { manager, seededFarm } = await seedManagerSession();
-    await seedOwnTag("AR000000000081", seededFarm.id, manager.id, "AIP");
+    await seedOwnTag("AR000000000081", seededFarm.id, "AIP");
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -254,6 +254,7 @@ describe("confirmHealthBatchAction", () => {
           pendingOwnerName: null,
         },
       ],
+      paddockId: null,
     });
 
     const [savedMapping] = await testDb
@@ -261,6 +262,62 @@ describe("confirmHealthBatchAction", () => {
       .from(columnMapping)
       .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
     expect(savedMapping).toBeDefined();
+  });
+
+  it("overwrites a previously cached mapping when the user corrects it on a later import", async () => {
+    await seedManagerSession();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const headerSignature = JSON.stringify(["IDE", "NOTA"]);
+
+    // A first import cached NOTA as "ignore" (e.g. a mistake).
+    await testDb.insert(columnMapping).values({
+      headerSignature,
+      mapping: [
+        { header: "IDE", meaning: "tag" },
+        { header: "NOTA", meaning: "ignore" },
+      ],
+    });
+
+    // A later import corrects it to "notes" — the correction must stick,
+    // not be silently discarded by the cache.
+    await confirmHealthBatchAction({
+      headerSignature,
+      mapping: [
+        { header: "IDE", meaning: "tag" },
+        { header: "NOTA", meaning: "notes" },
+      ],
+      products: [
+        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+      ],
+      rows: [
+        {
+          tag: "AR000000000083",
+          eventDate: "2026-02-01",
+          notes: "cojera",
+          status: "new",
+          categoryId: null,
+          sex: null,
+          birthDate: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      paddockId: null,
+    });
+
+    const [savedMapping] = await testDb
+      .select()
+      .from(columnMapping)
+      .where(eq(columnMapping.headerSignature, headerSignature));
+    expect(savedMapping.mapping).toEqual([
+      { header: "IDE", meaning: "tag" },
+      { header: "NOTA", meaning: "notes" },
+    ]);
+
+    const { event } = await import("@/db/schema");
+    const events = await testDb.select().from(event);
+    const healthEvent = events.find((e) => e.eventType === "health");
+    expect(healthEvent?.notes).toBe("cojera");
   });
 
   it("excludes an unforced foreign row from the confirmed batch", async () => {
@@ -287,6 +344,7 @@ describe("confirmHealthBatchAction", () => {
           pendingOwnerName: null,
         },
       ],
+      paddockId: null,
     });
 
     const { animal } = await import("@/db/schema");
@@ -318,6 +376,7 @@ describe("confirmHealthBatchAction", () => {
           pendingOwnerName: null,
         },
       ],
+      paddockId: null,
     });
 
     const { animal, animalTagHistory } = await import("@/db/schema");
@@ -359,6 +418,7 @@ describe("confirmHealthBatchAction", () => {
           registeredFarmName: "Cuatro Cerros",
         },
       ],
+      paddockId: null,
     });
 
     const { animal } = await import("@/db/schema");
