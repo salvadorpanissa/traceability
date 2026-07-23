@@ -18,10 +18,20 @@ export function NaturalLanguageQuery({ locale }: { locale: Locale }) {
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit() {
+    const submittedQuestion = question.trim();
+    if (submittedQuestion.length === 0) return;
+    setQuestion("");
     startTransition(async () => {
-      const response = await runNaturalLanguageQuery(question);
+      const response = await runNaturalLanguageQuery(submittedQuestion);
       setResult(response);
     });
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit();
+    }
   }
 
   return (
@@ -30,6 +40,7 @@ export function NaturalLanguageQuery({ locale }: { locale: Locale }) {
         className="min-h-20 w-full rounded-lg border p-2 text-sm"
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder={translate(locale, "nlQuery.placeholder")}
       />
       <div>

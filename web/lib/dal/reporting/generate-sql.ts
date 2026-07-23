@@ -21,6 +21,11 @@ Reglas:
 - Devolvé ÚNICAMENTE una consulta SQL, un solo SELECT, sin punto y coma final, sin explicación, sin markdown.
 - Usá exclusivamente las tablas listadas arriba.
 - Para "última X", ordená por event_date descendente (y created_at descendente como desempate) y usá LIMIT.
+- No selecciones columnas *_id en el resultado final (son solo para joins y filtros) — mostrá siempre la columna
+  legible correspondiente (current_tag/animal_tag, farm_name, paddock_name, category_name, product_name, owner_name)
+  en su lugar.
+- Ponele a cada columna del SELECT final un alias en español que un usuario final entienda (ej: current_tag AS
+  caravana, farm_name AS campo, event_date AS fecha), no el nombre crudo de la columna ni un alias en inglés.
 `.trim();
 
 function stripMarkdownFences(text: string): string {

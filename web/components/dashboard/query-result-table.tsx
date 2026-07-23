@@ -1,4 +1,5 @@
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
+import { friendlyColumnLabel } from "@/lib/dal/reporting/column-labels";
 
 function formatCellValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -25,7 +26,7 @@ export function QueryResultTable({
         <tr className="border-b text-left">
           {columns.map((column) => (
             <th key={column} className="py-1 pr-2">
-              {column}
+              {friendlyColumnLabel(column, locale)}
             </th>
           ))}
         </tr>
