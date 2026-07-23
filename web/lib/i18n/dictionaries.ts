@@ -40,6 +40,13 @@ const dictionaries = {
     "livestock.byPaddockEmpty": "No hay animales vivos para mostrar por potrero.",
     "livestock.byCategoryTitle": "Animales por categoría",
     "livestock.byCategoryEmpty": "No hay animales vivos para mostrar por categoría.",
+    "nlQuery.placeholder": "Preguntá algo sobre tus animales, ej: ¿cuál fue la última sanidad del potrero Norte?",
+    "nlQuery.submit": "Consultar",
+    "nlQuery.submitPending": "Consultando...",
+    "nlQuery.emptyResults": "Sin resultados para esta consulta.",
+    "nlQuery.errorCantGenerate": "No pude generar una consulta a partir de tu pregunta. Probá reformularla.",
+    "nlQuery.errorTimeout": "La consulta tardó demasiado. Probá con una pregunta más simple o específica.",
+    "nlQuery.errorConnection": "No se pudo conectar con el asistente. Probá de nuevo en un momento.",
   },
   en: {
     "app.title": "Livestock traceability",
@@ -78,6 +85,13 @@ const dictionaries = {
     "livestock.byPaddockEmpty": "No live animals to show by paddock.",
     "livestock.byCategoryTitle": "Animals by category",
     "livestock.byCategoryEmpty": "No live animals to show by category.",
+    "nlQuery.placeholder": "Ask something about your animals, e.g.: what was the last health event in the North paddock?",
+    "nlQuery.submit": "Query",
+    "nlQuery.submitPending": "Querying...",
+    "nlQuery.emptyResults": "No results for this query.",
+    "nlQuery.errorCantGenerate": "I couldn't build a query from your question. Try rephrasing it.",
+    "nlQuery.errorTimeout": "The query took too long. Try a simpler or more specific question.",
+    "nlQuery.errorConnection": "Couldn't reach the assistant. Try again in a moment.",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 
