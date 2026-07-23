@@ -138,6 +138,7 @@ describe("HealthForm", () => {
           status: "new",
           categoryId: null,
           sex: null,
+          birthDate: null,
           ownerId: null,
           pendingOwnerName: null,
         },

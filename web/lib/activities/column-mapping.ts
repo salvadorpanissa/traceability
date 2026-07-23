@@ -1,4 +1,14 @@
-export type ColumnMeaning = "tag" | "date" | "category" | "product" | "sex" | "owner" | "notes" | "ignore";
+export type ColumnMeaning =
+  | "tag"
+  | "date"
+  | "category"
+  | "product"
+  | "sex"
+  | "owner"
+  | "notes"
+  | "birthDate"
+  | "paddock"
+  | "ignore";
 
 export type ColumnMapping = {
   header: string;
@@ -40,6 +50,37 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     ownerName: ownerIndex >= 0 ? (row[ownerIndex] || null) : null,
     notes: notesIndex >= 0 ? (row[notesIndex] || null) : null,
   }));
+}
+
+export type MappedOwnTagRow = {
+  tag: string;
+  sex: string | null;
+  category: string | null;
+  birthDate: string | null;
+  paddock: string | null;
+  date: string | null;
+};
+
+export function applyOwnTagColumnMapping(headers: string[], rows: string[][], mapping: ColumnMapping[]): MappedOwnTagRow[] {
+  const tagIndex = columnIndexFor(headers, mapping, "tag");
+  const sexIndex = columnIndexFor(headers, mapping, "sex");
+  const categoryIndex = columnIndexFor(headers, mapping, "category");
+  const birthDateIndex = columnIndexFor(headers, mapping, "birthDate");
+  const paddockIndex = columnIndexFor(headers, mapping, "paddock");
+  const dateIndex = columnIndexFor(headers, mapping, "date");
+
+  return rows.map((row) => ({
+    tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
+    sex: sexIndex >= 0 ? (row[sexIndex] || null) : null,
+    category: categoryIndex >= 0 ? (row[categoryIndex] || null) : null,
+    birthDate: birthDateIndex >= 0 ? (row[birthDateIndex] || null) : null,
+    paddock: paddockIndex >= 0 ? (row[paddockIndex] || null) : null,
+    date: dateIndex >= 0 ? (row[dateIndex] || null) : null,
+  }));
+}
+
+export function ownTagMappingHasPaddock(mapping: ColumnMapping[]): boolean {
+  return mapping.some((m) => m.meaning === "paddock");
 }
 
 export function extractProductColumnValues(headers: string[], rows: string[][], mapping: ColumnMapping[]): string[] {

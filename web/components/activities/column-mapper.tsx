@@ -12,6 +12,8 @@ const MEANING_LABELS: Record<ColumnMeaning, string> = {
   sex: "Sexo",
   owner: "Propietario",
   notes: "Notas",
+  birthDate: "Fecha de nacimiento",
+  paddock: "Potrero",
   ignore: "Ignorar",
 };
 

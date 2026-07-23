@@ -49,6 +49,7 @@ describe("createNewAnimal", () => {
       status: "new",
       categoryId: null,
       sex: null,
+      birthDate: null,
       ownerId: null,
       pendingOwnerName: null,
     };
@@ -79,6 +80,7 @@ describe("createNewAnimal", () => {
       status: "new",
       categoryId: createdCategory.id,
       sex: null,
+      birthDate: null,
       ownerId: null,
       pendingOwnerName: null,
     };
@@ -108,6 +110,7 @@ describe("createNewAnimal", () => {
       status: "new",
       categoryId: null,
       sex: "female",
+      birthDate: null,
       ownerId: createdOwner.id,
       pendingOwnerName: null,
     };

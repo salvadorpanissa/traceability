@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { animalTagHistory, category, owner, ownTag, dicoseRegistration, farm } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
+import { normalizeDate } from "@/lib/activities/date-normalization";
 
 export type ResolvedRow = { tag: string; eventDate: string; notes: string | null } & (
   | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
@@ -10,6 +11,7 @@ export type ResolvedRow = { tag: string; eventDate: string; notes: string | null
       status: "new";
       categoryId: string | null;
       sex: "male" | "female" | null;
+      birthDate: string | null;
       ownerId: string | null;
       pendingOwnerName: string | null;
     }
@@ -17,6 +19,7 @@ export type ResolvedRow = { tag: string; eventDate: string; notes: string | null
       status: "wrong_farm";
       categoryId: string | null;
       sex: "male" | "female" | null;
+      birthDate: string | null;
       ownerId: string;
       registeredFarmId: string;
       registeredFarmName: string;
@@ -26,6 +29,7 @@ export type ResolvedRow = { tag: string; eventDate: string; notes: string | null
       forced: boolean;
       categoryId: string | null;
       sex: "male" | "female" | null;
+      birthDate: string | null;
       ownerId: string | null;
       pendingOwnerName: string | null;
     }
@@ -34,10 +38,11 @@ export type ResolvedRow = { tag: string; eventDate: string; notes: string | null
 
 export type CreatableRow = Extract<ResolvedRow, { status: "new" | "wrong_farm" | "foreign" }>;
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 function resolveEventDate(rowDate: string | null, formEventDate: string | null): string | null {
-  if (rowDate && ISO_DATE.test(rowDate)) return rowDate;
+  if (rowDate) {
+    const normalized = normalizeDate(rowDate);
+    if (normalized) return normalized;
+  }
   return formEventDate;
 }
 
@@ -78,6 +83,9 @@ export async function resolveBatchRows(
             ownerId: dicoseRegistration.ownerId,
             farmId: dicoseRegistration.farmId,
             farmName: farm.name,
+            sex: ownTag.sex,
+            categoryId: ownTag.categoryId,
+            birthDate: ownTag.birthDate,
           })
           .from(ownTag)
           .innerJoin(dicoseRegistration, eq(dicoseRegistration.id, ownTag.dicoseRegistrationId))
@@ -137,8 +145,12 @@ export async function resolveBatchRows(
       categoryId = matchedCategoryId;
     }
 
-    const sex = normalizeSex(row.sex);
+    // The Excel column (if mapped) wins; otherwise fall back to what was
+    // registered for this tag when it was uploaded as an "own tag".
     const ownTagMatch = ownTagByTag.get(row.tag);
+    categoryId = categoryId ?? ownTagMatch?.categoryId ?? null;
+    const sex = normalizeSex(row.sex) ?? ownTagMatch?.sex ?? null;
+    const birthDate = ownTagMatch?.birthDate ?? null;
 
     if (!ownTagMatch) {
       let ownerId: string | null = null;
@@ -159,6 +171,7 @@ export async function resolveBatchRows(
         forced: false,
         categoryId,
         sex,
+        birthDate,
         ownerId,
         pendingOwnerName,
       });
@@ -173,6 +186,7 @@ export async function resolveBatchRows(
         status: "new",
         categoryId,
         sex,
+        birthDate,
         ownerId: ownTagMatch.ownerId,
         pendingOwnerName: null,
       });
@@ -184,6 +198,7 @@ export async function resolveBatchRows(
         status: "wrong_farm",
         categoryId,
         sex,
+        birthDate,
         ownerId: ownTagMatch.ownerId,
         registeredFarmId: ownTagMatch.farmId,
         registeredFarmName: ownTagMatch.farmName,

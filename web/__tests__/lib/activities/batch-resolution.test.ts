@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
+import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
   role,
   farm,
@@ -81,6 +82,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
     await testDb.insert(eventSale).values({ eventId: saleEvent.id });
   }
 
+  await refreshDerivedState();
   return { seededFarm, user, createdAnimal };
 }
 
@@ -168,6 +170,33 @@ describe("resolveBatchRows", () => {
     ];
     const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
     expect(resolved.eventDate).toBe("2026-03-10");
+  });
+
+  it("normalizes a day/month/year slash date from Excel into ISO form", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    const rows: MappedRow[] = [
+      { tag: "AR000000000041", date: "8/7/2026", category: null, sex: null, ownerName: null, notes: null },
+    ];
+    const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
+    expect(resolved).toMatchObject({ status: "foreign", eventDate: "2026-07-08" });
+  });
+
+  it("normalizes a zero-padded slash date with dashes too", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    const rows: MappedRow[] = [
+      { tag: "AR000000000042", date: "08-07-2026", category: null, sex: null, ownerName: null, notes: null },
+    ];
+    const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
+    expect(resolved).toMatchObject({ status: "foreign", eventDate: "2026-07-08" });
+  });
+
+  it("falls back to the form date when the row date is unparseable", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    const rows: MappedRow[] = [
+      { tag: "AR000000000043", date: "not a date", category: null, sex: null, ownerName: null, notes: null },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({ status: "foreign", eventDate: "2026-02-01" });
   });
 
   it("normalizes a recognized sex value for a registered tag", async () => {
