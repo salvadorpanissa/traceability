@@ -6,7 +6,7 @@ import { product } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listProducts, createProduct } = await import("@/lib/dal/product-catalog");
+const { listProducts, createProduct, updateProduct } = await import("@/lib/dal/product-catalog");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -40,8 +40,54 @@ describe("createProduct", () => {
     expect(stored.name).toBe("Ivermectina 1%");
   });
 
+  it("creates a product with a dose unit and withdrawal days", async () => {
+    const created = await createProduct("Aftosa", { defaultDoseUnit: "cc", defaultWithdrawalDays: 45 });
+
+    expect(created).toEqual({
+      id: expect.any(String),
+      name: "Aftosa",
+      defaultDoseUnit: "cc",
+      defaultWithdrawalDays: 45,
+    });
+  });
+
   it("rejects a duplicate name", async () => {
     await createProduct("Aftosa");
     await expect(createProduct("Aftosa")).rejects.toThrow();
+  });
+});
+
+describe("updateProduct", () => {
+  it("updates name, dose unit, and withdrawal days", async () => {
+    const created = await createProduct("Ivermectina 1%", { defaultDoseUnit: "ml", defaultWithdrawalDays: 21 });
+
+    const updated = await updateProduct(created.id, {
+      name: "Ivermectina 1% inyectable",
+      defaultDoseUnit: "cc",
+      defaultWithdrawalDays: 30,
+    });
+
+    expect(updated).toEqual({
+      id: created.id,
+      name: "Ivermectina 1% inyectable",
+      defaultDoseUnit: "cc",
+      defaultWithdrawalDays: 30,
+    });
+  });
+
+  it("clears dose unit and withdrawal days when omitted", async () => {
+    const created = await createProduct("Aftosa", { defaultDoseUnit: "cc", defaultWithdrawalDays: 45 });
+
+    const updated = await updateProduct(created.id, { name: "Aftosa" });
+
+    expect(updated.defaultDoseUnit).toBeNull();
+    expect(updated.defaultWithdrawalDays).toBeNull();
+  });
+
+  it("rejects renaming into a name that already exists", async () => {
+    await createProduct("Aftosa");
+    const created = await createProduct("Ivermectina 1%");
+
+    await expect(updateProduct(created.id, { name: "Aftosa" })).rejects.toThrow();
   });
 });
