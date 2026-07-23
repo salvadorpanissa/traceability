@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { batchOperation, event, eventTransfer, eventHealth } from "@/db/schema";
 import { db } from "@/db";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
@@ -104,5 +105,9 @@ export async function confirmHealthBatch(input: {
         });
       }
     }
+
+    // See the equivalent comment in transfer.ts: this replaces N per-row
+    // AFTER INSERT refreshes with a single refresh after the whole batch.
+    await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
   });
 }

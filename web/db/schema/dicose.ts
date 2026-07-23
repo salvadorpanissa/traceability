@@ -1,7 +1,9 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, date } from "drizzle-orm/pg-core";
 import { owner } from "./owner";
 import { farm } from "./farm";
 import { userAccount } from "./user";
+import { animalSex } from "./animal";
+import { category } from "./category";
 
 export const dicoseRegistration = pgTable("dicose_registration", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -19,6 +21,9 @@ export const ownTag = pgTable("own_tag", {
   dicoseRegistrationId: uuid("dicose_registration_id")
     .notNull()
     .references(() => dicoseRegistration.id),
+  sex: animalSex("sex"),
+  categoryId: uuid("category_id").references(() => category.id),
+  birthDate: date("birth_date"),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => userAccount.id),

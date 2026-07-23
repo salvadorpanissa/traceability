@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, event, eventTransfer, paddock } from "@/db/schema";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
@@ -89,5 +89,12 @@ export async function confirmTransferBatch(input: {
         destinationPaddockId,
       });
     }
+
+    // animal_current_state used to refresh itself via an AFTER INSERT
+    // trigger on every event/event_transfer row; for a batch of N rows that
+    // meant N full-view refreshes. Refreshing once after the whole batch is
+    // committed is equivalent (nothing reads the view mid-loop) and avoids
+    // the O(n^2) cost that exhausted memory on large batches.
+    await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
   });
 }

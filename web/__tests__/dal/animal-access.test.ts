@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
+import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
   role,
   farm,
@@ -78,6 +79,7 @@ describe("visibleCurrentState", () => {
         .insert(eventTransfer)
         .values({ eventId: createdEvent.id, originFarmId: targetFarm.id, destinationFarmId: targetFarm.id });
     }
+    await refreshDerivedState();
 
     return { manager, admin, farmNorte, farmSur };
   }
@@ -178,6 +180,7 @@ describe("visibleCurrentStateWithNames", () => {
     await testDb
       .insert(eventRecategorize)
       .values({ eventId: recatEvent.id, oldCategoryId: seededCategory.id, newCategoryId: seededCategory.id });
+    await refreshDerivedState();
 
     const rows = await visibleCurrentStateWithNames(admin.id, "admin");
     expect(rows).toEqual([
@@ -222,6 +225,7 @@ describe("visibleCurrentStateWithNames", () => {
     await testDb
       .insert(eventTransfer)
       .values({ eventId: transferEvent.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id });
+    await refreshDerivedState();
 
     const rows = await visibleCurrentStateWithNames(admin.id, "admin");
     expect(rows[0].paddockName).toBeNull();
@@ -264,6 +268,7 @@ describe("visibleCurrentStateWithNames", () => {
         .insert(eventTransfer)
         .values({ eventId: createdEvent.id, originFarmId: targetFarm.id, destinationFarmId: targetFarm.id });
     }
+    await refreshDerivedState();
 
     const rows = await visibleCurrentStateWithNames(manager.id, "manager");
     expect(rows).toHaveLength(1);

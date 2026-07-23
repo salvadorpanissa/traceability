@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { testDb } from "../test/db";
 import { resetTestDb } from "../test/reset-db";
+import { refreshDerivedState } from "../test/refresh-derived-state";
 import { role, farm, userAccount, animal, batchOperation, event, eventTransfer, paddock } from "@/db/schema";
 
 beforeEach(async () => {
@@ -50,6 +51,7 @@ describe("animal_current_state.current_paddock_id", () => {
       originPaddockId: potreroA.id,
       destinationPaddockId: potreroB.id,
     });
+    await refreshDerivedState();
 
     expect(await currentPaddockIdFor(animalWithPaddock.id)).toBe(potreroB.id);
 
@@ -73,6 +75,7 @@ describe("animal_current_state.current_paddock_id", () => {
     await testDb
       .insert(eventTransfer)
       .values({ eventId: event2.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id });
+    await refreshDerivedState();
 
     expect(await currentPaddockIdFor(animalWithoutPaddock.id)).toBeNull();
   });
