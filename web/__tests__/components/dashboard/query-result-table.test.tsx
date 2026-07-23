@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryResultTable } from "@/components/dashboard/query-result-table";
 
 afterEach(cleanup);
@@ -38,5 +39,22 @@ describe("QueryResultTable", () => {
   it("shows an empty-state message when there are no rows", () => {
     render(<QueryResultTable columns={[]} rows={[]} locale="es" />);
     expect(screen.getByText("Sin resultados para esta consulta.")).toBeInTheDocument();
+  });
+
+  it("filters rows via the search box and offers an Excel download", async () => {
+    render(
+      <QueryResultTable
+        columns={["farm_name"]}
+        rows={[{ farm_name: "Campo Norte" }, { farm_name: "Cuatro Cerros" }]}
+        locale="es"
+      />
+    );
+    const user = userEvent.setup();
+
+    expect(screen.getByRole("button", { name: /descargar excel/i })).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox"), "norte");
+    expect(screen.getByText("Campo Norte")).toBeInTheDocument();
+    expect(screen.queryByText("Cuatro Cerros")).not.toBeInTheDocument();
   });
 });

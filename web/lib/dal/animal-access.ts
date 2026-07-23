@@ -134,3 +134,51 @@ export async function visibleCurrentStateWithNames(
   );
   return result.rows.map(toAnimalCurrentStateWithNames);
 }
+
+// Looks a tag up in animal_tag_history (not just the current one) so a
+// caravana that was later retagged is still found — the caller can tell
+// from currentTag whether it no longer matches what was searched. Scoped
+// the same way as visibleCurrentStateWithNames: a foreign-farm animal comes
+// back as not-found rather than "found but no access", since the WHERE
+// clause filters before any row is returned.
+export async function findAnimalLocationByTag(
+  userId: string,
+  role: string | undefined,
+  tag: string
+): Promise<AnimalCurrentStateWithNames | null> {
+  const base = sql`
+    select
+      acs.animal_id,
+      acs.current_tag,
+      acs.current_farm_id,
+      f.name as farm_name,
+      acs.current_paddock_id,
+      p.name as paddock_name,
+      acs.current_category_id,
+      c.name as category_name,
+      acs.status
+    from animal_tag_history ath
+    join animal_current_state acs on acs.animal_id = ath.animal_id
+    left join farm f on f.id = acs.current_farm_id
+    left join paddock p on p.id = acs.current_paddock_id
+    left join category c on c.id = acs.current_category_id
+    where ath.tag = ${tag}
+  `;
+
+  if (isAdmin(role)) {
+    const result = await db.execute<CurrentStateWithNamesRow>(sql`${base} limit 1`);
+    return result.rows[0] ? toAnimalCurrentStateWithNames(result.rows[0]) : null;
+  }
+
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.length === 0) return null;
+
+  const farmIdList = sql.join(
+    farmIds.map((farmId) => sql`${farmId}`),
+    sql`, `
+  );
+  const result = await db.execute<CurrentStateWithNamesRow>(
+    sql`${base} and acs.current_farm_id in (${farmIdList}) limit 1`
+  );
+  return result.rows[0] ? toAnimalCurrentStateWithNames(result.rows[0]) : null;
+}
