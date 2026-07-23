@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { dicoseRegistration, farm, owner } from "@/db/schema";
+import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 
 export type DicoseRegistrationEntry = {
   id: string;
@@ -11,8 +12,11 @@ export type DicoseRegistrationEntry = {
   dicoseCode: string;
 };
 
-export async function listDicoseRegistrations(): Promise<DicoseRegistrationEntry[]> {
-  return db
+export async function listDicoseRegistrations(
+  userId: string,
+  role: string | undefined
+): Promise<DicoseRegistrationEntry[]> {
+  const baseQuery = db
     .select({
       id: dicoseRegistration.id,
       ownerId: dicoseRegistration.ownerId,
@@ -24,6 +28,14 @@ export async function listDicoseRegistrations(): Promise<DicoseRegistrationEntry
     .from(dicoseRegistration)
     .innerJoin(owner, eq(owner.id, dicoseRegistration.ownerId))
     .innerJoin(farm, eq(farm.id, dicoseRegistration.farmId));
+
+  if (isAdmin(role)) {
+    return baseQuery;
+  }
+
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.length === 0) return [];
+  return baseQuery.where(inArray(dicoseRegistration.farmId, farmIds));
 }
 
 export async function createDicoseRegistration(input: {

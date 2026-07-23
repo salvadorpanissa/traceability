@@ -40,31 +40,47 @@ const farms = [
   { id: "farm-2", name: "Campo Sur" },
 ];
 
+async function selectOriginFarmAndUploadFile(user: ReturnType<typeof userEvent.setup>) {
+  await user.selectOptions(screen.getByLabelText(/campo origen/i), "farm-1");
+  const file = new File(["dummy"], "lote.xlsx", {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  await user.upload(screen.getByLabelText(/archivo/i), file);
+  await user.click(screen.getByRole("button", { name: /subir/i }));
+}
+
 describe("TransferForm", () => {
   it("shows the preview after uploading a file", async () => {
     render(<TransferForm farms={farms} />);
     const user = userEvent.setup();
 
-    const file = new File(["dummy"], "lote.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const fileInput = screen.getByLabelText(/archivo/i);
-    await user.upload(fileInput, file);
-    await user.click(screen.getByRole("button", { name: /subir/i }));
+    await selectOriginFarmAndUploadFile(user);
 
     await waitFor(() => expect(screen.getByText("AR000000000030")).toBeInTheDocument());
     expect(screen.getByText(/nuevo/i)).toBeInTheDocument();
+  });
+
+  it("disables Subir until an origin farm and a file are both chosen", async () => {
+    render(<TransferForm farms={farms} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
+
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText(/campo origen/i), "farm-1");
+    expect(screen.getByRole("button", { name: /subir/i })).not.toBeDisabled();
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline plus a destination is set", async () => {
     render(<TransferForm farms={farms} />);
     const user = userEvent.setup();
 
-    const file = new File(["dummy"], "lote.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    await user.upload(screen.getByLabelText(/archivo/i), file);
-    await user.click(screen.getByRole("button", { name: /subir/i }));
+    await selectOriginFarmAndUploadFile(user);
 
     await waitFor(() => expect(screen.getByText("AR000000000030")).toBeInTheDocument());
     await user.selectOptions(screen.getByLabelText(/campo destino/i), "farm-1");
@@ -108,11 +124,7 @@ describe("TransferForm", () => {
 
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
 
-    const file = new File(["dummy"], "lote.xlsx", {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    await user.upload(screen.getByLabelText(/archivo/i), file);
-    await user.click(screen.getByRole("button", { name: /subir/i }));
+    await selectOriginFarmAndUploadFile(user);
 
     await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /continuar/i })).toBeDisabled();

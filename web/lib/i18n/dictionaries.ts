@@ -5,7 +5,6 @@ export const defaultLocale: Locale = "es";
 const dictionaries = {
   es: {
     "app.title": "Trazabilidad de ganado",
-    "appShell.changeFarm": "Cambiar campo",
     "appShell.logout": "Cerrar sesión",
     "appShell.navigation": "Navegación principal",
     "appShell.openNavigation": "Abrir navegación",
@@ -21,8 +20,6 @@ const dictionaries = {
     "login.password": "Contraseña",
     "login.submit": "Ingresar",
     "login.submitPending": "Ingresando...",
-    "selectFarm.noFarms": "No tenés campos asignados. Contactá al administrador.",
-    "selectFarm.selecting": "Seleccionando campo...",
     "settings.language": "Idioma",
     "settings.theme": "Tema",
     "settings.menu": "Configuración",
@@ -50,7 +47,6 @@ const dictionaries = {
   },
   en: {
     "app.title": "Livestock traceability",
-    "appShell.changeFarm": "Change farm",
     "appShell.logout": "Log out",
     "appShell.navigation": "Main navigation",
     "appShell.openNavigation": "Open navigation",
@@ -66,8 +62,6 @@ const dictionaries = {
     "login.password": "Password",
     "login.submit": "Sign in",
     "login.submitPending": "Signing in...",
-    "selectFarm.noFarms": "You have no farms assigned. Contact the administrator.",
-    "selectFarm.selecting": "Selecting farm...",
     "settings.language": "Language",
     "settings.theme": "Theme",
     "settings.menu": "Settings",

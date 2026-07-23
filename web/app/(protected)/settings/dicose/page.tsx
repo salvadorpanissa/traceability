@@ -3,9 +3,15 @@ import { DicoseRegistrationForm } from "@/components/settings/dicose-registratio
 import { listDicoseRegistrations } from "@/lib/dal/dicose-registration";
 import { listOwners } from "@/lib/dal/owner-catalog";
 import { listFarms } from "@/app/(protected)/settings/dicose/actions";
+import { requireSession } from "@/lib/dal/session";
 
 export default async function DicoseSettingsPage() {
-  const [registrations, owners, farms] = await Promise.all([listDicoseRegistrations(), listOwners(), listFarms()]);
+  const session = await requireSession();
+  const [registrations, owners, farms] = await Promise.all([
+    listDicoseRegistrations(session.user.id, session.user.role),
+    listOwners(),
+    listFarms(),
+  ]);
 
   return (
     <Card className="mx-auto w-full max-w-2xl">

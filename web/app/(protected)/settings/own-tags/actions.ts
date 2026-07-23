@@ -108,8 +108,11 @@ export async function confirmOwnTagUpload(
 export async function listOwnTagCounts(): Promise<
   { registration: DicoseRegistrationEntry; count: number; lastUploadedAt: string | null }[]
 > {
-  await requireSession();
-  const [registrations, counts] = await Promise.all([listDicoseRegistrations(), countOwnTagsByRegistration()]);
+  const session = await requireSession();
+  const [registrations, counts] = await Promise.all([
+    listDicoseRegistrations(session.user.id, session.user.role),
+    countOwnTagsByRegistration(),
+  ]);
   const countByRegistrationId = new Map(counts.map((c) => [c.dicoseRegistrationId, c]));
   return registrations.map((registration) => {
     const match = countByRegistrationId.get(registration.id);

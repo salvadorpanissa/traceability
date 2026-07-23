@@ -1,7 +1,6 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { cookies } from "next/headers";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
@@ -35,18 +34,10 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
   return mapping.some((m) => m.meaning === "ignore");
 }
 
-async function requireOperatingFarmId(): Promise<string> {
-  const cookieStore = await cookies();
-  const activeFarmId = cookieStore.get("active_farm_id")?.value;
-  if (!activeFarmId) {
-    throw new Error("No hay un campo activo seleccionado");
-  }
-  return activeFarmId;
-}
-
 export async function previewHealthBatch(formData: FormData): Promise<PreviewResult> {
-  await requireSession();
-  const operatingFarmId = await requireOperatingFarmId();
+  const session = await requireSession();
+  const operatingFarmId = formData.get("farmId") as string;
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
 
   const file = formData.get("file") as File;
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -103,10 +94,10 @@ export async function confirmHealthBatchAction(input: {
   products: HealthProduct[];
   rows: ResolvedRow[];
   paddockId: string | null;
+  farmId: string;
 }): Promise<void> {
   const session = await requireSession();
-  const operatingFarmId = await requireOperatingFarmId();
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
 
   await db
     .insert(columnMapping)
@@ -116,7 +107,7 @@ export async function confirmHealthBatchAction(input: {
   await confirmHealthBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId,
+    operatingFarmId: input.farmId,
     products: input.products,
     rows: input.rows,
     paddockId: input.paddockId,
@@ -133,16 +124,14 @@ export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry
   return createOwner(name);
 }
 
-export async function listHealthPaddocksAction(): Promise<PaddockCatalogEntry[]> {
+export async function listHealthPaddocksAction(farmId: string): Promise<PaddockCatalogEntry[]> {
   const session = await requireSession();
-  const operatingFarmId = await requireOperatingFarmId();
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
-  return listPaddocksByFarm(operatingFarmId);
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return listPaddocksByFarm(farmId);
 }
 
-export async function createHealthPaddockAction(name: string): Promise<PaddockCatalogEntry> {
+export async function createHealthPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
   const session = await requireSession();
-  const operatingFarmId = await requireOperatingFarmId();
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
-  return createPaddock(operatingFarmId, name);
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return createPaddock(farmId, name);
 }

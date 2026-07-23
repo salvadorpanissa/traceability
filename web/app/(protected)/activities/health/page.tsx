@@ -1,18 +1,17 @@
-import { cookies } from "next/headers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HealthForm } from "@/components/activities/health-form";
 import { listProducts } from "@/lib/dal/product-catalog";
 import { listOwners } from "@/lib/dal/owner-catalog";
-import { listPaddocksByFarm } from "@/lib/dal/paddock-catalog";
+import { listSelectableFarms } from "@/lib/dal/farm-access";
+import { requireSession } from "@/lib/dal/session";
 
 export default async function HealthActivityPage() {
-  const cookieStore = await cookies();
-  const activeFarmId = cookieStore.get("active_farm_id")?.value;
+  const session = await requireSession();
 
-  const [catalog, ownerCatalog, paddocks] = await Promise.all([
+  const [catalog, ownerCatalog, farms] = await Promise.all([
     listProducts(),
     listOwners(),
-    activeFarmId ? listPaddocksByFarm(activeFarmId) : Promise.resolve([]),
+    listSelectableFarms(session.user.id, session.user.role),
   ]);
 
   return (
@@ -21,7 +20,7 @@ export default async function HealthActivityPage() {
         <CardTitle>Sanidad</CardTitle>
       </CardHeader>
       <CardContent>
-        <HealthForm catalog={catalog} ownerCatalog={ownerCatalog} paddocks={paddocks} />
+        <HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />
       </CardContent>
     </Card>
   );

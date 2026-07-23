@@ -6,13 +6,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
-import { cookies } from "next/headers";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { role, farm, userAccount, userFarm, columnMapping, owner, dicoseRegistration, ownTag } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
 const { previewTransferBatch, confirmTransferBatchAction, createOwnerAction, listPaddocksAction, createPaddockAction } =
@@ -41,9 +39,6 @@ async function seedManagerSession() {
   await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
 
   vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
-  vi.mocked(cookies).mockResolvedValue({
-    get: (name: string) => (name === "active_farm_id" ? { value: seededFarm.id } : undefined),
-  } as never);
 
   return { manager, seededFarm };
 }
@@ -60,10 +55,11 @@ async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
 
 describe("previewTransferBatch", () => {
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000020"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewTransferBatch(formData);
@@ -76,6 +72,7 @@ describe("previewTransferBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000021"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -91,7 +88,7 @@ describe("previewTransferBatch", () => {
   });
 
   it("reuses a previously saved mapping for the same header signature", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
       .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
@@ -99,6 +96,7 @@ describe("previewTransferBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000022"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewTransferBatch(formData);
@@ -106,7 +104,7 @@ describe("previewTransferBatch", () => {
   });
 
   it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await testDb.insert(columnMapping).values({
       headerSignature: JSON.stringify(["IDE", "SEXO"]),
       mapping: [
@@ -118,6 +116,7 @@ describe("previewTransferBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE", "SEXO"], [["AR000000000100", "M"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewTransferBatch(formData);
@@ -131,7 +130,7 @@ describe("previewTransferBatch", () => {
   });
 
   it("applies the saved mapping silently when no column is left ignored", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
       .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
@@ -139,6 +138,7 @@ describe("previewTransferBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewTransferBatch(formData);
@@ -146,10 +146,11 @@ describe("previewTransferBatch", () => {
   });
 
   it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE", "Fecha"], [["AR000000000102", "2026-03-10"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -169,10 +170,11 @@ describe("previewTransferBatch", () => {
   });
 
   it("asks for an event date when no column is mapped as date and none was supplied", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000103"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
     const result = await previewTransferBatch(formData);
@@ -183,10 +185,11 @@ describe("previewTransferBatch", () => {
   });
 
   it("resolves rows once an event date is supplied for a file with no date column", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000104"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -201,10 +204,11 @@ describe("previewTransferBatch", () => {
   });
 
   it("marks an unregistered tag as foreign when there is no matching own_tag record", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000199"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -223,6 +227,7 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
+      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -253,6 +258,7 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
+      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -282,6 +288,7 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
+      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -321,6 +328,7 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
+      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [

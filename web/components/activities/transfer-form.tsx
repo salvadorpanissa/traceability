@@ -31,6 +31,7 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 }
 
 export function TransferForm({ farms }: { farms: { id: string; name: string }[] }) {
+  const [originFarmId, setOriginFarmId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -40,16 +41,24 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
+  function handleOriginFarmChange(selected: string) {
+    setOriginFarmId(selected);
+    setEventDate("");
+    setPreview(null);
+    setRows([]);
+  }
+
   function handleFileChange(selected: File | null) {
     setFile(selected);
     setEventDate("");
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file) return;
+    if (!file || !originFarmId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
+    formData.set("farmId", originFarmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewTransferBatch(formData);
     setPreview(result);
@@ -102,6 +111,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     await confirmTransferBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
+      originFarmId,
       destinationFarmId,
       destinationPaddockId,
       rows,
@@ -122,10 +132,27 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
+        <Label htmlFor="originFarm">Campo origen</Label>
+        <select
+          id="originFarm"
+          aria-label="Campo origen"
+          value={originFarmId}
+          onChange={(e) => handleOriginFarmChange(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+        >
+          <option value="">Elegir campo</option>
+          {farms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" onClick={() => runPreview()}>
+      <Button type="button" disabled={!originFarmId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 

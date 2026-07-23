@@ -4,13 +4,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
-import { cookies } from "next/headers";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { role, farm, userAccount, userFarm, product, columnMapping, owner, dicoseRegistration, ownTag } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
 const { previewHealthBatch, confirmHealthBatchAction, createProductAction, createOwnerAction } = await import(
@@ -40,9 +38,6 @@ async function seedManagerSession() {
   await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
 
   vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
-  vi.mocked(cookies).mockResolvedValue({
-    get: (name: string) => (name === "active_farm_id" ? { value: seededFarm.id } : undefined),
-  } as never);
 
   return { manager, seededFarm };
 }
@@ -59,10 +54,11 @@ async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
 
 describe("previewHealthBatch", () => {
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000080"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -75,6 +71,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -87,7 +84,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await testDb.insert(columnMapping).values({
       headerSignature: JSON.stringify(["IDE", "SEXO"]),
       mapping: [
@@ -99,6 +96,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE", "SEXO"], [["AR000000000100", "M"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -112,7 +110,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("applies the saved mapping silently when no column is left ignored", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
       .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
@@ -120,6 +118,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -127,7 +126,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("suggests a product row per product-mapped column, matched against the catalog when possible", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const [matchedProduct] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
 
     const buffer = await buildWorkbookBuffer(
@@ -136,6 +135,7 @@ describe("previewHealthBatch", () => {
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
@@ -157,13 +157,14 @@ describe("previewHealthBatch", () => {
   });
 
   it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(
       ["IDE", "Fecha"],
       [["AR000000000111", "2026-03-10"]]
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -183,10 +184,11 @@ describe("previewHealthBatch", () => {
   });
 
   it("asks for an event date when no column is mapped as date and none was supplied", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000112"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
     const result = await previewHealthBatch(formData);
@@ -197,10 +199,11 @@ describe("previewHealthBatch", () => {
   });
 
   it("resolves rows once an event date is supplied for a file with no date column", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000113"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -215,10 +218,11 @@ describe("previewHealthBatch", () => {
   });
 
   it("marks an unregistered tag as foreign when there is no matching own_tag record", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000299"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
 
@@ -255,6 +259,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
+      farmId: seededFarm.id,
     });
 
     const [savedMapping] = await testDb
@@ -265,7 +270,7 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("overwrites a previously cached mapping when the user corrects it on a later import", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
     const headerSignature = JSON.stringify(["IDE", "NOTA"]);
 
@@ -303,6 +308,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
+      farmId: seededFarm.id,
     });
 
     const [savedMapping] = await testDb
@@ -321,7 +327,7 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("excludes an unforced foreign row from the confirmed batch", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
 
     await confirmHealthBatchAction({
@@ -345,6 +351,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
+      farmId: seededFarm.id,
     });
 
     const { animal } = await import("@/db/schema");
@@ -353,7 +360,7 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("creates the animal for a forced foreign row", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
 
     await confirmHealthBatchAction({
@@ -377,6 +384,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
+      farmId: seededFarm.id,
     });
 
     const { animal, animalTagHistory } = await import("@/db/schema");
@@ -390,7 +398,7 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("confirms a wrong_farm row, creating the animal with its DICOSE-inferred owner", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     const [otherFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
     const [createdOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
     await testDb
@@ -419,6 +427,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
+      farmId: seededFarm.id,
     });
 
     const { animal } = await import("@/db/schema");
@@ -430,7 +439,7 @@ describe("confirmHealthBatchAction", () => {
 
 describe("createProductAction", () => {
   it("creates a product and returns it", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
 
     const created = await createProductAction("Ivermectina 1%");
 
@@ -442,7 +451,7 @@ describe("createProductAction", () => {
 
 describe("createOwnerAction", () => {
   it("creates an owner and returns it", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
 
     const created = await createOwnerAction("Pérez");
 

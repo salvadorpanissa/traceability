@@ -15,6 +15,7 @@ import {
   createProductAction,
   createOwnerAction,
   createHealthPaddockAction,
+  listHealthPaddocksAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -58,23 +59,37 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 export function HealthForm({
   catalog: initialCatalog,
   ownerCatalog: initialOwnerCatalog,
-  paddocks: initialPaddocks,
+  farms,
 }: {
   catalog: ProductCatalogEntry[];
   ownerCatalog: OwnerCatalogEntry[];
-  paddocks: PaddockCatalogEntry[];
+  farms: { id: string; name: string }[];
 }) {
+  const [farmId, setFarmId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
   const [ownerCatalog, setOwnerCatalog] = useState<OwnerCatalogEntry[]>(initialOwnerCatalog);
-  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>(initialPaddocks);
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
   const [paddockId, setPaddockId] = useState<string | null>(null);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
+
+  async function handleFarmChange(selected: string) {
+    setFarmId(selected);
+    setEventDate("");
+    setPreview(null);
+    setRows([]);
+    setPaddockId(null);
+    if (!selected) {
+      setPaddocks([]);
+      return;
+    }
+    setPaddocks(await listHealthPaddocksAction(selected));
+  }
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
@@ -82,10 +97,11 @@ export function HealthForm({
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file) return;
+    if (!file || !farmId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
+    formData.set("farmId", farmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
     setPreview(result);
@@ -115,7 +131,7 @@ export function HealthForm({
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
-    const created = await createHealthPaddockAction(name);
+    const created = await createHealthPaddockAction(farmId, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -142,6 +158,7 @@ export function HealthForm({
       products,
       rows,
       paddockId,
+      farmId,
     });
     setConfirmed(true);
   }
@@ -160,10 +177,27 @@ export function HealthForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
+        <Label htmlFor="farm">Campo</Label>
+        <select
+          id="farm"
+          aria-label="Campo"
+          value={farmId}
+          onChange={(e) => handleFarmChange(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+        >
+          <option value="">Elegir campo</option>
+          {farms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" onClick={() => runPreview()}>
+      <Button type="button" disabled={!farmId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 
