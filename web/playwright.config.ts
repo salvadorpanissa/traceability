@@ -17,6 +17,8 @@ export default defineConfig({
     reuseExistingServer: true,
     env: {
       DATABASE_URL: process.env.DATABASE_URL_TEST ?? "",
+      DATABASE_URL_REPORTING: process.env.DATABASE_URL_REPORTING_TEST ?? "",
+      NL_QUERY_TEST_SQL_OVERRIDE: "SELECT status, count(*) as total FROM my_animal_state GROUP BY status",
     },
   },
 });
