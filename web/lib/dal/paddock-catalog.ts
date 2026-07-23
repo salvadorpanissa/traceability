@@ -31,3 +31,8 @@ export async function createPaddock(farmId: string, name: string): Promise<Paddo
   const [created] = await db.insert(paddock).values({ farmId, name }).returning();
   return { id: created.id, name: created.name, farmId: created.farmId };
 }
+
+export async function updatePaddock(id: string, name: string): Promise<PaddockCatalogEntry> {
+  const [updated] = await db.update(paddock).set({ name }).where(eq(paddock.id, id)).returning();
+  return { id: updated.id, name: updated.name, farmId: updated.farmId };
+}

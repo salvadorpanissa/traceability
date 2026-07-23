@@ -5,7 +5,9 @@ import { farm, paddock } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listPaddocksByFarm, listPaddocksForFarms, createPaddock } = await import("@/lib/dal/paddock-catalog");
+const { listPaddocksByFarm, listPaddocksForFarms, createPaddock, updatePaddock } = await import(
+  "@/lib/dal/paddock-catalog"
+);
 
 beforeEach(async () => {
   await resetTestDb();
@@ -67,5 +69,24 @@ describe("createPaddock", () => {
     const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
     await createPaddock(seededFarm.id, "Potrero 1");
     await expect(createPaddock(seededFarm.id, "Potrero 1")).rejects.toThrow();
+  });
+});
+
+describe("updatePaddock", () => {
+  it("renames a paddock", async () => {
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const created = await createPaddock(seededFarm.id, "Potrero 1");
+
+    const updated = await updatePaddock(created.id, "Potrero 1 (bajo)");
+
+    expect(updated).toEqual({ id: created.id, name: "Potrero 1 (bajo)", farmId: seededFarm.id });
+  });
+
+  it("rejects renaming into a name that already exists within the same farm", async () => {
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    await createPaddock(seededFarm.id, "Potrero 1");
+    const created = await createPaddock(seededFarm.id, "Potrero 2");
+
+    await expect(updatePaddock(created.id, "Potrero 1")).rejects.toThrow();
   });
 });
