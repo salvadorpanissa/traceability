@@ -15,12 +15,14 @@ export async function runNaturalLanguageQuery(question: string): Promise<QueryRe
   let generatedSql: string;
   try {
     generatedSql = await generateReportingSql(question);
-  } catch {
+  } catch (error) {
+    console.error("[runNaturalLanguageQuery] Gemini generation failed:", error);
     return { status: "error", messageKey: "connectionError" };
   }
 
   const validated = validateReportingSql(generatedSql, REPORTING_VIEW_NAMES);
   if (!validated.ok) {
+    console.error("[runNaturalLanguageQuery] SQL validation rejected generated query:", validated);
     return { status: "error", messageKey: "cantGenerate" };
   }
 
@@ -35,8 +37,10 @@ export async function runNaturalLanguageQuery(question: string): Promise<QueryRe
     });
   } catch (error) {
     if (error instanceof Error && /timeout/i.test(error.message)) {
+      console.error("[runNaturalLanguageQuery] SQL execution timed out:", error);
       return { status: "error", messageKey: "timeout" };
     }
+    console.error("[runNaturalLanguageQuery] SQL execution failed:", error);
     return { status: "error", messageKey: "cantGenerate" };
   }
 }

@@ -40,6 +40,11 @@ test("asks a natural-language question and sees a results table", async ({ page 
   await page.getByLabel("Fecha del lote").fill("2026-02-01");
   await page.getByRole("button", { name: /continuar/i }).click();
 
+  // AR000000000299 is also used by e2e/health-column-mapping-reopen.spec.ts.
+  // Reuse is intentional and safe regardless of test-run ordering: whether
+  // resolveBatchRows treats the tag as "new" or "existing" for this spec run,
+  // the health-batch confirmation below still succeeds and still produces a
+  // row in animal_current_state, which is all this spec needs.
   await expect(page.getByText("AR000000000299")).toBeVisible();
 
   await page.getByLabel("Producto").selectOption({ label: "Ivermectina 1%" });
