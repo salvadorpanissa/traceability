@@ -8,8 +8,8 @@ import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 // interpolation used to build the CREATE TEMP VIEW statements below is safe.
 const SCOPED_VIEWS_BY_FARM = [
   { name: "my_animal_state", source: "animal_current_state_named", farmColumn: "current_farm_id" },
-  { name: "my_farms", source: "farm", farmColumn: "id" },
-  { name: "my_paddocks", source: "paddock", farmColumn: "farm_id" },
+  { name: "my_farms", source: "farm_named", farmColumn: "id" },
+  { name: "my_paddocks", source: "paddock_named", farmColumn: "farm_id" },
   { name: "my_transfer_events", source: "transfer_events_named", farmColumn: "farm_id" },
   { name: "my_health_events", source: "health_events_named", farmColumn: "farm_id" },
   { name: "my_retag_events", source: "retag_events_named", farmColumn: "farm_id" },
@@ -20,9 +20,9 @@ const SCOPED_VIEWS_BY_FARM = [
 
 // Global catalogs: no farm scoping — same for every user.
 const GLOBAL_CATALOG_VIEWS = [
-  { name: "my_categories", source: "category" },
-  { name: "my_products", source: "product" },
-  { name: "my_owners", source: "owner" },
+  { name: "my_categories", source: "category_named" },
+  { name: "my_products", source: "product_named" },
+  { name: "my_owners", source: "owner_named" },
 ] as const;
 
 export const REPORTING_VIEW_NAMES: readonly string[] = [

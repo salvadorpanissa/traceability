@@ -127,6 +127,13 @@
       "when": 1784766100000,
       "tag": "0017_reporting_role_and_views",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784766200000,
+      "tag": "0018_reporting_ro_no_base_table_access",
+      "breakpoints": true
     }
   ]
 }
