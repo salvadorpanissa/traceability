@@ -5,7 +5,7 @@ import { farm, paddock } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listPaddocksByFarm, createPaddock } = await import("@/lib/dal/paddock-catalog");
+const { listPaddocksByFarm, listPaddocksForFarms, createPaddock } = await import("@/lib/dal/paddock-catalog");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -27,6 +27,30 @@ describe("listPaddocksByFarm", () => {
       { id: expect.any(String), name: "Potrero 1", farmId: farmA.id },
       { id: expect.any(String), name: "Potrero 2", farmId: farmA.id },
     ]);
+  });
+});
+
+describe("listPaddocksForFarms", () => {
+  it("lists paddocks across multiple farms, ordered by name", async () => {
+    const [farmA] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [farmC] = await testDb.insert(farm).values({ name: "Campo Este" }).returning();
+    await testDb.insert(paddock).values([
+      { farmId: farmA.id, name: "Potrero 2" },
+      { farmId: farmB.id, name: "Potrero 1" },
+      { farmId: farmC.id, name: "Ajeno" },
+    ]);
+
+    const result = await listPaddocksForFarms([farmA.id, farmB.id]);
+
+    expect(result).toEqual([
+      { id: expect.any(String), name: "Potrero 1", farmId: farmB.id },
+      { id: expect.any(String), name: "Potrero 2", farmId: farmA.id },
+    ]);
+  });
+
+  it("returns an empty list when given no farm ids", async () => {
+    expect(await listPaddocksForFarms([])).toEqual([]);
   });
 });
 

@@ -31,21 +31,26 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 }
 
 export function TransferForm({ farms }: { farms: { id: string; name: string }[] }) {
-  const [originFarmId, setOriginFarmId] = useState("");
+  const [destinationFarmId, setDestinationFarmId] = useState("");
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
+  const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
-  const [destinationFarmId, setDestinationFarmId] = useState("");
-  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
-  const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  function handleOriginFarmChange(selected: string) {
-    setOriginFarmId(selected);
+  async function handleDestinationFarmChange(farmId: string) {
+    setDestinationFarmId(farmId);
+    setDestinationPaddockId(null);
     setEventDate("");
     setPreview(null);
     setRows([]);
+    if (!farmId) {
+      setPaddocks([]);
+      return;
+    }
+    setPaddocks(await listPaddocksAction(farmId));
   }
 
   function handleFileChange(selected: File | null) {
@@ -54,11 +59,11 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !originFarmId) return;
+    if (!file || !destinationFarmId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
-    formData.set("farmId", originFarmId);
+    formData.set("farmId", destinationFarmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewTransferBatch(formData);
     setPreview(result);
@@ -70,16 +75,6 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   async function handleSubmitEventDate() {
     if (!preview || preview.mappingNeeded || !preview.eventDateNeeded) return;
     await runPreview(preview.mapping);
-  }
-
-  async function handleDestinationFarmChange(farmId: string) {
-    setDestinationFarmId(farmId);
-    setDestinationPaddockId(null);
-    if (!farmId) {
-      setPaddocks([]);
-      return;
-    }
-    setPaddocks(await listPaddocksAction(farmId));
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
@@ -111,7 +106,6 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     await confirmTransferBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
-      originFarmId,
       destinationFarmId,
       destinationPaddockId,
       rows,
@@ -132,12 +126,12 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="originFarm">Campo origen</Label>
+        <Label htmlFor="destinationFarm">Campo destino</Label>
         <select
-          id="originFarm"
-          aria-label="Campo origen"
-          value={originFarmId}
-          onChange={(e) => handleOriginFarmChange(e.target.value)}
+          id="destinationFarm"
+          aria-label="Campo destino"
+          value={destinationFarmId}
+          onChange={(e) => handleDestinationFarmChange(e.target.value)}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir campo</option>
@@ -148,11 +142,19 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
           ))}
         </select>
       </div>
+      {destinationFarmId ? (
+        <PaddockSelector
+          paddocks={paddocks}
+          paddockId={destinationPaddockId}
+          onChange={setDestinationPaddockId}
+          onCreatePaddock={handleCreatePaddock}
+        />
+      ) : null}
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" disabled={!originFarmId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!destinationFarmId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 
@@ -180,38 +182,11 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
 
       {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="destinationFarm">Campo destino</Label>
-            <select
-              id="destinationFarm"
-              aria-label="Campo destino"
-              value={destinationFarmId}
-              onChange={(e) => handleDestinationFarmChange(e.target.value)}
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-            >
-              <option value="">Elegir campo</option>
-              {farms.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {destinationFarmId ? (
-            <PaddockSelector
-              paddocks={paddocks}
-              paddockId={destinationPaddockId}
-              onChange={setDestinationPaddockId}
-              onCreatePaddock={handleCreatePaddock}
-            />
-          ) : null}
           <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
           <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
           <Button
             type="button"
-            disabled={
-              rows.some((r) => r.status === "error") || !destinationFarmId || pendingNames.length > 0 || !hasConfirmableRow
-            }
+            disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}
             onClick={handleConfirm}
           >
             Confirmar

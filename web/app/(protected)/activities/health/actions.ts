@@ -16,7 +16,7 @@ import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resol
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
 import { listProducts, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -122,12 +122,6 @@ export async function createProductAction(name: string): Promise<ProductCatalogE
 export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
   await requireSession();
   return createOwner(name);
-}
-
-export async function listHealthPaddocksAction(farmId: string): Promise<PaddockCatalogEntry[]> {
-  const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return listPaddocksByFarm(farmId);
 }
 
 export async function createHealthPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {

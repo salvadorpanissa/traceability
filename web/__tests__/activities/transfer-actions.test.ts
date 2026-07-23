@@ -227,7 +227,6 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
-      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -258,7 +257,6 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
-      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -288,7 +286,6 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
-      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [
@@ -328,7 +325,6 @@ describe("confirmTransferBatchAction", () => {
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
-      originFarmId: seededFarm.id,
       destinationFarmId: seededFarm.id,
       destinationPaddockId: null,
       rows: [

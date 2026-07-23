@@ -8,14 +8,13 @@ import { ColumnMapper } from "@/components/activities/column-mapper";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
-import { PaddockSelector } from "@/components/activities/paddock-selector";
+import { FarmPaddockPicker } from "@/components/activities/farm-paddock-picker";
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
   createProductAction,
   createOwnerAction,
   createHealthPaddockAction,
-  listHealthPaddocksAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -60,35 +59,32 @@ export function HealthForm({
   catalog: initialCatalog,
   ownerCatalog: initialOwnerCatalog,
   farms,
+  paddocks: initialPaddocks,
 }: {
   catalog: ProductCatalogEntry[];
   ownerCatalog: OwnerCatalogEntry[];
   farms: { id: string; name: string }[];
+  paddocks: PaddockCatalogEntry[];
 }) {
   const [farmId, setFarmId] = useState("");
+  const [paddockId, setPaddockId] = useState<string | null>(null);
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>(initialPaddocks);
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
   const [ownerCatalog, setOwnerCatalog] = useState<OwnerCatalogEntry[]>(initialOwnerCatalog);
-  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
-  const [paddockId, setPaddockId] = useState<string | null>(null);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
 
-  async function handleFarmChange(selected: string) {
-    setFarmId(selected);
+  function handlePaddockSelect(selectedPaddockId: string, selectedFarmId: string) {
+    setPaddockId(selectedPaddockId);
+    setFarmId(selectedFarmId);
     setEventDate("");
     setPreview(null);
     setRows([]);
-    setPaddockId(null);
-    if (!selected) {
-      setPaddocks([]);
-      return;
-    }
-    setPaddocks(await listHealthPaddocksAction(selected));
   }
 
   function handleFileChange(selected: File | null) {
@@ -130,8 +126,8 @@ export function HealthForm({
     return created;
   }
 
-  async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
-    const created = await createHealthPaddockAction(farmId, name);
+  async function handleCreatePaddock(farmIdForPaddock: string, name: string): Promise<PaddockCatalogEntry> {
+    const created = await createHealthPaddockAction(farmIdForPaddock, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -176,23 +172,13 @@ export function HealthForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="farm">Campo</Label>
-        <select
-          id="farm"
-          aria-label="Campo"
-          value={farmId}
-          onChange={(e) => handleFarmChange(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir campo</option>
-          {farms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FarmPaddockPicker
+        farms={farms}
+        paddocks={paddocks}
+        paddockId={paddockId}
+        onSelect={handlePaddockSelect}
+        onCreatePaddock={handleCreatePaddock}
+      />
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
@@ -231,13 +217,6 @@ export function HealthForm({
             suggestedNames={suggestedNames}
             onChange={setProducts}
             onCreateProduct={handleCreateProduct}
-          />
-          <PaddockSelector
-            paddocks={paddocks}
-            paddockId={paddockId}
-            onChange={setPaddockId}
-            onCreatePaddock={handleCreatePaddock}
-            label="Potrero"
           />
           <PendingOwnerEditor
             pendingNames={pendingNames}

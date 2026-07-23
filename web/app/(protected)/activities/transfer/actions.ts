@@ -69,13 +69,11 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
 export async function confirmTransferBatchAction(input: {
   headerSignature: string;
   mapping: ColumnMapping[];
-  originFarmId: string;
   destinationFarmId: string;
   destinationPaddockId: string | null;
   rows: ResolvedRow[];
 }): Promise<void> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.originFarmId);
   await requireFarmAccess(session.user.id, session.user.role, input.destinationFarmId);
 
   await db
@@ -83,10 +81,15 @@ export async function confirmTransferBatchAction(input: {
     .values({ headerSignature: input.headerSignature, mapping: input.mapping })
     .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
 
+  // Rows for animals already tracked keep their real current location
+  // (resolveBatchRows/confirmTransferBatch derive it from animal_current_state);
+  // this only stands in as the batch's own farm and as the placement farm for
+  // rows with no known location yet (new/foreign) — there's no separate
+  // "origin" to ask for since the destination is already what's being marked.
   await confirmTransferBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: input.originFarmId,
+    operatingFarmId: input.destinationFarmId,
     destinationFarmId: input.destinationFarmId,
     destinationPaddockId: input.destinationPaddockId,
     rows: input.rows,

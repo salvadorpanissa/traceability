@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { paddock } from "@/db/schema";
 
@@ -13,6 +13,17 @@ export async function listPaddocksByFarm(farmId: string): Promise<PaddockCatalog
     .select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId })
     .from(paddock)
     .where(eq(paddock.farmId, farmId))
+    .orderBy(asc(paddock.name));
+}
+
+// Every potrero across a set of campos — used where the farm itself is
+// derived from which potrero gets picked, instead of asked for separately.
+export async function listPaddocksForFarms(farmIds: string[]): Promise<PaddockCatalogEntry[]> {
+  if (farmIds.length === 0) return [];
+  return db
+    .select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId })
+    .from(paddock)
+    .where(inArray(paddock.farmId, farmIds))
     .orderBy(asc(paddock.name));
 }
 
