@@ -376,9 +376,14 @@ describe("confirmTransferBatch", () => {
   });
 
   it("requires admin when the explicit originFarmId differs from destinationFarmId", async () => {
-    const { manager, seededFarm } = await seedManagerAndFarm();
+    const { manager } = await seedManagerAndFarm();
     const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
     const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    // The manager operates at the destination farm itself (operatingFarmId ===
+    // destinationFarmId), so the pre-existing operatingFarmId-vs-destinationFarmId
+    // check would no-op; only the explicit originFarmId differing from the
+    // destination should trigger the admin-required throw.
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: destinationFarm.id });
 
     const rows: ResolvedRow[] = [
       {
@@ -398,7 +403,7 @@ describe("confirmTransferBatch", () => {
       confirmTransferBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingFarmId: destinationFarm.id,
         destinationFarmId: destinationFarm.id,
         destinationPaddockId: null,
         originFarmId: originFarm.id,
