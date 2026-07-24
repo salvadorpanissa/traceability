@@ -77,10 +77,10 @@ export default async function globalSetup() {
       [e2eOwnerId, farmId]
     );
     for (const tag of ["AR000000000099", "AR000000000199", "AR000000000299"]) {
-      await client.query(
-        "insert into own_tag (tag, dicose_registration_id, created_by) values ($1, $2, (select id from user_account limit 1))",
-        [tag, dicoseRegistrationId]
-      );
+      await client.query("insert into own_tag (tag, dicose_registration_id) values ($1, $2)", [
+        tag,
+        dicoseRegistrationId,
+      ]);
     }
   } finally {
     await client.end();
