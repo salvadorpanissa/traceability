@@ -40,7 +40,7 @@ describe("createCategoryAction", () => {
 
     expect(result).toEqual({
       ok: true,
-      entry: { id: expect.any(String), name: "Vaca", sortOrder: 1 },
+      entry: { id: expect.any(String), name: "Vaca", sortOrder: 1, sex: null, minAgeMonths: null },
     });
     const [stored] = await testDb.select().from(category).where(eq(category.name, "Vaca"));
     expect(stored).toBeDefined();

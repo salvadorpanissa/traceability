@@ -86,7 +86,7 @@ export async function createOwnTagPaddockAction(farmId: string, name: string): P
 
 export async function createOwnTagCategoryAction(name: string): Promise<CategoryCatalogEntry> {
   await requireSession();
-  return createCategory(name);
+  return createCategory({ name });
 }
 
 export async function confirmOwnTagUpload(

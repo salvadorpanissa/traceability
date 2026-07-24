@@ -13,16 +13,22 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editSortOrder, setEditSortOrder] = useState("");
+  const [editSex, setEditSex] = useState("");
+  const [editMinAgeMonths, setEditMinAgeMonths] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState(String(initialCategories.length));
+  const [sex, setSex] = useState("");
+  const [minAgeMonths, setMinAgeMonths] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
   function startEdit(entry: CategoryCatalogEntry) {
     setEditingId(entry.id);
     setEditName(entry.name);
     setEditSortOrder(String(entry.sortOrder));
+    setEditSex(entry.sex ?? "");
+    setEditMinAgeMonths(entry.minAgeMonths === null ? "" : String(entry.minAgeMonths));
     setEditError(null);
   }
 
@@ -33,7 +39,13 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
 
   async function saveEdit(id: string) {
     if (!editName || editSortOrder === "") return;
-    const result = await updateCategoryAction({ id, name: editName, sortOrder: Number(editSortOrder) });
+    const result = await updateCategoryAction({
+      id,
+      name: editName,
+      sortOrder: Number(editSortOrder),
+      sex: editSex === "" ? null : (editSex as "male" | "female"),
+      minAgeMonths: editMinAgeMonths === "" ? null : Number(editMinAgeMonths),
+    });
     if (!result.ok) {
       setEditError(result.error);
       return;
@@ -44,7 +56,12 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
 
   async function handleCreate() {
     if (!name || sortOrder === "") return;
-    const result = await createCategoryAction({ name, sortOrder: Number(sortOrder) });
+    const result = await createCategoryAction({
+      name,
+      sortOrder: Number(sortOrder),
+      sex: sex === "" ? null : (sex as "male" | "female"),
+      minAgeMonths: minAgeMonths === "" ? null : Number(minAgeMonths),
+    });
     if (!result.ok) {
       setCreateError(result.error);
       return;
@@ -52,6 +69,8 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
     setCategories((prev) => [...prev, result.entry]);
     setName("");
     setSortOrder(String(result.entry.sortOrder + 1));
+    setSex("");
+    setMinAgeMonths("");
     setCreateError(null);
   }
 
@@ -62,6 +81,8 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
           <tr className="border-b text-left">
             <th className="py-1 pr-2">Nombre</th>
             <th className="py-1 pr-2">Orden</th>
+            <th className="py-1 pr-2">Sexo</th>
+            <th className="py-1 pr-2">Edad mín. (meses)</th>
             <th className="py-1 pr-2" />
           </tr>
         </thead>
@@ -78,6 +99,26 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
                     type="number"
                     value={editSortOrder}
                     onChange={(e) => setEditSortOrder(e.target.value)}
+                  />
+                </td>
+                <td className="py-1 pr-2">
+                  <select
+                    aria-label="Editar sexo"
+                    value={editSex}
+                    onChange={(e) => setEditSex(e.target.value)}
+                    className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                  >
+                    <option value="">Ambos / no aplica</option>
+                    <option value="male">Macho</option>
+                    <option value="female">Hembra</option>
+                  </select>
+                </td>
+                <td className="py-1 pr-2">
+                  <Input
+                    aria-label="Editar edad mínima"
+                    type="number"
+                    value={editMinAgeMonths}
+                    onChange={(e) => setEditMinAgeMonths(e.target.value)}
                   />
                 </td>
                 <td className="flex gap-1 py-1 pr-2">
@@ -98,6 +139,10 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
               <tr key={entry.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">{entry.name}</td>
                 <td className="py-1 pr-2">{entry.sortOrder}</td>
+                <td className="py-1 pr-2">
+                  {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
+                </td>
+                <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
                 <td className="py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
@@ -120,6 +165,26 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
           type="number"
           value={sortOrder}
           onChange={(e) => setSortOrder(e.target.value)}
+        />
+
+        <Label htmlFor="category-sex">Sexo</Label>
+        <select
+          id="category-sex"
+          value={sex}
+          onChange={(e) => setSex(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+        >
+          <option value="">Ambos / no aplica</option>
+          <option value="male">Macho</option>
+          <option value="female">Hembra</option>
+        </select>
+
+        <Label htmlFor="category-min-age-months">Edad mínima (meses)</Label>
+        <Input
+          id="category-min-age-months"
+          type="number"
+          value={minAgeMonths}
+          onChange={(e) => setMinAgeMonths(e.target.value)}
         />
 
         {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
