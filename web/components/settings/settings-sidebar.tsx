@@ -15,6 +15,7 @@ const settingsNavItems: SettingsNavItem[] = [
   { href: "/settings/products", label: "Productos" },
   { href: "/settings/paddocks", label: "Potreros" },
   { href: "/settings/categories", label: "Categorías" },
+  { href: "/settings/guides", label: "Guías" },
 ];
 
 export function SettingsSidebar() {
