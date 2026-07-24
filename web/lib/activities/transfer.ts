@@ -8,6 +8,15 @@ import { createNewAnimal } from "@/lib/activities/animal-creation";
 
 export { resolveBatchRows, type ResolvedRow };
 
+export function pendingOwnerNames(rows: ResolvedRow[]): string[] {
+  const names: string[] = [];
+  for (const row of rows) {
+    if (row.status === "new" && row.pendingOwnerName) names.push(row.pendingOwnerName);
+    if (row.status === "foreign" && row.forced && row.pendingOwnerName) names.push(row.pendingOwnerName);
+  }
+  return Array.from(new Set(names));
+}
+
 export async function confirmTransferBatch(input: {
   userId: string;
   role: string | undefined;
