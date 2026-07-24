@@ -14,12 +14,15 @@ export async function confirmTransferBatch(input: {
   operatingFarmId: string;
   destinationFarmId: string;
   destinationPaddockId: string | null;
+  originFarmId?: string;
+  guideNumber?: string | null;
   rows: ResolvedRow[];
 }): Promise<void> {
   const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
+  const newAnimalOriginFarmId = input.originFarmId ?? operatingFarmId;
 
   await requireFarmAccess(userId, role, operatingFarmId);
-  requireTransferAuthorization(role, operatingFarmId, destinationFarmId);
+  requireTransferAuthorization(role, newAnimalOriginFarmId, destinationFarmId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
@@ -64,7 +67,7 @@ export async function confirmTransferBatch(input: {
           batchId: batch.id,
           row,
         });
-        originFarmId = operatingFarmId;
+        originFarmId = newAnimalOriginFarmId;
         originPaddockId = null;
       }
 
@@ -87,6 +90,7 @@ export async function confirmTransferBatch(input: {
         destinationFarmId,
         originPaddockId,
         destinationPaddockId,
+        guideNumber: input.guideNumber ?? null,
       });
     }
 

@@ -338,4 +338,72 @@ describe("confirmTransferBatch", () => {
     const transferEvent = events.find((e) => e.eventType === "transfer")!;
     expect(transferEvent.notes).toBe("Cojera leve");
   });
+
+  it("uses an explicit originFarmId for a new animal instead of operatingFarmId, when provided", async () => {
+    const { manager } = await seedManagerAndFarm();
+    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "admin",
+      operatingFarmId: destinationFarm.id,
+      destinationFarmId: destinationFarm.id,
+      destinationPaddockId: null,
+      originFarmId: originFarm.id,
+      guideNumber: "D838153",
+      rows,
+    });
+
+    const [createdEventTransfer] = await testDb.select().from(eventTransfer);
+    expect(createdEventTransfer.originFarmId).toBe(originFarm.id);
+    expect(createdEventTransfer.destinationFarmId).toBe(destinationFarm.id);
+    expect(createdEventTransfer.guideNumber).toBe("D838153");
+  });
+
+  it("requires admin when the explicit originFarmId differs from destinationFarmId", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000012",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await expect(
+      confirmTransferBatch({
+        userId: manager.id,
+        role: "manager",
+        operatingFarmId: seededFarm.id,
+        destinationFarmId: destinationFarm.id,
+        destinationPaddockId: null,
+        originFarmId: originFarm.id,
+        rows,
+      })
+    ).rejects.toThrow("Solo un admin puede crear un traslado entre campos distintos");
+  });
 });
