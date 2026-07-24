@@ -146,7 +146,7 @@ export async function resolveBatchRows(
     // this batch's own columns are the only source for those fields.
     const ownTagMatch = ownTagByTag.get(row.tag);
     const sex = normalizeSex(row.sex);
-    const birthDate: string | null = null;
+    const birthDate: string | null = row.birthDate ?? null;
 
     if (!ownTagMatch) {
       let ownerId: string | null = null;

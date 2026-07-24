@@ -32,3 +32,15 @@ export function normalizeDate(rawDate: string): string | null {
 
   return null;
 }
+
+// Approximates a birth date from an age given in whole months, anchored to
+// an event date — used for animals whose only age information is "N months
+// old" (e.g. a SNIG guide), the same precision convention MONTH_YEAR_DATE
+// already uses above: exact day unknown, approximate to the 1st.
+export function estimateBirthDateFromAge(eventDateIso: string, ageMonths: number): string {
+  const [year, month] = eventDateIso.split("-").map(Number);
+  const totalMonths = year * 12 + (month - 1) - ageMonths;
+  const resultYear = Math.floor(totalMonths / 12);
+  const resultMonth = totalMonths % 12;
+  return `${resultYear}-${String(resultMonth + 1).padStart(2, "0")}-01`;
+}

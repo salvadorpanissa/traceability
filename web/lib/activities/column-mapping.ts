@@ -22,6 +22,7 @@ export type MappedRow = {
   sex: string | null;
   ownerName: string | null;
   notes: string | null;
+  birthDate?: string | null;
 };
 
 export function computeHeaderSignature(headers: string[]): string {
