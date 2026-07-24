@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, numeric, integer, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { event } from "./event";
 import { farm } from "./farm";
 import { product } from "./product";
@@ -43,17 +44,29 @@ export const eventRetag = pgTable("event_retag", {
   newTag: text("new_tag").notNull(),
 });
 
-export const eventRecategorize = pgTable("event_recategorize", {
-  eventId: uuid("event_id")
-    .primaryKey()
-    .references(() => event.id, { onDelete: "cascade" }),
-  oldCategoryId: uuid("old_category_id")
-    .notNull()
-    .references(() => category.id),
-  newCategoryId: uuid("new_category_id")
-    .notNull()
-    .references(() => category.id),
-});
+export const eventRecategorize = pgTable(
+  "event_recategorize",
+  {
+    eventId: uuid("event_id")
+      .primaryKey()
+      .references(() => event.id, { onDelete: "cascade" }),
+    oldCategoryId: uuid("old_category_id")
+      .notNull()
+      .references(() => category.id),
+    newCategoryId: uuid("new_category_id")
+      .notNull()
+      .references(() => category.id),
+    // 'initial' = first-time assignment on animal creation/import (existing
+    // code paths, unchanged). 'manual' = a human explicitly changed it (no
+    // code path writes this yet — reserved for a future manual-recategorize
+    // feature). 'auto_age' = written by the scheduled age-based job (Task 4).
+    // The job only ever acts on an animal whose current category has
+    // minAgeMonths set AND whose latest recategorize event's source isn't
+    // 'manual' — this column is what lets a human override stick.
+    source: text("source").notNull().default("initial"),
+  },
+  (table) => [check("event_recategorize_source_check", sql`${table.source} in ('initial', 'manual', 'auto_age')`)]
+);
 
 export const eventSale = pgTable("event_sale", {
   eventId: uuid("event_id")

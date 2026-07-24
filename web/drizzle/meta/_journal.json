@@ -169,6 +169,13 @@
       "when": 1784936201497,
       "tag": "0023_clean_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784937071692,
+      "tag": "0024_heavy_sebastian_shaw",
+      "breakpoints": true
     }
   ]
 }
