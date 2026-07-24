@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { buildSnigGuideFixturePdf } from "../../test/snig-guide-fixture";
-import { role, farm, userAccount, owner, dicoseRegistration, ownTag, eventTransfer, animal } from "@/db/schema";
+import {
+  role,
+  farm,
+  userAccount,
+  owner,
+  dicoseRegistration,
+  ownTag,
+  eventTransfer,
+  animal,
+  batchOperation,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -116,7 +126,7 @@ describe("previewTransferBatchFromPdf", () => {
 });
 
 describe("confirmTransferBatchFromPdfAction", () => {
-  it("confirms the batch with the explicit origin farm and guide number", async () => {
+  it("confirms the batch with the explicit origin farm and guide number, and persists the uploaded guide document", async () => {
     await seedAdminSession();
     const [seededOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
     const [originFarm] = await testDb.insert(farm).values({ name: "Campo San Antonio" }).returning();
@@ -129,12 +139,23 @@ describe("confirmTransferBatchFromPdfAction", () => {
       .insert(ownTag)
       .values({ tag: "858000031330866", dicoseRegistrationId: destinationRegistration.id });
 
-    await confirmTransferBatchFromPdfAction({
-      originFarmId: originFarm.id,
-      destinationFarmId: destinationFarm.id,
-      destinationPaddockId: null,
+    const buffer = await buildSnigGuideFixturePdf({
       guideNumber: "D838153",
-      rows: [
+      eventDateDisplay: "11/07/2026",
+      dicoseA: "151400442",
+      dicoseB: "151518192",
+      dicoseC: "151400442",
+      dicoseD: "151518192",
+      animals: [{ tag: "858000031330866", sex: "H", ageMonths: 90 }],
+    });
+    const formData = new FormData();
+    formData.set("file", new File([buffer], "guide.pdf", { type: "application/pdf" }));
+    formData.set("originFarmId", originFarm.id);
+    formData.set("destinationFarmId", destinationFarm.id);
+    formData.set("guideNumber", "D838153");
+    formData.set(
+      "rows",
+      JSON.stringify([
         {
           tag: "858000031330866",
           eventDate: "2026-07-11",
@@ -146,8 +167,10 @@ describe("confirmTransferBatchFromPdfAction", () => {
           ownerId: seededOwner.id,
           pendingOwnerName: null,
         },
-      ],
-    });
+      ])
+    );
+
+    await confirmTransferBatchFromPdfAction(formData);
 
     const [createdEventTransfer] = await testDb.select().from(eventTransfer);
     expect(createdEventTransfer.originFarmId).toBe(originFarm.id);
@@ -155,5 +178,10 @@ describe("confirmTransferBatchFromPdfAction", () => {
     expect(createdEventTransfer.guideNumber).toBe("D838153");
     const [createdAnimal] = await testDb.select().from(animal);
     expect(createdAnimal.birthDate).toBe("2019-01-01");
+
+    const [createdBatch] = await testDb.select().from(batchOperation);
+    expect(createdBatch.guideFileName).toBe("guide.pdf");
+    expect(createdBatch.guideMimeType).toBe("application/pdf");
+    expect(Buffer.from(createdBatch.guideFileData as Buffer)).toEqual(Buffer.from(buffer));
   });
 });

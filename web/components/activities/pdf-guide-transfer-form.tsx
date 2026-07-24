@@ -80,14 +80,15 @@ export function PdfGuideTransferForm({ farms: _farms }: { farms: { id: string; n
   }
 
   async function handleConfirm() {
-    if (!preview?.ok) return;
-    await confirmTransferBatchFromPdfAction({
-      originFarmId: preview.originFarmId,
-      destinationFarmId: preview.destinationFarmId,
-      destinationPaddockId,
-      guideNumber: preview.guideNumber,
-      rows,
-    });
+    if (!preview?.ok || !file) return;
+    const formData = new FormData();
+    formData.set("file", file);
+    formData.set("originFarmId", preview.originFarmId);
+    formData.set("destinationFarmId", preview.destinationFarmId);
+    if (destinationPaddockId) formData.set("destinationPaddockId", destinationPaddockId);
+    formData.set("guideNumber", preview.guideNumber);
+    formData.set("rows", JSON.stringify(rows));
+    await confirmTransferBatchFromPdfAction(formData);
     setConfirmed(true);
   }
 

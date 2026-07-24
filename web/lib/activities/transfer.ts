@@ -8,6 +8,12 @@ import { createNewAnimal } from "@/lib/activities/animal-creation";
 
 export { resolveBatchRows, type ResolvedRow };
 
+export type GuideDocument = {
+  fileName: string;
+  mimeType: string;
+  data: Buffer;
+};
+
 export async function confirmTransferBatch(input: {
   userId: string;
   role: string | undefined;
@@ -16,6 +22,7 @@ export async function confirmTransferBatch(input: {
   destinationPaddockId: string | null;
   originFarmId?: string;
   guideNumber?: string | null;
+  guideDocument?: GuideDocument;
   rows: ResolvedRow[];
 }): Promise<void> {
   const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
@@ -45,7 +52,15 @@ export async function confirmTransferBatch(input: {
   await db.transaction(async (tx) => {
     const [batch] = await tx
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: operatingFarmId, animalCount: rows.length, createdBy: userId })
+      .values({
+        eventType: "transfer",
+        farmId: operatingFarmId,
+        animalCount: rows.length,
+        createdBy: userId,
+        guideFileName: input.guideDocument?.fileName ?? null,
+        guideMimeType: input.guideDocument?.mimeType ?? null,
+        guideFileData: input.guideDocument?.data ?? null,
+      })
       .returning();
 
     for (const row of rows) {

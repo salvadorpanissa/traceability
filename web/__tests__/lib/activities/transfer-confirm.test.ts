@@ -375,6 +375,75 @@ describe("confirmTransferBatch", () => {
     expect(createdEventTransfer.guideNumber).toBe("D838153");
   });
 
+  it("persists the uploaded guide document on the batch when provided", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      guideDocument: {
+        fileName: "D838153.pdf",
+        mimeType: "application/pdf",
+        data: Buffer.from("%PDF-1.4 fake guide content"),
+      },
+      rows,
+    });
+
+    const [createdBatch] = await testDb.select().from(batchOperation);
+    expect(createdBatch.guideFileName).toBe("D838153.pdf");
+    expect(createdBatch.guideMimeType).toBe("application/pdf");
+    expect(Buffer.from(createdBatch.guideFileData as Buffer)).toEqual(Buffer.from("%PDF-1.4 fake guide content"));
+  });
+
+  it("leaves the guide document columns null for a batch with no guideDocument (the Excel path)", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [createdBatch] = await testDb.select().from(batchOperation);
+    expect(createdBatch.guideFileName).toBeNull();
+    expect(createdBatch.guideMimeType).toBeNull();
+    expect(createdBatch.guideFileData).toBeNull();
+  });
+
   it("requires admin when the explicit originFarmId differs from destinationFarmId", async () => {
     const { manager } = await seedManagerAndFarm();
     const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();

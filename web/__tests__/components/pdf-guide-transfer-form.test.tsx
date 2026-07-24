@@ -63,15 +63,15 @@ describe("PdfGuideTransferForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirmar" }));
 
-    await waitFor(() =>
-      expect(confirmTransferBatchFromPdfAction).toHaveBeenCalledWith({
-        originFarmId: "farm-origin",
-        destinationFarmId: "farm-destination",
-        destinationPaddockId: null,
-        guideNumber: "D838153",
-        rows: expect.any(Array),
-      })
-    );
+    await waitFor(() => expect(confirmTransferBatchFromPdfAction).toHaveBeenCalledTimes(1));
+    const submittedFormData = vi.mocked(confirmTransferBatchFromPdfAction).mock.calls[0][0];
+    expect(submittedFormData.get("file")).toBeInstanceOf(File);
+    expect((submittedFormData.get("file") as File).name).toBe("guide.pdf");
+    expect(submittedFormData.get("originFarmId")).toBe("farm-origin");
+    expect(submittedFormData.get("destinationFarmId")).toBe("farm-destination");
+    expect(submittedFormData.get("destinationPaddockId")).toBeNull();
+    expect(submittedFormData.get("guideNumber")).toBe("D838153");
+    expect(JSON.parse(submittedFormData.get("rows") as string)).toHaveLength(1);
     expect(screen.getByText("Lote confirmado.")).toBeInTheDocument();
   });
 

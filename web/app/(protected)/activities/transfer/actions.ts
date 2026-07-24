@@ -160,25 +160,33 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
   };
 }
 
-export async function confirmTransferBatchFromPdfAction(input: {
-  originFarmId: string;
-  destinationFarmId: string;
-  destinationPaddockId: string | null;
-  guideNumber: string;
-  rows: ResolvedRow[];
-}): Promise<void> {
+// Takes FormData (not a plain object) so the original uploaded PDF — kept in
+// the form's state since the upload step — can travel alongside the other
+// fields the same way previewTransferBatchFromPdf already does; the file is
+// persisted on the batch as the guide's source document.
+export async function confirmTransferBatchFromPdfAction(formData: FormData): Promise<void> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.destinationFarmId);
+  const destinationFarmId = formData.get("destinationFarmId") as string;
+  await requireFarmAccess(session.user.id, session.user.role, destinationFarmId);
+
+  const file = formData.get("file") as File;
+  const destinationPaddockId = (formData.get("destinationPaddockId") as string | null) || null;
+  const rows = JSON.parse(formData.get("rows") as string) as ResolvedRow[];
 
   await confirmTransferBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: input.destinationFarmId,
-    destinationFarmId: input.destinationFarmId,
-    destinationPaddockId: input.destinationPaddockId,
-    originFarmId: input.originFarmId,
-    guideNumber: input.guideNumber,
-    rows: input.rows,
+    operatingFarmId: destinationFarmId,
+    destinationFarmId,
+    destinationPaddockId,
+    originFarmId: formData.get("originFarmId") as string,
+    guideNumber: formData.get("guideNumber") as string,
+    guideDocument: {
+      fileName: file.name,
+      mimeType: file.type || "application/pdf",
+      data: Buffer.from(await file.arrayBuffer()),
+    },
+    rows,
   });
 }
 

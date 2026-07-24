@@ -155,6 +155,13 @@
       "when": 1784828631557,
       "tag": "0021_add_paddock_to_event_health",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784922543739,
+      "tag": "0022_sparkling_vermin",
+      "breakpoints": true
     }
   ]
 }
