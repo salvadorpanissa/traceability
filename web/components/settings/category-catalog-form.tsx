@@ -51,7 +51,7 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
     }
     setCategories((prev) => [...prev, result.entry]);
     setName("");
-    setSortOrder(String(categories.length + 1));
+    setSortOrder(String(result.entry.sortOrder + 1));
     setCreateError(null);
   }
 
