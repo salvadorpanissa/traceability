@@ -1,7 +1,22 @@
-// pdfjs-dist's legacy Node build runs without a browser worker, which is
-// what makes text extraction usable directly from a server action.
+// pdfjs-dist's legacy Node build is meant to run without a browser worker,
+// but that only holds under a plain `node`/`tsx` process. Bundled into a
+// Next.js server action (Turbopack), pdfjs's fallback path still tries to
+// dynamically import its worker file relative to the bundle's own chunk
+// directory (".next/.../chunks/ssr/pdf.worker.mjs"), which Turbopack never
+// emits there — that dynamic import 404s with "Setting up fake worker
+// failed". The documented Node workaround is to import the worker module
+// ourselves and register it as `globalThis.pdfjsWorker`: pdfjs's internal
+// PDFWorker checks `globalThis.pdfjsWorker?.WorkerMessageHandler` first and,
+// when present, runs entirely on the main thread without ever attempting
+// that dynamic import.
 import path from "path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { WorkerMessageHandler } from "pdfjs-dist/legacy/build/pdf.worker.mjs";
+
+const globalWithPdfjsWorker = globalThis as typeof globalThis & {
+  pdfjsWorker?: { WorkerMessageHandler: typeof WorkerMessageHandler };
+};
+globalWithPdfjsWorker.pdfjsWorker ??= { WorkerMessageHandler };
 
 export type PositionedTextItem = { page: number; x: number; y: number; text: string };
 

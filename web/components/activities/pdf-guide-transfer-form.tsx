@@ -15,9 +15,24 @@ import {
   createPaddockAction,
   type PdfPreviewResult,
 } from "@/app/(protected)/activities/transfer/actions";
-import { pendingOwnerNames, type ResolvedRow } from "@/lib/activities/transfer";
+import type { ResolvedRow } from "@/lib/activities/transfer";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+
+// Local, dependency-free re-implementation rather than importing the runtime
+// export from "@/lib/activities/transfer": that module also pulls in the
+// server-only `db` client (pg), and a "use client" component importing a
+// *value* from it (not just the type) drags pg into the browser bundle,
+// which breaks (pg needs node builtins like "net"/"tls"/"dns"). Same pattern
+// as components/activities/health-form.tsx and transfer-form.tsx.
+function pendingOwnerNames(rows: ResolvedRow[]): string[] {
+  const names: string[] = [];
+  for (const row of rows) {
+    if (row.status === "new" && row.pendingOwnerName) names.push(row.pendingOwnerName);
+    if (row.status === "foreign" && row.forced && row.pendingOwnerName) names.push(row.pendingOwnerName);
+  }
+  return Array.from(new Set(names));
+}
 
 export function PdfGuideTransferForm({ farms: _farms }: { farms: { id: string; name: string }[] }) {
   const [file, setFile] = useState<File | null>(null);
