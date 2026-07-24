@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { farm } from "./farm";
 import { userAccount } from "./user";
 import { animal } from "./animal";
+import { bytea } from "./custom-types";
 
 export const batchOperation = pgTable("batch_operation", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -16,6 +17,9 @@ export const batchOperation = pgTable("batch_operation", {
     .notNull()
     .references(() => userAccount.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  guideFileName: text("guide_file_name"),
+  guideMimeType: text("guide_mime_type"),
+  guideFileData: bytea("guide_file_data"),
 });
 
 export const event = pgTable(

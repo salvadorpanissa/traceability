@@ -136,6 +136,29 @@ describe("resolveBatchRows", () => {
     expect(resolved).toMatchObject({ status: "new", tag: "AR000000000003", categoryId: createdCategory.id });
   });
 
+  it("uses the row's birthDate when provided, for a new animal", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    await seedOwnTag("AR000000000099", seededFarm.id, "AIP");
+    const rows: MappedRow[] = [
+      {
+        tag: "AR000000000099",
+        date: "2026-07-11",
+        category: null,
+        sex: "H",
+        ownerName: null,
+        notes: null,
+        birthDate: "2019-01-01",
+      },
+    ];
+
+    const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
+
+    expect(resolved.status).toBe("new");
+    if (resolved.status === "new") {
+      expect(resolved.birthDate).toBe("2019-01-01");
+    }
+  });
+
   it("errors an unregistered tag with an unrecognized category before checking ownership", async () => {
     const { seededFarm } = await seedFarmUserRole();
     const rows: MappedRow[] = [

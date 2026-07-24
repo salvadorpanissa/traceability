@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDate } from "@/lib/activities/date-normalization";
+import { estimateBirthDateFromAge, normalizeDate } from "@/lib/activities/date-normalization";
 
 describe("normalizeDate", () => {
   it("passes through an ISO date unchanged", () => {
@@ -39,5 +39,19 @@ describe("normalizeDate", () => {
 
   it("trims surrounding whitespace", () => {
     expect(normalizeDate("  8/7/2026  ")).toBe("2026-07-08");
+  });
+});
+
+describe("estimateBirthDateFromAge", () => {
+  it("subtracts whole months and approximates to the 1st of the resulting month", () => {
+    expect(estimateBirthDateFromAge("2026-07-11", 90)).toBe("2019-01-01");
+  });
+
+  it("handles an age of 0 months as born the same month", () => {
+    expect(estimateBirthDateFromAge("2026-07-11", 0)).toBe("2026-07-01");
+  });
+
+  it("crosses a year boundary correctly", () => {
+    expect(estimateBirthDateFromAge("2026-01-11", 2)).toBe("2025-11-01");
   });
 });

@@ -10,6 +10,10 @@ import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
+import { findFarmByDicoseCode } from "@/lib/dal/dicose-registration";
+import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
+import type { MappedRow } from "@/lib/activities/column-mapping";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -93,6 +97,96 @@ export async function confirmTransferBatchAction(input: {
     destinationFarmId: input.destinationFarmId,
     destinationPaddockId: input.destinationPaddockId,
     rows: input.rows,
+  });
+}
+
+export type PdfPreviewResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      guideNumber: string;
+      eventDate: string;
+      originFarmId: string;
+      originFarmName: string;
+      destinationFarmId: string;
+      destinationFarmName: string;
+      rows: ResolvedRow[];
+    };
+
+export async function previewTransferBatchFromPdf(formData: FormData): Promise<PdfPreviewResult> {
+  const session = await requireSession();
+  const file = formData.get("file") as File;
+  const buffer = await file.arrayBuffer();
+
+  let guide;
+  try {
+    guide = await parseSnigGuide(buffer);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No se pudo leer el PDF" };
+  }
+
+  const origin = await findFarmByDicoseCode(guide.originDicoseCode);
+  if (!origin) {
+    return { ok: false, error: `No hay ningún campo registrado con DICOSE ${guide.originDicoseCode}` };
+  }
+  const destination = await findFarmByDicoseCode(guide.destinationDicoseCode);
+  if (!destination) {
+    return { ok: false, error: `No hay ningún campo registrado con DICOSE ${guide.destinationDicoseCode}` };
+  }
+
+  await requireFarmAccess(session.user.id, session.user.role, destination.farmId);
+
+  const mappedRows: MappedRow[] = guide.animals.map((a) => ({
+    tag: a.tag,
+    date: guide.eventDate,
+    category: null,
+    sex: a.sex,
+    ownerName: null,
+    notes: null,
+    birthDate: a.ageMonths !== null ? estimateBirthDateFromAge(guide.eventDate, a.ageMonths) : null,
+  }));
+
+  const rows = await resolveBatchRows(mappedRows, guide.eventDate, destination.farmId);
+
+  return {
+    ok: true,
+    guideNumber: guide.guideNumber,
+    eventDate: guide.eventDate,
+    originFarmId: origin.farmId,
+    originFarmName: origin.farmName,
+    destinationFarmId: destination.farmId,
+    destinationFarmName: destination.farmName,
+    rows,
+  };
+}
+
+// Takes FormData (not a plain object) so the original uploaded PDF — kept in
+// the form's state since the upload step — can travel alongside the other
+// fields the same way previewTransferBatchFromPdf already does; the file is
+// persisted on the batch as the guide's source document.
+export async function confirmTransferBatchFromPdfAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const destinationFarmId = formData.get("destinationFarmId") as string;
+  await requireFarmAccess(session.user.id, session.user.role, destinationFarmId);
+
+  const file = formData.get("file") as File;
+  const destinationPaddockId = (formData.get("destinationPaddockId") as string | null) || null;
+  const rows = JSON.parse(formData.get("rows") as string) as ResolvedRow[];
+
+  await confirmTransferBatch({
+    userId: session.user.id,
+    role: session.user.role,
+    operatingFarmId: destinationFarmId,
+    destinationFarmId,
+    destinationPaddockId,
+    originFarmId: formData.get("originFarmId") as string,
+    guideNumber: formData.get("guideNumber") as string,
+    guideDocument: {
+      fileName: file.name,
+      mimeType: file.type || "application/pdf",
+      data: Buffer.from(await file.arrayBuffer()),
+    },
+    rows,
   });
 }
 

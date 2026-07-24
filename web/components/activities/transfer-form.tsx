@@ -8,6 +8,7 @@ import { ColumnMapper } from "@/components/activities/column-mapper";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { PaddockSelector } from "@/components/activities/paddock-selector";
+import { PdfGuideTransferForm } from "@/components/activities/pdf-guide-transfer-form";
 import {
   previewTransferBatch,
   confirmTransferBatchAction,
@@ -21,6 +22,12 @@ import type { ResolvedRow } from "@/lib/activities/transfer";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
+// Local, dependency-free re-implementation rather than importing the runtime
+// export from "@/lib/activities/transfer": that module also pulls in the
+// server-only `db` client (pg), and a "use client" component importing a
+// *value* from it (not just the type) drags pg into the browser bundle,
+// which breaks (pg needs node builtins like "net"/"tls"/"dns"). Same pattern
+// as components/activities/health-form.tsx.
 function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   const names: string[] = [];
   for (const row of rows) {
@@ -39,6 +46,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [mode, setMode] = useState<"excel" | "pdf">("excel");
 
   async function handleDestinationFarmChange(farmId: string) {
     setDestinationFarmId(farmId);
@@ -125,74 +133,88 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="destinationFarm">Campo destino</Label>
-        <select
-          id="destinationFarm"
-          aria-label="Campo destino"
-          value={destinationFarmId}
-          onChange={(e) => handleDestinationFarmChange(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir campo</option>
-          {farms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex gap-2">
+        <Button type="button" variant={mode === "excel" ? "default" : "outline"} onClick={() => setMode("excel")}>
+          Excel
+        </Button>
+        <Button type="button" variant={mode === "pdf" ? "default" : "outline"} onClick={() => setMode("pdf")}>
+          Guía SNIG (PDF)
+        </Button>
       </div>
-      {destinationFarmId ? (
-        <PaddockSelector
-          paddocks={paddocks}
-          paddockId={destinationPaddockId}
-          onChange={setDestinationPaddockId}
-          onCreatePaddock={handleCreatePaddock}
-        />
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="file">Archivo</Label>
-        <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
-      </div>
-      <Button type="button" disabled={!destinationFarmId || !file} onClick={() => runPreview()}>
-        Subir
-      </Button>
-
-      {preview?.mappingNeeded ? (
-        <ColumnMapper
-          headers={preview.headers}
-          availableMeanings={["tag", "date", "category", "sex", "owner", "notes", "ignore"]}
-          initialMapping={preview.initialMapping}
-          onSubmit={(mapping) => runPreview(mapping)}
-        />
-      ) : null}
-
-      {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">
-            El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
-          </p>
-          <Label htmlFor="eventDate">Fecha del lote</Label>
-          <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-          <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
-            Continuar
-          </Button>
-        </div>
-      ) : null}
-
-      {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
+      {mode === "pdf" ? (
+        <PdfGuideTransferForm farms={farms} />
+      ) : (
         <div className="flex flex-col gap-4">
-          <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
-          <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
-          <Button
-            type="button"
-            disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}
-            onClick={handleConfirm}
-          >
-            Confirmar
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="destinationFarm">Campo destino</Label>
+            <select
+              id="destinationFarm"
+              aria-label="Campo destino"
+              value={destinationFarmId}
+              onChange={(e) => handleDestinationFarmChange(e.target.value)}
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+            >
+              <option value="">Elegir campo</option>
+              {farms.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {destinationFarmId ? (
+            <PaddockSelector
+              paddocks={paddocks}
+              paddockId={destinationPaddockId}
+              onChange={setDestinationPaddockId}
+              onCreatePaddock={handleCreatePaddock}
+            />
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="file">Archivo</Label>
+            <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
+          </div>
+          <Button type="button" disabled={!destinationFarmId || !file} onClick={() => runPreview()}>
+            Subir
           </Button>
+
+          {preview?.mappingNeeded ? (
+            <ColumnMapper
+              headers={preview.headers}
+              availableMeanings={["tag", "date", "category", "sex", "owner", "notes", "ignore"]}
+              initialMapping={preview.initialMapping}
+              onSubmit={(mapping) => runPreview(mapping)}
+            />
+          ) : null}
+
+          {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
+              </p>
+              <Label htmlFor="eventDate">Fecha del lote</Label>
+              <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+              <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
+                Continuar
+              </Button>
+            </div>
+          ) : null}
+
+          {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
+            <div className="flex flex-col gap-4">
+              <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
+              <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+              <Button
+                type="button"
+                disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}
+                onClick={handleConfirm}
+              >
+                Confirmar
+              </Button>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

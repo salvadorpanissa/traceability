@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { farm, owner, role, userAccount, userFarm } from "@/db/schema";
+import { dicoseRegistration, farm, owner, role, userAccount, userFarm } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listDicoseRegistrations, createDicoseRegistration } = await import("@/lib/dal/dicose-registration");
+const { listDicoseRegistrations, createDicoseRegistration, findFarmByDicoseCode } = await import("@/lib/dal/dicose-registration");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -77,5 +77,23 @@ describe("dicose-registration", () => {
       .returning();
 
     expect(await listDicoseRegistrations(manager.id, "manager")).toEqual([]);
+  });
+});
+
+describe("findFarmByDicoseCode", () => {
+  it("resolves a registered DICOSE code to its farm", async () => {
+    const [seededOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    await testDb
+      .insert(dicoseRegistration)
+      .values({ ownerId: seededOwner.id, farmId: seededFarm.id, dicoseCode: "151518192" });
+
+    const result = await findFarmByDicoseCode("151518192");
+
+    expect(result).toEqual({ farmId: seededFarm.id, farmName: "Cuatro Cerros" });
+  });
+
+  it("returns null for a DICOSE code with no registration", async () => {
+    expect(await findFarmByDicoseCode("000000000")).toBeNull();
   });
 });

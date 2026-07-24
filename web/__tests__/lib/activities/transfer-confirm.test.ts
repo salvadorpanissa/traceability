@@ -371,4 +371,186 @@ describe("confirmTransferBatch", () => {
     const transferEvent = events.find((e) => e.eventType === "transfer")!;
     expect(transferEvent.notes).toBe("Cojera leve");
   });
+
+  it("uses an explicit originFarmId for a new animal instead of operatingFarmId, when provided", async () => {
+    const { manager } = await seedManagerAndFarm();
+    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "admin",
+      operatingFarmId: destinationFarm.id,
+      destinationFarmId: destinationFarm.id,
+      destinationPaddockId: null,
+      originFarmId: originFarm.id,
+      guideNumber: "D838153",
+      rows,
+    });
+
+    const [createdEventTransfer] = await testDb.select().from(eventTransfer);
+    expect(createdEventTransfer.originFarmId).toBe(originFarm.id);
+    expect(createdEventTransfer.destinationFarmId).toBe(destinationFarm.id);
+    expect(createdEventTransfer.guideNumber).toBe("D838153");
+  });
+
+  it("persists the uploaded guide document on the batch when provided", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      guideDocument: {
+        fileName: "D838153.pdf",
+        mimeType: "application/pdf",
+        data: Buffer.from("%PDF-1.4 fake guide content"),
+      },
+      rows,
+    });
+
+    const [createdBatch] = await testDb.select().from(batchOperation);
+    expect(createdBatch.guideFileName).toBe("D838153.pdf");
+    expect(createdBatch.guideMimeType).toBe("application/pdf");
+    expect(Buffer.from(createdBatch.guideFileData as Buffer)).toEqual(Buffer.from("%PDF-1.4 fake guide content"));
+  });
+
+  it("leaves the guide document columns null for a batch with no guideDocument (the Excel path)", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [createdBatch] = await testDb.select().from(batchOperation);
+    expect(createdBatch.guideFileName).toBeNull();
+    expect(createdBatch.guideMimeType).toBeNull();
+    expect(createdBatch.guideFileData).toBeNull();
+  });
+
+  it("requires access to the explicit originFarmId when it differs from destinationFarmId", async () => {
+    const { manager } = await seedManagerAndFarm();
+    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    // The manager operates at the destination farm itself (operatingFarmId ===
+    // destinationFarmId), so the pre-existing operatingFarmId-vs-destinationFarmId
+    // check would no-op; only the explicit originFarmId differing from the
+    // destination — and the manager lacking access to it — should trigger the throw.
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: destinationFarm.id });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000012",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await expect(
+      confirmTransferBatch({
+        userId: manager.id,
+        role: "manager",
+        operatingFarmId: destinationFarm.id,
+        destinationFarmId: destinationFarm.id,
+        destinationPaddockId: null,
+        originFarmId: originFarm.id,
+        rows,
+      })
+    ).rejects.toThrow("No tenés acceso a ambos campos para crear este traslado");
+  });
+
+  it("allows the explicit originFarmId to differ from destinationFarmId when the manager is assigned to both", async () => {
+    const { manager } = await seedManagerAndFarm();
+    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    await testDb.insert(userFarm).values([
+      { userId: manager.id, farmId: destinationFarm.id },
+      { userId: manager.id, farmId: originFarm.id },
+    ]);
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000013",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: destinationFarm.id,
+      destinationFarmId: destinationFarm.id,
+      destinationPaddockId: null,
+      originFarmId: originFarm.id,
+      rows,
+    });
+
+    const [createdEventTransfer] = await testDb
+      .select()
+      .from(eventTransfer)
+      .where(eq(eventTransfer.originFarmId, originFarm.id));
+    expect(createdEventTransfer.destinationFarmId).toBe(destinationFarm.id);
+  });
 });

@@ -8,18 +8,28 @@ import { createNewAnimal } from "@/lib/activities/animal-creation";
 
 export { resolveBatchRows, type ResolvedRow };
 
+export type GuideDocument = {
+  fileName: string;
+  mimeType: string;
+  data: Buffer;
+};
+
 export async function confirmTransferBatch(input: {
   userId: string;
   role: string | undefined;
   operatingFarmId: string;
   destinationFarmId: string;
   destinationPaddockId: string | null;
+  originFarmId?: string;
+  guideNumber?: string | null;
+  guideDocument?: GuideDocument;
   rows: ResolvedRow[];
 }): Promise<void> {
   const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
+  const newAnimalOriginFarmId = input.originFarmId ?? operatingFarmId;
 
   await requireFarmAccess(userId, role, operatingFarmId);
-  await requireTransferAuthorization(userId, role, operatingFarmId, destinationFarmId);
+  await requireTransferAuthorization(userId, role, newAnimalOriginFarmId, destinationFarmId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
@@ -42,7 +52,15 @@ export async function confirmTransferBatch(input: {
   await db.transaction(async (tx) => {
     const [batch] = await tx
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: operatingFarmId, animalCount: rows.length, createdBy: userId })
+      .values({
+        eventType: "transfer",
+        farmId: operatingFarmId,
+        animalCount: rows.length,
+        createdBy: userId,
+        guideFileName: input.guideDocument?.fileName ?? null,
+        guideMimeType: input.guideDocument?.mimeType ?? null,
+        guideFileData: input.guideDocument?.data ?? null,
+      })
       .returning();
 
     for (const row of rows) {
@@ -64,7 +82,7 @@ export async function confirmTransferBatch(input: {
           batchId: batch.id,
           row,
         });
-        originFarmId = operatingFarmId;
+        originFarmId = newAnimalOriginFarmId;
         originPaddockId = null;
       }
 
@@ -87,6 +105,7 @@ export async function confirmTransferBatch(input: {
         destinationFarmId,
         originPaddockId,
         destinationPaddockId,
+        guideNumber: input.guideNumber ?? null,
       });
     }
 

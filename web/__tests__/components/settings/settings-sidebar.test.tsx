@@ -20,6 +20,7 @@ describe("SettingsSidebar", () => {
     expect(screen.getByRole("link", { name: "Caravanas propias" })).toHaveAttribute("href", "/settings/own-tags");
     expect(screen.getByRole("link", { name: "Potreros" })).toHaveAttribute("href", "/settings/paddocks");
     expect(screen.getByRole("link", { name: "Categorías" })).toHaveAttribute("href", "/settings/categories");
+    expect(screen.getByRole("link", { name: "Guías" })).toHaveAttribute("href", "/settings/guides");
 
     expect(screen.getByRole("link", { name: "Productos" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Potreros" })).not.toHaveAttribute("aria-current");
