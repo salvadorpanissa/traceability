@@ -20,7 +20,7 @@ export type SnigGuide = {
 // spilling into the next field's label).
 const GUIDE_NUMBER_RE = /CORRESPONDE A LA GU[IÍ]A DE PROPIEDAD Y TR[AÁ]NSITO:[^\S\n]*(\S+)/i;
 const DATE_RE = /FECHA:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i;
-const DICOSE_C_RE = /DICOSE C:\s*(\S+)/i;
+const DICOSE_C_RE = /DICOSE C:\s*(\d+)/i;
 const DICOSE_D_RE = /DICOSE D:[^\S\n]*(\S+)/i;
 const ANIMAL_ENTRY_RE = /\d+\)\s+(\S+)\s+([HM])\s+(\d+)/g;
 

@@ -57,6 +57,15 @@ describe("parseSnigGuide", () => {
     await expect(parseSnigGuide(buffer)).rejects.toThrow("número de guía");
   });
 
+  it("throws when DICOSE C is missing", async () => {
+    const buffer = await buildSnigGuideFixturePdf({ ...SAMPLE_INPUT, dicoseC: "" });
+    // An empty dicoseC still draws the label with nothing after it, which the
+    // regex requires at least one digit after to match — confirms the
+    // "required field missing" path rather than silently capturing the next
+    // field's "DICOSE" label token as the value.
+    await expect(parseSnigGuide(buffer)).rejects.toThrow("DICOSE C");
+  });
+
   it("throws when there are no animals", async () => {
     const buffer = await buildSnigGuideFixturePdf({ ...SAMPLE_INPUT, animals: [] });
     await expect(parseSnigGuide(buffer)).rejects.toThrow("caravanas");
