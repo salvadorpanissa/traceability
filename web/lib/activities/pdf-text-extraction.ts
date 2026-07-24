@@ -1,11 +1,14 @@
 // pdfjs-dist's legacy Node build runs without a browser worker, which is
 // what makes text extraction usable directly from a server action.
+import path from "path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export type PositionedTextItem = { page: number; x: number; y: number; text: string };
 
 export async function extractPositionedTextItems(buffer: ArrayBuffer): Promise<PositionedTextItem[]> {
-  const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
+  const pdfJsDistPath = path.dirname(require.resolve("pdfjs-dist/package.json"));
+  const standardFontDataUrl = `${path.join(pdfJsDistPath, "standard_fonts")}/`;
+  const pdf = await getDocument({ data: new Uint8Array(buffer), standardFontDataUrl }).promise;
   const items: PositionedTextItem[] = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
