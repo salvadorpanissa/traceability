@@ -28,16 +28,65 @@ beforeEach(async () => {
 });
 
 describe("requireTransferAuthorization", () => {
-  it("allows a same-farm transfer for a manager", () => {
-    expect(() => requireTransferAuthorization("manager", "farm-a", "farm-a")).not.toThrow();
+  it("allows a same-farm transfer for a manager", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+
+    await expect(requireTransferAuthorization(manager.id, "manager", "farm-a", "farm-a")).resolves.not.toThrow();
   });
 
-  it("rejects a cross-farm transfer for a manager", () => {
-    expect(() => requireTransferAuthorization("manager", "farm-a", "farm-b")).toThrow();
+  it("allows a cross-farm transfer for a manager assigned to both farms", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [farmA] = await testDb.insert(farm).values({ name: "Campo A" }).returning();
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    await testDb.insert(userFarm).values([
+      { userId: manager.id, farmId: farmA.id },
+      { userId: manager.id, farmId: farmB.id },
+    ]);
+
+    await expect(
+      requireTransferAuthorization(manager.id, "manager", farmA.id, farmB.id)
+    ).resolves.not.toThrow();
   });
 
-  it("allows a cross-farm transfer for an admin", () => {
-    expect(() => requireTransferAuthorization("admin", "farm-a", "farm-b")).not.toThrow();
+  it("rejects a cross-farm transfer for a manager assigned to only one of the two farms", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [farmA] = await testDb.insert(farm).values({ name: "Campo A" }).returning();
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmA.id });
+
+    await expect(requireTransferAuthorization(manager.id, "manager", farmA.id, farmB.id)).rejects.toThrow();
+  });
+
+  it("rejects a cross-farm transfer for a manager assigned to neither farm", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+
+    await expect(requireTransferAuthorization(manager.id, "manager", "farm-a", "farm-b")).rejects.toThrow();
+  });
+
+  it("allows a cross-farm transfer for an admin regardless of farm assignment", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+
+    await expect(requireTransferAuthorization(admin.id, "admin", "farm-a", "farm-b")).resolves.not.toThrow();
   });
 });
 

@@ -19,7 +19,7 @@ export async function confirmTransferBatch(input: {
   const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
 
   await requireFarmAccess(userId, role, operatingFarmId);
-  requireTransferAuthorization(role, operatingFarmId, destinationFarmId);
+  await requireTransferAuthorization(userId, role, operatingFarmId, destinationFarmId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");

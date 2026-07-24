@@ -200,7 +200,7 @@ describe("confirmTransferBatch", () => {
     expect(animalEvents.some((e) => e.eventType === "recategorize")).toBe(false);
   });
 
-  it("rejects a cross-farm transfer from a manager", async () => {
+  it("rejects a cross-farm transfer from a manager not assigned to the destination farm", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
 
@@ -228,6 +228,39 @@ describe("confirmTransferBatch", () => {
         rows,
       })
     ).rejects.toThrow();
+  });
+
+  it("allows a cross-farm transfer from a manager assigned to both farms", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: otherFarm.id });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000011",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: otherFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [createdEventTransfer] = await testDb.select().from(eventTransfer);
+    expect(createdEventTransfer.originFarmId).toBe(seededFarm.id);
+    expect(createdEventTransfer.destinationFarmId).toBe(otherFarm.id);
   });
 
   it("rejects the whole batch if any row is an error", async () => {

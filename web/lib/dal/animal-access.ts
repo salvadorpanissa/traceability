@@ -2,15 +2,21 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 
-export function requireTransferAuthorization(
+// A manager may move animals between two different campos only when they're
+// assigned to both — moving into or out of a campo they don't manage still
+// requires an admin, since that's effectively granting them reach over a
+// campo outside their own assignment.
+export async function requireTransferAuthorization(
+  userId: string,
   role: string | undefined,
   originFarmId: string,
   destinationFarmId: string
-): void {
+): Promise<void> {
   if (originFarmId === destinationFarmId) return;
-  if (!isAdmin(role)) {
-    throw new Error("Solo un admin puede crear un traslado entre campos distintos");
-  }
+  if (isAdmin(role)) return;
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.includes(originFarmId) && farmIds.includes(destinationFarmId)) return;
+  throw new Error("No tenés acceso a ambos campos para crear este traslado");
 }
 
 export type AnimalCurrentState = {
