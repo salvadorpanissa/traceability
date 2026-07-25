@@ -12,6 +12,7 @@
     "db:migrate:test": "MIGRATE_TARGET=test tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts",
     "db:setup-reporting-role": "tsx db/setup-reporting-role.ts",
+    "recategorize:age": "tsx db/recategorize-by-age.ts",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
