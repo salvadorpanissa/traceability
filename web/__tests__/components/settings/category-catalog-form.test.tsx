@@ -15,25 +15,22 @@ describe("CategoryCatalogForm", () => {
   it("lists categories, adds a new one, and edits an existing one", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Toro", sortOrder: 1, sex: null, minAgeMonths: null },
+      entry: { id: "cat-2", name: "Toro", sex: null, minAgeMonths: null },
     });
     vi.mocked(updateCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-1", name: "Vaca de invernada", sortOrder: 0, sex: null, minAgeMonths: null },
+      entry: { id: "cat-1", name: "Vaca de invernada", sex: null, minAgeMonths: null },
     });
 
-    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sortOrder: 0, sex: null, minAgeMonths: null }]} />);
+    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sex: null, minAgeMonths: null }]} />);
 
     expect(screen.getByText("Vaca")).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Nombre"), "Toro");
-    const sortOrderInput = screen.getByLabelText("Orden");
-    await userEvent.clear(sortOrderInput);
-    await userEvent.type(sortOrderInput, "1");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("Toro")).toBeInTheDocument());
-    expect(createCategoryAction).toHaveBeenCalledWith({ name: "Toro", sortOrder: 1, sex: null, minAgeMonths: null });
+    expect(createCategoryAction).toHaveBeenCalledWith({ name: "Toro", sex: null, minAgeMonths: null });
 
     await userEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
     const editNameInput = screen.getByLabelText("Editar nombre");
@@ -45,7 +42,6 @@ describe("CategoryCatalogForm", () => {
       expect(updateCategoryAction).toHaveBeenCalledWith({
         id: "cat-1",
         name: "Vaca de invernada",
-        sortOrder: 0,
         sex: null,
         minAgeMonths: null,
       })
@@ -67,7 +63,7 @@ describe("CategoryCatalogForm", () => {
   it("creates a category with a sex scope and minimum age", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Novillo +3 años", sortOrder: 1, sex: "male", minAgeMonths: 36 },
+      entry: { id: "cat-2", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
     });
 
     render(<CategoryCatalogForm categories={[]} />);
@@ -81,7 +77,6 @@ describe("CategoryCatalogForm", () => {
     await waitFor(() =>
       expect(createCategoryAction).toHaveBeenCalledWith({
         name: "Novillo +3 años",
-        sortOrder: 0,
         sex: "male",
         minAgeMonths: 36,
       })

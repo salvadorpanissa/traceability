@@ -161,7 +161,6 @@ describe("OwnTagUploadForm", () => {
     vi.mocked(createOwnTagCategoryAction).mockResolvedValue({
       id: "c1",
       name: "Vaca",
-      sortOrder: 0,
       sex: null,
       minAgeMonths: null,
     });

@@ -36,11 +36,11 @@ describe("createCategoryAction", () => {
   it("creates a category and returns it", async () => {
     await seedManagerSession();
 
-    const result = await createCategoryAction({ name: "Vaca", sortOrder: 1 });
+    const result = await createCategoryAction({ name: "Vaca" });
 
     expect(result).toEqual({
       ok: true,
-      entry: { id: expect.any(String), name: "Vaca", sortOrder: 1, sex: null, minAgeMonths: null },
+      entry: { id: expect.any(String), name: "Vaca", sex: null, minAgeMonths: null },
     });
     const [stored] = await testDb.select().from(category).where(eq(category.name, "Vaca"));
     expect(stored).toBeDefined();
@@ -48,9 +48,9 @@ describe("createCategoryAction", () => {
 
   it("rejects a duplicate name with a friendly error instead of throwing", async () => {
     await seedManagerSession();
-    await createCategoryAction({ name: "Vaca", sortOrder: 1 });
+    await createCategoryAction({ name: "Vaca" });
 
-    const result = await createCategoryAction({ name: "Vaca", sortOrder: 2 });
+    const result = await createCategoryAction({ name: "Vaca" });
 
     expect(result).toEqual({ ok: false, error: "Ya existe una categoría con ese nombre" });
   });
@@ -59,11 +59,11 @@ describe("createCategoryAction", () => {
 describe("updateCategoryAction", () => {
   it("rejects renaming into a name that already exists with a friendly error instead of throwing", async () => {
     await seedManagerSession();
-    await createCategoryAction({ name: "Vaca", sortOrder: 1 });
-    const created = await createCategoryAction({ name: "Toro", sortOrder: 2 });
+    await createCategoryAction({ name: "Vaca" });
+    const created = await createCategoryAction({ name: "Toro" });
     if (!created.ok) throw new Error("setup failed");
 
-    const result = await updateCategoryAction({ id: created.entry.id, name: "Vaca", sortOrder: 2 });
+    const result = await updateCategoryAction({ id: created.entry.id, name: "Vaca" });
 
     expect(result).toEqual({ ok: false, error: "Ya existe una categoría con ese nombre" });
   });

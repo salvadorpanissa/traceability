@@ -94,28 +94,28 @@ describe("resolveCategoryForAge", () => {
 });
 
 async function seedAgeManagedCategories() {
-  const [calf] = await testDb.insert(category).values({ name: "Ternero/a", sortOrder: 0 }).returning();
+  const [calf] = await testDb.insert(category).values({ name: "Ternero/a" }).returning();
   const [male12] = await testDb
     .insert(category)
-    .values({ name: "Novillo 1 a 2 años", sortOrder: 1, sex: "male", minAgeMonths: 12 })
+    .values({ name: "Novillo 1 a 2 años", sex: "male", minAgeMonths: 12 })
     .returning();
   const [male24] = await testDb
     .insert(category)
-    .values({ name: "Novillo 2 a 3 años", sortOrder: 2, sex: "male", minAgeMonths: 24 })
+    .values({ name: "Novillo 2 a 3 años", sex: "male", minAgeMonths: 24 })
     .returning();
   const [male36] = await testDb
     .insert(category)
-    .values({ name: "Novillo +3 años", sortOrder: 3, sex: "male", minAgeMonths: 36 })
+    .values({ name: "Novillo +3 años", sex: "male", minAgeMonths: 36 })
     .returning();
   const [female12] = await testDb
     .insert(category)
-    .values({ name: "Vaquillona 1 a 2 años", sortOrder: 1, sex: "female", minAgeMonths: 12 })
+    .values({ name: "Vaquillona 1 a 2 años", sex: "female", minAgeMonths: 12 })
     .returning();
   const [female24] = await testDb
     .insert(category)
-    .values({ name: "Vaquillona 2 a 3 años", sortOrder: 2, sex: "female", minAgeMonths: 24 })
+    .values({ name: "Vaquillona 2 a 3 años", sex: "female", minAgeMonths: 24 })
     .returning();
-  const [manualOnly] = await testDb.insert(category).values({ name: "Cuarentena", sortOrder: 99 }).returning();
+  const [manualOnly] = await testDb.insert(category).values({ name: "Cuarentena" }).returning();
   return { calf, male12, male24, male36, female12, female24, manualOnly };
 }
 

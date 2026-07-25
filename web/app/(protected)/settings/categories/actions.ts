@@ -8,7 +8,6 @@ export type CategoryCatalogActionResult = { ok: true; entry: CategoryCatalogEntr
 
 export async function createCategoryAction(input: {
   name: string;
-  sortOrder: number;
   sex?: "male" | "female" | null;
   minAgeMonths?: number | null;
 }): Promise<CategoryCatalogActionResult> {
@@ -25,7 +24,6 @@ export async function createCategoryAction(input: {
 export async function updateCategoryAction(input: {
   id: string;
   name: string;
-  sortOrder: number;
   sex?: "male" | "female" | null;
   minAgeMonths?: number | null;
 }): Promise<CategoryCatalogActionResult> {

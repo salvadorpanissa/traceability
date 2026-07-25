@@ -8,10 +8,9 @@ beforeEach(async () => {
 });
 
 describe("category table", () => {
-  it("stores a category with a sort order defaulting to 0", async () => {
+  it("stores a category with a unique name", async () => {
     const [created] = await testDb.insert(category).values({ name: "Vaca" }).returning();
     expect(created.name).toBe("Vaca");
-    expect(created.sortOrder).toBe(0);
 
     await expect(testDb.insert(category).values({ name: "Vaca" })).rejects.toThrow();
   });

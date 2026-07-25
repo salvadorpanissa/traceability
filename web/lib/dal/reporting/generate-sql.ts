@@ -7,7 +7,9 @@ my_animal_state(animal_id, current_tag, current_farm_id, farm_name, current_padd
   -- status es uno de: 'alive', 'sold', 'dead'
 my_farms(id, name)
 my_paddocks(id, name, farm_id)
-my_categories(id, name, sort_order)
+my_categories(id, name, sex, min_age_months)
+  -- sex es uno de: 'male', 'female', o null (no restringido a un sexo); min_age_months es la edad mínima
+  -- en meses para esa categoría, o null si es una categoría manual (sin ladder etario)
 my_products(id, name, default_dose_unit, default_withdrawal_days)
 my_owners(id, name)
 my_transfer_events(event_id, event_date, animal_id, animal_tag, farm_id, farm_name, origin_farm_id, origin_farm_name, destination_farm_id, destination_farm_name, origin_paddock_id, origin_paddock_name, destination_paddock_id, destination_paddock_name, guide_number, notes, created_at)
