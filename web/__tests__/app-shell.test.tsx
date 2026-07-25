@@ -35,6 +35,7 @@ describe("AppShell", () => {
     expect(screen.getByText("settings-menu")).toBeInTheDocument();
     expect(activeNavLink).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("link", { name: "Registro de Caravanas" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Recategorización" })).toHaveAttribute("href", "/activities/recategorize");
     expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 
     await user.click(userButton);

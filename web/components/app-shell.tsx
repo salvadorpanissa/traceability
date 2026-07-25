@@ -28,6 +28,11 @@ const navItems: NavItem[] = [
     labelKey: "appShell.navTransfer",
     isActive: (pathname) => pathname.startsWith("/activities/transfer"),
   },
+  {
+    href: "/activities/recategorize",
+    labelKey: "appShell.navRecategorize",
+    isActive: (pathname) => pathname.startsWith("/activities/recategorize"),
+  },
 ];
 
 export function AppShell({
