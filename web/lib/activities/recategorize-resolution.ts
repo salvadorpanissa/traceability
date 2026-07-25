@@ -1,0 +1,118 @@
+import { inArray, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { animalTagHistory } from "@/db/schema";
+import { normalizeDate } from "@/lib/activities/date-normalization";
+import type { MappedRow } from "@/lib/activities/column-mapping";
+
+export type RecategorizeResolvedRow =
+  | {
+      tag: string;
+      eventDate: string;
+      notes: string | null;
+      status: "existing";
+      animalId: string;
+      currentCategoryId: string;
+      currentCategoryName: string | null;
+    }
+  | { tag: string; eventDate: string; notes: string | null; status: "error"; reason: string };
+
+function resolveEventDate(rowDate: string | null, formEventDate: string | null): string | null {
+  if (rowDate) {
+    const normalized = normalizeDate(rowDate);
+    if (normalized) return normalized;
+  }
+  return formEventDate;
+}
+
+type CurrentStateRow = {
+  current_farm_id: string | null;
+  current_category_id: string | null;
+  category_name: string | null;
+  status: string;
+};
+
+export async function resolveRecategorizeBatchRows(
+  rows: MappedRow[],
+  formEventDate: string | null,
+  operatingFarmId: string
+): Promise<RecategorizeResolvedRow[]> {
+  const tagCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.tag) continue;
+    tagCounts.set(row.tag, (tagCounts.get(row.tag) ?? 0) + 1);
+  }
+
+  const nonEmptyTags = rows.map((r) => r.tag).filter((tag) => tag.length > 0);
+  const tagHistoryRows =
+    nonEmptyTags.length > 0
+      ? await db
+          .select({ tag: animalTagHistory.tag, animalId: animalTagHistory.animalId })
+          .from(animalTagHistory)
+          .where(inArray(animalTagHistory.tag, nonEmptyTags))
+      : [];
+  const animalIdByTag = new Map(tagHistoryRows.map((r) => [r.tag, r.animalId]));
+
+  const result: RecategorizeResolvedRow[] = [];
+  for (const row of rows) {
+    const eventDate = resolveEventDate(row.date, formEventDate);
+    const notes = row.notes;
+
+    if (!eventDate) {
+      result.push({ tag: row.tag, eventDate: "", notes, status: "error", reason: "Falta la fecha" });
+      continue;
+    }
+    if (!row.tag) {
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Falta la caravana" });
+      continue;
+    }
+    if ((tagCounts.get(row.tag) ?? 0) > 1) {
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana duplicada en el archivo" });
+      continue;
+    }
+
+    const animalId = animalIdByTag.get(row.tag);
+    if (!animalId) {
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana no encontrada" });
+      continue;
+    }
+
+    const stateResult = await db.execute<CurrentStateRow>(sql`
+      select acs.current_farm_id, acs.current_category_id, c.name as category_name, acs.status
+      from animal_current_state acs
+      left join category c on c.id = acs.current_category_id
+      where acs.animal_id = ${animalId}
+    `);
+    const state = stateResult.rows[0];
+
+    if (!state || state.status !== "alive") {
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal está vendido o muerto" });
+      continue;
+    }
+    if (state.current_farm_id !== operatingFarmId) {
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        status: "error",
+        reason: "El animal no está en el campo seleccionado",
+      });
+      continue;
+    }
+    if (!state.current_category_id) {
+      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal no tiene categoría asignada" });
+      continue;
+    }
+
+    result.push({
+      tag: row.tag,
+      eventDate,
+      notes,
+      status: "existing",
+      animalId,
+      currentCategoryId: state.current_category_id,
+      currentCategoryName: state.category_name,
+    });
+  }
+
+  return result;
+}
