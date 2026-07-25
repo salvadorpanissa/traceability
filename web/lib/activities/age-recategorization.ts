@@ -148,35 +148,49 @@ export async function runAgeBasedRecategorization(input?: {
     byFarm.set(candidate.farmId, list);
   }
 
-  await db.transaction(async (tx) => {
-    for (const [farmId, animals] of byFarm) {
-      const [batch] = await tx
-        .insert(batchOperation)
-        .values({ eventType: "recategorize", farmId, animalCount: animals.length, createdBy: systemUserId })
-        .returning();
-
-      for (const candidate of animals) {
-        const [createdEvent] = await tx
-          .insert(event)
-          .values({
-            eventType: "recategorize",
-            eventDate: asOfDate,
-            animalId: candidate.animalId,
-            farmId,
-            batchOperationId: batch.id,
-            createdBy: systemUserId,
-          })
+  // Each farm gets its own transaction so a failure in one farm (e.g. a
+  // constraint violation on a single animal) can't roll back every other
+  // farm's already-succeeded writes — critical for the first "big-bang" run
+  // against years of historical data across many farms.
+  let recategorized = 0;
+  for (const [farmId, animals] of byFarm) {
+    try {
+      await db.transaction(async (tx) => {
+        const [batch] = await tx
+          .insert(batchOperation)
+          .values({ eventType: "recategorize", farmId, animalCount: animals.length, createdBy: systemUserId })
           .returning();
-        await tx.insert(eventRecategorize).values({
-          eventId: createdEvent.id,
-          oldCategoryId: candidate.currentCategoryId,
-          newCategoryId: candidate.targetCategoryId,
-          source: "auto_age",
-        });
-      }
-    }
-    await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
-  });
 
-  return { recategorized: candidates.length };
+        for (const candidate of animals) {
+          const [createdEvent] = await tx
+            .insert(event)
+            .values({
+              eventType: "recategorize",
+              eventDate: asOfDate,
+              animalId: candidate.animalId,
+              farmId,
+              batchOperationId: batch.id,
+              createdBy: systemUserId,
+            })
+            .returning();
+          await tx.insert(eventRecategorize).values({
+            eventId: createdEvent.id,
+            oldCategoryId: candidate.currentCategoryId,
+            newCategoryId: candidate.targetCategoryId,
+            source: "auto_age",
+          });
+        }
+      });
+      recategorized += animals.length;
+    } catch (error) {
+      console.error(`runAgeBasedRecategorization: failed to recategorize farm ${farmId}`, error);
+    }
+  }
+
+  // Runs once outside any transaction, after all farms have been attempted,
+  // so successfully-written farms' data becomes visible even if other farms
+  // failed above.
+  await db.execute(sql`refresh materialized view concurrently animal_current_state`);
+
+  return { recategorized };
 }

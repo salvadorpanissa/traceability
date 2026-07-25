@@ -7,6 +7,11 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const result = await runAgeBasedRecategorization();
-  return Response.json(result);
+  try {
+    const result = await runAgeBasedRecategorization();
+    return Response.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error desconocido";
+    return Response.json({ error: message }, { status: 500 });
+  }
 }

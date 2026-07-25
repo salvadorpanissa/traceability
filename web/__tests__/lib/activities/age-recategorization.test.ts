@@ -15,6 +15,7 @@ import {
   event,
   eventRecategorize,
   eventTransfer,
+  eventDeath,
 } from "@/db/schema";
 import type { AgeCategoryRule } from "@/lib/activities/age-recategorization";
 
@@ -215,6 +216,14 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
     ]);
   });
 
+  // Downgrade-guard regression case: this animal is seeded directly into
+  // male24 (via initialCategoryId) even though its birth date only computes
+  // to 18 months — old enough for male12 but not male24. resolveCategoryForAge
+  // would resolve a target of male12 here, which is a LOWER bracket than the
+  // animal's current male24. Without the currentMinAgeMonths/targetMinAgeMonths
+  // guard in findAnimalsNeedingAgeRecategorization, this animal would be
+  // silently moved BACKWARD from male24 to male12. This test asserts it's
+  // excluded instead.
   it("does not include an animal that hasn't reached the next bracket yet", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const { male24 } = await seedAgeManagedCategories();
@@ -266,6 +275,100 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
     const { male24 } = await seedAgeManagedCategories();
     const [createdAnimal] = await testDb.insert(animal).values({ sex: "male" }).returning();
     await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR5" });
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .returning();
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2020-01-01",
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: batch.id,
+        createdBy: admin.id,
+      })
+      .returning();
+    await testDb
+      .insert(eventTransfer)
+      .values({ eventId: transferEvent.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id });
+    const [recategorizeEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "recategorize",
+        eventDate: "2020-01-01",
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: batch.id,
+        createdBy: admin.id,
+      })
+      .returning();
+    await testDb
+      .insert(eventRecategorize)
+      .values({ eventId: recategorizeEvent.id, oldCategoryId: male24.id, newCategoryId: male24.id });
+    await refreshDerivedState();
+
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+  });
+
+  it("jumps straight to the correct final bracket in one run, skipping intermediate brackets", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const { male12, male36 } = await seedAgeManagedCategories();
+    const veryOld = await seedAnimal({
+      farmId: seededFarm.id,
+      adminId: admin.id,
+      tag: "AR12",
+      sex: "male",
+      birthDate: "2023-03-01", // ~40 months old as of 2026-07-24, well past male36's 36-month threshold
+      initialCategoryId: male12.id,
+    });
+
+    const candidates = await findAnimalsNeedingAgeRecategorization("2026-07-24");
+
+    expect(candidates).toEqual([
+      { animalId: veryOld.id, farmId: seededFarm.id, currentCategoryId: male12.id, targetCategoryId: male36.id },
+    ]);
+  });
+
+  it("excludes an animal that is dead or sold, even if otherwise due for recategorization", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories();
+    const deadAnimal = await seedAnimal({
+      farmId: seededFarm.id,
+      adminId: admin.id,
+      tag: "AR13",
+      sex: "male",
+      birthDate: "2023-01-01", // old enough to bump, per findAnimalsNeedingAgeRecategorization's own math
+      initialCategoryId: male24.id,
+    });
+
+    const [deathBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "death", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .returning();
+    const [deathEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "death",
+        eventDate: "2026-06-01",
+        animalId: deadAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: deathBatch.id,
+        createdBy: admin.id,
+      })
+      .returning();
+    await testDb.insert(eventDeath).values({ eventId: deathEvent.id });
+    await refreshDerivedState();
+
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+  });
+
+  it("excludes an animal with no sex recorded", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories();
+    const [createdAnimal] = await testDb.insert(animal).values({ birthDate: "2023-01-01" }).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR14" });
     const [batch] = await testDb
       .insert(batchOperation)
       .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
