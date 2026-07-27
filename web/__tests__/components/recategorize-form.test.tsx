@@ -32,6 +32,7 @@ describe("RecategorizeForm", () => {
           currentFarmId: "farm-1",
           currentCategoryId: "cat-novillo",
           currentCategoryName: "Novillo",
+          sex: null,
         },
       ],
     });
@@ -89,6 +90,7 @@ describe("RecategorizeForm", () => {
           currentFarmId: "farm-1",
           currentCategoryId: "cat-novillo",
           currentCategoryName: "Novillo",
+          sex: null,
         },
       ],
     });
@@ -201,6 +203,7 @@ describe("RecategorizeForm", () => {
           status: "age-unresolvable",
           animalId: "animal-4",
           currentFarmId: "farm-1",
+          sex: null,
         },
       ],
     });

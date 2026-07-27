@@ -201,6 +201,7 @@ describe("confirmRecategorizeBatchAction", () => {
           currentFarmId: seededFarm.id,
           currentCategoryId: novillo.id,
           currentCategoryName: "Novillo",
+          sex: null,
         },
       ],
       unresolvableDecisions: {},

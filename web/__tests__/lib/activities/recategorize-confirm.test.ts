@@ -125,8 +125,9 @@ function existingRow(
     currentFarmId: farmId,
     currentCategoryId: "placeholder",
     currentCategoryName: "Novillo",
+    sex: null,
     ...overrides,
-  } as RecategorizeResolvedRow;
+  };
 }
 
 function ageResolvedRow(
@@ -157,8 +158,9 @@ function unresolvableRow(
     status: "age-unresolvable",
     animalId: "placeholder",
     currentFarmId: farmId,
+    sex: null,
     ...overrides,
-  } as RecategorizeResolvedRow;
+  };
 }
 
 describe("confirmRecategorizeBatch", () => {
@@ -651,5 +653,38 @@ describe("confirmRecategorizeBatch", () => {
     expect(events).toHaveLength(1);
     const [recat] = await testDb.select().from(eventRecategorize).where(eq(eventRecategorize.eventId, events[0].id));
     expect(recat).toMatchObject({ oldCategoryId: novilloMacho.id, newCategoryId: novilloMacho.id, source: "initial" });
+  });
+
+  // Design spec requirement: "el sexo usado para el chequeo se re-deriva de
+  // la base y no del valor que mande el cliente en la fila". The preview row
+  // round-trips through the browser like currentFarmId/currentCategoryId do,
+  // so a client could lie about an animal's sex to dodge the mismatch check.
+  it("ignores a client-supplied sex and re-derives it from the database for the mismatch check", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    // The animal really is female...
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: vaca.id,
+      sex: "female",
+    });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        targetCategoryId: novilloMacho.id,
+        // ...but the payload claims it's male, matching the target category
+        // and trying to sneak past the mismatch check undetected.
+        rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id, sex: "male" })],
+        unresolvableDecisions: {},
+        sexMismatchDecisions: {},
+      })
+    ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
+
+    expect(await newEventsFor(animalId)).toHaveLength(0);
   });
 });
