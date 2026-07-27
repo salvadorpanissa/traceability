@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,37 +12,32 @@ import {
   type PreviewResult,
 } from "@/app/(protected)/activities/recategorize/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
-import type { RecategorizeResolvedRow } from "@/lib/activities/recategorize-resolution";
+import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
-export function RecategorizeForm({
-  farms,
-  categories,
-}: {
-  farms: { id: string; name: string }[];
-  categories: CategoryCatalogEntry[];
-}) {
-  const [farmId, setFarmId] = useState("");
+export function RecategorizeForm({ categories }: { categories: CategoryCatalogEntry[] }) {
   const [targetCategoryId, setTargetCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<RecategorizeResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [globalUnresolvableDefault, setGlobalUnresolvableDefault] = useState<UnresolvableDecision>("skip");
+  const [unresolvableOverrides, setUnresolvableOverrides] = useState<Record<string, UnresolvableDecision>>({});
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
     setEventDate("");
     setPreview(null);
     setRows([]);
+    setUnresolvableOverrides({});
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !farmId) return;
+    if (!file) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
-    formData.set("farmId", farmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewRecategorizeBatch(formData);
     setPreview(result);
@@ -56,14 +51,28 @@ export function RecategorizeForm({
     await runPreview(preview.mapping);
   }
 
+  const unresolvableDecisions = useMemo(() => {
+    const decisions: Record<string, UnresolvableDecision> = {};
+    for (const row of rows) {
+      if (row.status === "age-unresolvable") {
+        decisions[row.animalId] = unresolvableOverrides[row.animalId] ?? globalUnresolvableDefault;
+      }
+    }
+    return decisions;
+  }, [rows, unresolvableOverrides, globalUnresolvableDefault]);
+
+  function handleDecisionChange(animalId: string, decision: UnresolvableDecision) {
+    setUnresolvableOverrides((prev) => ({ ...prev, [animalId]: decision }));
+  }
+
   async function handleConfirm() {
     if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
     await confirmRecategorizeBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
       targetCategoryId,
-      farmId,
       rows,
+      unresolvableDecisions,
     });
     setConfirmed(true);
   }
@@ -73,31 +82,16 @@ export function RecategorizeForm({
   }
 
   const targetCategoryName = categories.find((c) => c.id === targetCategoryId)?.name ?? "";
-  const hasConfirmableRow = rows.some((r) => r.status === "existing");
+  const hasUnresolvableRows = rows.some((r) => r.status === "age-unresolvable");
+  const hasConfirmableRow = rows.some(
+    (r) =>
+      (r.status === "existing" && r.currentCategoryId !== targetCategoryId) ||
+      r.status === "age-resolved" ||
+      (r.status === "age-unresolvable" && unresolvableDecisions[r.animalId] === "assignTarget")
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="farmId">Campo</Label>
-        <select
-          id="farmId"
-          value={farmId}
-          onChange={(e) => {
-            setFarmId(e.target.value);
-            setPreview(null);
-            setRows([]);
-          }}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir campo</option>
-          {farms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <div className="flex flex-col gap-2">
         <Label htmlFor="targetCategoryId">Categoría destino</Label>
         <select
@@ -119,7 +113,7 @@ export function RecategorizeForm({
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" disabled={!farmId || !targetCategoryId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!targetCategoryId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 
@@ -147,7 +141,35 @@ export function RecategorizeForm({
 
       {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
         <div className="flex flex-col gap-4">
-          <RecategorizePreviewTable rows={rows} targetCategoryName={targetCategoryName} />
+          {hasUnresolvableRows ? (
+            <div className="flex flex-col gap-1 text-sm">
+              <p>Animales sin categoría y sin edad calculable:</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={globalUnresolvableDefault === "skip" ? "default" : "outline"}
+                  onClick={() => setGlobalUnresolvableDefault("skip")}
+                >
+                  Omitir
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={globalUnresolvableDefault === "assignTarget" ? "default" : "outline"}
+                  onClick={() => setGlobalUnresolvableDefault("assignTarget")}
+                >
+                  Asignar categoría destino
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          <RecategorizePreviewTable
+            rows={rows}
+            targetCategoryName={targetCategoryName}
+            unresolvableDecisions={unresolvableDecisions}
+            onDecisionChange={handleDecisionChange}
+          />
           <Button
             type="button"
             disabled={rows.some((r) => r.status === "error") || !hasConfirmableRow}
