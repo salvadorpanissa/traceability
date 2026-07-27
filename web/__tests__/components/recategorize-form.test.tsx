@@ -72,6 +72,61 @@ describe("RecategorizeForm", () => {
     expect(screen.getByText("Lote confirmado.")).toBeInTheDocument();
   });
 
+  it("shows the server's error message when confirming fails", async () => {
+    vi.mocked(previewRecategorizeBatch).mockResolvedValue({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: "sig",
+      mapping: [],
+      rows: [
+        {
+          tag: "AR1",
+          eventDate: "2026-03-01",
+          notes: null,
+          status: "existing",
+          animalId: "animal-1",
+          currentFarmId: "farm-1",
+          currentCategoryId: "cat-novillo",
+          currentCategoryName: "Novillo",
+        },
+      ],
+    });
+    vi.mocked(confirmRecategorizeBatchAction).mockRejectedValue(
+      new Error("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.")
+    );
+
+    render(
+      <RecategorizeForm
+        categories={[
+          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null },
+          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
+        ]}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-plus3");
+    await user.upload(screen.getByLabelText("Archivo"), sampleFile());
+    await user.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByText("AR1")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.")
+      ).toBeInTheDocument()
+    );
+    // Still on the preview step, not the success state, and still retryable.
+    expect(screen.queryByText("Lote confirmado.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar" })).not.toBeDisabled();
+
+    // A second attempt clears the previous message first.
+    vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() => expect(screen.getByText("Lote confirmado.")).toBeInTheDocument());
+  });
+
   it("disables Confirmar when a row has an error", async () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,

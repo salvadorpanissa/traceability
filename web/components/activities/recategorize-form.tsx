@@ -22,6 +22,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<RecategorizeResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [globalUnresolvableDefault, setGlobalUnresolvableDefault] = useState<UnresolvableDecision>("skip");
   const [unresolvableOverrides, setUnresolvableOverrides] = useState<Record<string, UnresolvableDecision>>({});
 
@@ -67,14 +68,23 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
 
   async function handleConfirm() {
     if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
-    await confirmRecategorizeBatchAction({
-      headerSignature: preview.headerSignature,
-      mapping: preview.mapping,
-      targetCategoryId,
-      rows,
-      unresolvableDecisions,
-    });
-    setConfirmed(true);
+    // Confirm now fails for routine reasons (a campo the user can't touch, a
+    // preview that went stale, one campo of several failing to write), so the
+    // message has to reach the user instead of becoming an unhandled rejection
+    // that silently deadens the button.
+    setConfirmError(null);
+    try {
+      await confirmRecategorizeBatchAction({
+        headerSignature: preview.headerSignature,
+        mapping: preview.mapping,
+        targetCategoryId,
+        rows,
+        unresolvableDecisions,
+      });
+      setConfirmed(true);
+    } catch (error) {
+      setConfirmError(error instanceof Error ? error.message : "No se pudo confirmar el lote.");
+    }
   }
 
   if (confirmed) {
@@ -177,6 +187,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
           >
             Confirmar
           </Button>
+          {confirmError ? <p className="text-sm text-destructive">{confirmError}</p> : null}
         </div>
       ) : null}
     </div>
