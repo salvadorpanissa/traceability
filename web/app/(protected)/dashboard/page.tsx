@@ -2,56 +2,89 @@ import { cookies } from "next/headers";
 import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
 import { visibleCurrentStateWithNames } from "@/lib/dal/animal-access";
-import { visibleHealthEventsSince } from "@/lib/dal/health-event-access";
 import { summarizeLivestockByPaddock, summarizeLivestockByCategory } from "@/lib/dashboard/livestock-summary";
-import { summarizeHealthByPlace, monthsAgoISODate } from "@/lib/dashboard/health-place-summary";
+import { visibleHealthBatchesSince, countDistinctAnimalsTreatedThisMonth } from "@/lib/dashboard/health-batch-summary";
 import { LivestockByPaddockTable } from "@/components/dashboard/livestock-by-paddock-table";
-import { LivestockByCategoryTable } from "@/components/dashboard/livestock-by-category-table";
-import { NaturalLanguageQuery } from "@/components/dashboard/natural-language-query";
+import { StockByCategoryChart } from "@/components/dashboard/stock-by-category-chart";
+import { StatCards } from "@/components/dashboard/stat-cards";
+import { RecentHealthEvents } from "@/components/dashboard/recent-health-events";
 import { AnimalLookup } from "@/components/dashboard/animal-lookup";
-import { HealthByPlaceTable } from "@/components/dashboard/health-by-place-table";
+import { NaturalLanguageQuery } from "@/components/dashboard/natural-language-query";
 
-const DEFAULT_HEALTH_SUMMARY_MONTHS = 3;
+const RECENT_HEALTH_MONTHS = 3;
+
+function monthsAgoISODate(months: number, from: Date = new Date()): string {
+  const date = new Date(from);
+  date.setMonth(date.getMonth() - months);
+  return date.toISOString().slice(0, 10);
+}
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const locale = parseLocaleCookie(cookieStore.get("locale")?.value);
 
   const session = await requireSession();
-  const [rows, healthEventRows] = await Promise.all([
+  const [rows, healthBatches, healthEventsThisMonth] = await Promise.all([
     visibleCurrentStateWithNames(session.user.id, session.user.role),
-    visibleHealthEventsSince(
+    visibleHealthBatchesSince(
       session.user.id,
       session.user.role,
-      monthsAgoISODate(DEFAULT_HEALTH_SUMMARY_MONTHS)
+      monthsAgoISODate(RECENT_HEALTH_MONTHS)
     ),
+    countDistinctAnimalsTreatedThisMonth(session.user.id, session.user.role),
   ]);
+
+  const alive = rows.filter((r) => r.status === "alive");
   const byPaddock = summarizeLivestockByPaddock(rows);
   const byCategory = summarizeLivestockByCategory(rows);
-  const byHealthPlace = summarizeHealthByPlace(healthEventRows);
+
+  const totalLivestock = alive.length;
+  const activePaddocks = new Set(
+    alive.filter((r) => r.paddockName).map((r) => `${r.farmName ?? ""}::${r.paddockName ?? ""}`)
+  ).size;
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">{translate(locale, "dashboard.title")}</h1>
+      <h1 className="text-xl font-semibold">{translate(locale, "dashboard.title")}</h1>
+
+      {/* Stats cards row */}
+      <StatCards
+        totalLivestock={totalLivestock}
+        animalChange={0}
+        activePaddocks={activePaddocks}
+        healthEventsThisMonth={healthEventsThisMonth}
+      />
+
+      {/* Two-column: paddock table | stock by category + animal lookup */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">{translate(locale, "livestock.byPaddockTitle")}</h2>
+          <LivestockByPaddockTable rows={byPaddock} locale={locale} />
+        </div>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.stockByCategoryTitle")}</h2>
+            <div className="rounded-xl border bg-card p-4">
+              <StockByCategoryChart rows={byCategory} />
+            </div>
+          </div>
+          <div>
+            <AnimalLookup locale={locale} />
+          </div>
+        </div>
       </div>
+
+      {/* AI questions full width */}
       <div>
+        <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.aiQuestionsTitle")}</h2>
         <NaturalLanguageQuery locale={locale} />
       </div>
+
+      {/* Recent health full width */}
       <div>
-        <AnimalLookup locale={locale} />
-      </div>
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">{translate(locale, "livestock.byPaddockTitle")}</h2>
-        <LivestockByPaddockTable rows={byPaddock} locale={locale} />
-      </div>
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">{translate(locale, "livestock.byCategoryTitle")}</h2>
-        <LivestockByCategoryTable rows={byCategory} locale={locale} />
-      </div>
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">{translate(locale, "healthByPlace.title")}</h2>
-        <HealthByPlaceTable initialRows={byHealthPlace} initialMonths={DEFAULT_HEALTH_SUMMARY_MONTHS} locale={locale} />
+        <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.recentHealthTitle")}</h2>
+        <p className="mb-3 text-xs text-muted-foreground">{translate(locale, "dashboard.recentHealthLastMonths")}</p>
+        <RecentHealthEvents batches={healthBatches} />
       </div>
     </div>
   );

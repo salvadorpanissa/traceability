@@ -99,7 +99,7 @@ describe("DataTable", () => {
     expect(screen.queryByText("Detalle de Banana")).not.toBeInTheDocument();
   });
 
-  it("paginates with a Mostrar más button when pageSize is set", async () => {
+  it("paginates with page number buttons when pageSize is set", async () => {
     render(<DataTable columns={baseColumns} rows={rows} getRowId={(r) => r.id} locale="es" pageSize={2} />);
     const user = userEvent.setup();
 
@@ -107,7 +107,7 @@ describe("DataTable", () => {
     expect(screen.getByText("Apple")).toBeInTheDocument();
     expect(screen.queryByText("Cherry")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Mostrar más" }));
+    await user.click(screen.getByRole("button", { name: "Página 2" }));
     expect(screen.getByText("Cherry")).toBeInTheDocument();
   });
 
@@ -115,11 +115,11 @@ describe("DataTable", () => {
     render(<DataTable columns={baseColumns} rows={rows} getRowId={(r) => r.id} locale="es" searchable pageSize={1} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Mostrar más" }));
-    expect(screen.getAllByRole("row")).toHaveLength(3); // header + 2 rows
+    await user.click(screen.getByRole("button", { name: "Página 2" }));
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + 1 row (Apple)
 
     await user.type(screen.getByRole("textbox"), "Apple");
-    expect(screen.getAllByRole("row")).toHaveLength(2); // header + 1 row
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + 1 row (Apple still)
   });
 
   it("does not render a download button unless exportable is set", () => {
