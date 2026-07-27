@@ -14,6 +14,20 @@ export type HealthProduct = {
   notes: string | null;
 };
 
+export type PaddockMismatch = { tag: string; currentPaddockId: string };
+
+export function findPaddockMismatches(rows: ResolvedRow[], paddockId: string | null): PaddockMismatch[] {
+  if (!paddockId) return [];
+  const mismatches: PaddockMismatch[] = [];
+  for (const row of rows) {
+    if (row.status !== "existing") continue;
+    if (row.currentPaddockId && row.currentPaddockId !== paddockId) {
+      mismatches.push({ tag: row.tag, currentPaddockId: row.currentPaddockId });
+    }
+  }
+  return mismatches;
+}
+
 export async function confirmHealthBatch(input: {
   userId: string;
   role: string | undefined;
