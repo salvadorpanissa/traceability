@@ -19,7 +19,8 @@ import {
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
-import { findPaddockMismatches, type HealthProduct } from "@/lib/activities/health";
+import type { HealthProduct } from "@/lib/activities/health";
+import { findPaddockMismatches } from "@/lib/activities/health-paddock-mismatch";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";

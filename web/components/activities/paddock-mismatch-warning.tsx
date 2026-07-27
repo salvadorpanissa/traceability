@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { PaddockMismatch } from "@/lib/activities/health";
+import type { PaddockMismatch } from "@/lib/activities/health-paddock-mismatch";
 
 export function PaddockMismatchWarning({
   mismatches,

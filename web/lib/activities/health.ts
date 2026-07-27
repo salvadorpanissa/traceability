@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
+import { isSameFarmMismatch } from "@/lib/activities/health-paddock-mismatch";
 
 export type HealthProduct = {
   productId: string;
@@ -14,38 +15,10 @@ export type HealthProduct = {
   notes: string | null;
 };
 
-export type PaddockMismatch = { tag: string; currentPaddockId: string };
-
-// Only same-farm mismatches are eligible: an "existing" row can resolve to an
-// animal that currently lives at a *different* farm, and relocating it from
-// here would bypass the cross-farm authorization the real traslado flow
-// enforces (see requireTransferAuthorization in lib/activities/transfer.ts).
-function isSameFarmMismatch(
-  row: ResolvedRow,
-  paddockId: string,
-  operatingFarmId: string
-): row is Extract<ResolvedRow, { status: "existing" }> & { currentPaddockId: string } {
-  return (
-    row.status === "existing" &&
-    row.currentFarmId === operatingFarmId &&
-    !!row.currentPaddockId &&
-    row.currentPaddockId !== paddockId
-  );
-}
-
-export function findPaddockMismatches(
-  rows: ResolvedRow[],
-  paddockId: string | null,
-  operatingFarmId: string
-): PaddockMismatch[] {
-  if (!paddockId) return [];
-  const mismatches: PaddockMismatch[] = [];
-  for (const row of rows) {
-    if (!isSameFarmMismatch(row, paddockId, operatingFarmId)) continue;
-    mismatches.push({ tag: row.tag, currentPaddockId: row.currentPaddockId });
-  }
-  return mismatches;
-}
+// findPaddockMismatches/PaddockMismatch live in health-paddock-mismatch.ts,
+// a pure module with no `db` import — HealthForm (a client component) needs
+// the detection logic without pulling the server-only `pg` client (and its
+// `dns` import) into the browser bundle.
 
 export async function confirmHealthBatch(input: {
   userId: string;

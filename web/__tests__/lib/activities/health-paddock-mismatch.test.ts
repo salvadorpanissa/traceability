@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPaddockMismatches } from "@/lib/activities/health";
+import { findPaddockMismatches } from "@/lib/activities/health-paddock-mismatch";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
 const OPERATING_FARM_ID = "farm-1";
