@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { TransferPreviewTable } from "@/components/activities/transfer-preview-t
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { FarmPaddockPicker } from "@/components/activities/farm-paddock-picker";
+import { PaddockMismatchWarning } from "@/components/activities/paddock-mismatch-warning";
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
@@ -18,7 +19,7 @@ import {
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
-import type { HealthProduct } from "@/lib/activities/health";
+import { findPaddockMismatches, type HealthProduct } from "@/lib/activities/health";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
@@ -78,6 +79,7 @@ export function HealthForm({
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
+  const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
 
   function handlePaddockSelect(selectedPaddockId: string, selectedFarmId: string) {
     setPaddockId(selectedPaddockId);
@@ -85,11 +87,13 @@ export function HealthForm({
     setEventDate("");
     setPreview(null);
     setRows([]);
+    setTransferMismatched(null);
   }
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
     setEventDate("");
+    setTransferMismatched(null);
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
@@ -155,9 +159,13 @@ export function HealthForm({
       rows,
       paddockId,
       farmId,
+      transferMismatchedToPaddock: transferMismatched ?? false,
     });
     setConfirmed(true);
   }
+
+  const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId, farmId), [rows, paddockId, farmId]);
+  const paddockNameById = useMemo(() => new Map(paddocks.map((p) => [p.id, p.name])), [paddocks]);
 
   if (confirmed) {
     return <p>Lote confirmado.</p>;
@@ -169,6 +177,7 @@ export function HealthForm({
     (r) =>
       r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
   );
+  const needsMismatchDecision = mismatches.length > 0 && transferMismatched === null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -224,11 +233,23 @@ export function HealthForm({
             onCreateOwner={handleCreateOwner}
             onResolved={handleOwnerResolved}
           />
+          {mismatches.length > 0 ? (
+            <PaddockMismatchWarning
+              mismatches={mismatches}
+              paddockNameById={paddockNameById}
+              decision={transferMismatched}
+              onDecide={setTransferMismatched}
+            />
+          ) : null}
           <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
           <Button
             type="button"
             disabled={
-              rows.some((r) => r.status === "error") || hasIncompleteProduct || pendingNames.length > 0 || !hasConfirmableRow
+              rows.some((r) => r.status === "error") ||
+              hasIncompleteProduct ||
+              pendingNames.length > 0 ||
+              !hasConfirmableRow ||
+              needsMismatchDecision
             }
             onClick={handleConfirm}
           >

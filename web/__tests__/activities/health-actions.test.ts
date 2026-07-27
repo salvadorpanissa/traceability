@@ -435,6 +435,44 @@ describe("confirmHealthBatchAction", () => {
     expect(createdAnimals).toHaveLength(1);
     expect(createdAnimals[0].ownerId).toBe(createdOwner.id);
   });
+
+  it("creates a traslado for a mismatched potrero when transferMismatchedToPaddock is true", async () => {
+    const { seededFarm } = await seedManagerSession();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { paddock, animal, animalTagHistory, event, eventTransfer } = await import("@/db/schema");
+    const [potreroA] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero A" }).returning();
+    const [potreroB] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero B" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000087" });
+
+    await confirmHealthBatchAction({
+      headerSignature: JSON.stringify(["IDE"]),
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      products: [
+        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+      ],
+      rows: [
+        {
+          tag: "AR000000000087",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "existing",
+          animalId: createdAnimal.id,
+          currentFarmId: seededFarm.id,
+          currentPaddockId: potreroB.id,
+        },
+      ],
+      paddockId: potreroA.id,
+      farmId: seededFarm.id,
+      transferMismatchedToPaddock: true,
+    });
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    const transferEvent = animalEvents.find((e) => e.eventType === "transfer");
+    expect(transferEvent).toBeDefined();
+    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, transferEvent!.id));
+    expect(transfer.destinationPaddockId).toBe(potreroA.id);
+  });
 });
 
 describe("createProductAction", () => {

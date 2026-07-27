@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
@@ -36,6 +36,13 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
   return { manager, seededFarm };
+}
+
+async function currentPaddockIdFor(animalId: string): Promise<string | null> {
+  const result = await testDb.execute<{ current_paddock_id: string | null }>(
+    sql`select current_paddock_id from animal_current_state where animal_id = ${animalId}`
+  );
+  return result.rows[0]?.current_paddock_id ?? null;
 }
 
 describe("confirmHealthBatch", () => {
@@ -280,5 +287,157 @@ describe("confirmHealthBatch", () => {
         paddockId: foreignPaddock.id,
       })
     ).rejects.toThrow("El potrero no pertenece al campo activo");
+  });
+
+  it("creates a same-farm traslado for an existing animal whose current potrero differs, when transferMismatchedToPaddock is true", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [potreroA] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero A" }).returning();
+    const [potreroB] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero B" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000078" });
+
+    // The animal's real placement in potrero B is *more recent* than the
+    // (backdated) sanidad. The traslado must still win in animal_current_state.
+    const [seedBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const [seedTransferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2026-06-01",
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: seedBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({
+      eventId: seedTransferEvent.id,
+      originFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      originPaddockId: null,
+      destinationPaddockId: potreroB.id,
+    });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000078",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: potreroB.id,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      products,
+      rows,
+      paddockId: potreroA.id,
+      transferMismatchedToPaddock: true,
+    });
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    expect(animalEvents.filter((e) => e.eventType === "health")).toHaveLength(1);
+    const transferEvent = animalEvents.find((e) => e.eventType === "transfer" && e.id !== seedTransferEvent.id);
+    expect(transferEvent).toBeDefined();
+
+    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, transferEvent!.id));
+    expect(transfer.originFarmId).toBe(seededFarm.id);
+    expect(transfer.destinationFarmId).toBe(seededFarm.id);
+    expect(transfer.originPaddockId).toBe(potreroB.id);
+    expect(transfer.destinationPaddockId).toBe(potreroA.id);
+
+    // The traslado is dated "now" so it wins over the animal's later real
+    // transfer — otherwise the relocation would be a silent no-op.
+    expect(transferEvent!.eventDate).toBe(new Date().toISOString().slice(0, 10));
+    expect(await currentPaddockIdFor(createdAnimal.id)).toBe(potreroA.id);
+  });
+
+  it("does not create a traslado for an animal currently at a different farm, even when transferMismatchedToPaddock is true", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [potreroA] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero A" }).returning();
+    const [potreroAjeno] = await testDb.insert(paddock).values({ farmId: otherFarm.id, name: "Potrero Ajeno" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000080" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000080",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: otherFarm.id,
+        currentPaddockId: potreroAjeno.id,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      products,
+      rows,
+      paddockId: potreroA.id,
+      transferMismatchedToPaddock: true,
+    });
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    expect(animalEvents.filter((e) => e.eventType === "transfer")).toHaveLength(0);
+    expect(animalEvents).toHaveLength(1);
+    expect(animalEvents[0].eventType).toBe("health");
+  });
+
+  it("does not create a traslado for a mismatched animal when transferMismatchedToPaddock is false", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [potreroA] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero A" }).returning();
+    const [potreroB] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero B" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000079" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000079",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: potreroB.id,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      products,
+      rows,
+      paddockId: potreroA.id,
+    });
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    expect(animalEvents).toHaveLength(1);
+    expect(animalEvents[0].eventType).toBe("health");
   });
 });
