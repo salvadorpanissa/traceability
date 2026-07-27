@@ -35,8 +35,17 @@ export async function confirmHealthBatch(input: {
   products: HealthProduct[];
   rows: ResolvedRow[];
   paddockId: string | null;
+  transferMismatchedToPaddock?: boolean;
 }): Promise<void> {
-  const { userId, role, operatingFarmId, products, rows, paddockId } = input;
+  const {
+    userId,
+    role,
+    operatingFarmId,
+    products,
+    rows,
+    paddockId,
+    transferMismatchedToPaddock = false,
+  } = input;
 
   await requireFarmAccess(userId, role, operatingFarmId);
 
@@ -124,6 +133,36 @@ export async function confirmHealthBatch(input: {
           withdrawalDays: healthProduct.withdrawalDays,
           notes: healthProduct.notes,
           paddockId,
+        });
+      }
+    }
+
+    // Sanidad doesn't relocate animals on its own, but the user can opt into
+    // also moving any existing animal whose current potrero differs from
+    // the one the sanidad was performed in — same batch, same transaction.
+    if (transferMismatchedToPaddock && paddockId) {
+      const existingRowByTag = new Map(
+        rows.filter((row): row is Extract<ResolvedRow, { status: "existing" }> => row.status === "existing").map((row) => [row.tag, row])
+      );
+      for (const mismatch of findPaddockMismatches(rows, paddockId)) {
+        const row = existingRowByTag.get(mismatch.tag)!;
+        const [transferEvent] = await tx
+          .insert(event)
+          .values({
+            eventType: "transfer",
+            eventDate: row.eventDate,
+            animalId: row.animalId,
+            farmId: operatingFarmId,
+            batchOperationId: batch.id,
+            createdBy: userId,
+          })
+          .returning();
+        await tx.insert(eventTransfer).values({
+          eventId: transferEvent.id,
+          originFarmId: operatingFarmId,
+          destinationFarmId: operatingFarmId,
+          originPaddockId: mismatch.currentPaddockId,
+          destinationPaddockId: paddockId,
         });
       }
     }
