@@ -250,3 +250,107 @@ test("recategorizes an animal with no category using its age, with no farm selec
   fs.unlinkSync(transferPath);
   fs.unlinkSync(recatPath);
 });
+
+test("assigns the target category to an animal whose age can't be computed", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByLabel("Contraseña").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: /ingresar/i }).click();
+  await page.waitForURL(/\/dashboard/);
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+  // A plain, non-age-managed category: the row can only reach it through the
+  // "Asignar categoría destino" decision, never through age resolution.
+  await page.goto("/settings/categories");
+  await page.getByLabel("Nombre").fill("Vaquillona E2E Sin Edad");
+  await page.getByRole("button", { name: "Agregar" }).click();
+  await expect(page.getByText("Vaquillona E2E Sin Edad")).toBeVisible();
+
+  const OWN_TAG_NO_AGE = "700000000702";
+
+  await page.goto("/settings/dicose");
+  await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
+  await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
+  await page.getByLabel("Código DICOSE").fill("160099913");
+  await page.getByRole("button", { name: "Agregar" }).click();
+  await expect(page.getByText("160099913")).toBeVisible();
+
+  // Sex but deliberately NO birth date: with no birth date the animal's age
+  // can never be computed, so a row for it can only ever come back as
+  // "Sin edad calculable".
+  await page.goto("/settings/own-tags");
+  const ownTagsPath = path.join(os.tmpdir(), "recategorize-e2e-noage-own-tags.xlsx");
+  await writeExcel(ownTagsPath, ["Caravana", "Sexo"], [[OWN_TAG_NO_AGE, "hembra"]]);
+  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (160099913)" });
+  await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
+  await page.getByRole("button", { name: "Subir" }).click();
+
+  // Same ordering-independent handling as the first test: this header
+  // signature may or may not already be mapped by a previous spec.
+  const ownTagsTagSelect = page.getByLabel("Caravana", { exact: true });
+  const ownTagsConfirm = page.getByRole("button", { name: "Confirmar carga" });
+  await Promise.race([ownTagsTagSelect.waitFor({ state: "visible" }), ownTagsConfirm.waitFor({ state: "visible" })]);
+  if (await ownTagsTagSelect.isVisible()) {
+    await ownTagsTagSelect.selectOption("tag");
+    await page.getByLabel("Sexo", { exact: true }).selectOption("sex");
+    await page.getByRole("button", { name: /continuar/i }).click();
+    await ownTagsConfirm.waitFor({ state: "visible" });
+  }
+  await ownTagsConfirm.click();
+  await expect(page.getByText(/1 caravanas registradas/)).toBeVisible();
+
+  // Move it onto a campo with no category column, so animal_current_state has
+  // a current_farm_id and a null current_category_id.
+  const transferPath = path.join(os.tmpdir(), "recategorize-e2e-noage-transfer.xlsx");
+  await writeExcel(transferPath, ["Caravana", "Fecha"], [[OWN_TAG_NO_AGE, "2026-01-01"]]);
+
+  await page.goto("/activities/transfer");
+  await page.getByLabel("Campo destino", { exact: true }).selectOption({ label: "Campo Norte" });
+  await page.getByLabel(/archivo/i).setInputFiles(transferPath);
+  await page.getByRole("button", { name: /^subir$/i }).click();
+  const transferTagSelect = page.getByLabel("Caravana", { exact: true });
+  const transferTagCell = page.getByText(OWN_TAG_NO_AGE);
+  await Promise.race([transferTagSelect.waitFor({ state: "visible" }), transferTagCell.waitFor({ state: "visible" })]);
+  if (await transferTagSelect.isVisible()) {
+    await transferTagSelect.selectOption("tag");
+    await page.getByLabel("Fecha", { exact: true }).selectOption("date");
+    await page.getByRole("button", { name: /continuar/i }).click();
+  }
+  await expect(page.getByText(OWN_TAG_NO_AGE)).toBeVisible();
+  await page.getByRole("button", { name: /confirmar/i }).click();
+  await expect(page.getByText("Lote confirmado.")).toBeVisible();
+
+  // Recategorize: the row has neither a category nor a computable age, so it
+  // shows the per-row decision selector.
+  const recatPath = path.join(os.tmpdir(), "recategorize-e2e-noage-recat.xlsx");
+  await writeExcel(recatPath, ["Caravana", "Fecha"], [[OWN_TAG_NO_AGE, "2026-06-01"]]);
+
+  await page.goto("/activities/recategorize");
+  await page.getByLabel("Categoría destino").selectOption({ label: "Vaquillona E2E Sin Edad" });
+  await page.getByLabel(/archivo/i).setInputFiles(recatPath);
+  await page.getByRole("button", { name: /^subir$/i }).click();
+
+  const recatTagSelect = page.getByLabel("Caravana", { exact: true });
+  const decisionSelect = page.getByLabel(`Decisión para ${OWN_TAG_NO_AGE}`);
+  await Promise.race([recatTagSelect.waitFor({ state: "visible" }), decisionSelect.waitFor({ state: "visible" })]);
+  if (await recatTagSelect.isVisible()) {
+    await recatTagSelect.selectOption("tag");
+    await page.getByLabel("Fecha", { exact: true }).selectOption("date");
+    await page.getByRole("button", { name: /continuar/i }).click();
+  }
+
+  await expect(page.getByText(OWN_TAG_NO_AGE)).toBeVisible();
+  await expect(page.getByText("Sin edad calculable")).toBeVisible();
+
+  // Default decision is "Omitir", which leaves nothing to confirm.
+  await expect(page.getByRole("button", { name: /^confirmar$/i })).toBeDisabled();
+  await decisionSelect.selectOption("assignTarget");
+  await expect(page.getByRole("cell", { name: "Vaquillona E2E Sin Edad" })).toBeVisible();
+
+  await page.getByRole("button", { name: /^confirmar$/i }).click();
+  await expect(page.getByText("Lote confirmado.")).toBeVisible();
+
+  fs.unlinkSync(ownTagsPath);
+  fs.unlinkSync(transferPath);
+  fs.unlinkSync(recatPath);
+});
