@@ -124,6 +124,45 @@ describe("previewRecategorizeBatch", () => {
     });
   });
 
+  it("masks rows for animals on campos the user has no access to", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [foreignFarm] = await testDb.insert(farm).values({ name: "Campo Ajeno" }).returning();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
+    // Same manager id as creator (only a FK filler); what matters is that no
+    // user_farm row links this manager to Campo Ajeno.
+    await seedAnimalAtFarm(foreignFarm.id, manager.id, "AR9", novillo.id);
+    await refreshDerivedState();
+
+    const formData = await excelFormData([
+      ["AR1", "2026-03-01"],
+      ["AR9", "2026-03-01"],
+    ]);
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "Caravana", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+      ])
+    );
+
+    const result = await previewRecategorizeBatch(formData);
+
+    expect(result).toMatchObject({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      rows: [
+        { tag: "AR1", status: "existing", currentCategoryId: novillo.id },
+        { tag: "AR9", status: "error", reason: "No tenés acceso a este campo" },
+      ],
+    });
+    // The masked row must not leak the animal's real campo/categoría/estado.
+    const rows = (result as { rows: Record<string, unknown>[] }).rows;
+    expect(rows[1]).not.toHaveProperty("currentFarmId");
+    expect(rows[1]).not.toHaveProperty("currentCategoryId");
+    expect(rows[1]).not.toHaveProperty("animalId");
+  });
+
   it("asks for a column mapping the first time a header signature is seen", async () => {
     const { seededFarm } = await seedManagerAndFarm();
 
@@ -141,6 +180,9 @@ describe("confirmRecategorizeBatchAction", () => {
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [novilloPlus3] = await testDb.insert(category).values({ name: "Novillo +3 años" }).returning();
     const createdAnimal = await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
+    // confirmRecategorizeBatch re-reads campo/categoría from
+    // animal_current_state, so the seeded events have to be visible there.
+    await refreshDerivedState();
 
     await confirmRecategorizeBatchAction({
       headerSignature: JSON.stringify(["Caravana", "Fecha"]),
