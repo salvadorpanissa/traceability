@@ -7,6 +7,19 @@ import ExcelJS from "exceljs";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "changeme123";
 
+// Spec-local tag, registered fresh below through the same DICOSE + own-tags
+// UI flow e2e/dicose-foreign-tag.spec.ts uses — deliberately NOT one of
+// global-setup.ts's shared AR0000000000XX pool, which e2e/transfer-activity.spec.ts
+// and e2e/transfer-destination-paddock.spec.ts also assert against for a
+// fresh "new"/"Nuevo" animal-creation flow. Reusing a shared tag here would
+// make this spec's assertions about that tag's status depend on execution
+// order relative to those two specs. See review finding on Task 6.
+// Must be digits-only: lib/dal/own-tag.ts's importOwnTags rejects any tag
+// that doesn't match CARAVAN_PATTERN (/^\d+$/) as an "invalid row" when
+// registering through this UI upload path (global-setup.ts's AR-prefixed
+// tags bypass this by inserting directly via SQL, not through this form).
+const OWN_TAG = "700000000700";
+
 // Matches e2e/dicose-foreign-tag.spec.ts's writeSingleColumnExcel, generalized
 // to multiple columns — the app only accepts real .xlsx uploads (see
 // lib/activities/excel-parsing.ts, which loads the buffer through ExcelJS'
@@ -45,20 +58,53 @@ test("uploads a file of tags and confirms a manual recategorization", async ({ p
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("Novillo E2E +3")).toBeVisible();
 
+  // Register a fresh own_tag through the same UI flow
+  // e2e/dicose-foreign-tag.spec.ts uses (settings/dicose -> settings/own-tags),
+  // instead of reusing one of global-setup.ts's shared AR0000000000XX tags —
+  // see OWN_TAG's comment above. "Pérez" is the owner global-setup.ts already
+  // seeds; the DICOSE code just needs to be distinct from other specs' rows,
+  // which it is.
+  await page.goto("/settings/dicose");
+  await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
+  await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
+  await page.getByLabel("Código DICOSE").fill("160099911");
+  await page.getByRole("button", { name: "Agregar" }).click();
+  await expect(page.getByText("160099911")).toBeVisible();
+
+  await page.goto("/settings/own-tags");
+  const ownTagsPath = path.join(os.tmpdir(), "recategorize-e2e-own-tags.xlsx");
+  await writeExcel(ownTagsPath, ["Caravana"], [[OWN_TAG]]);
+  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (160099911)" });
+  await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
+  await page.getByRole("button", { name: "Subir" }).click();
+
+  // This own-tags header signature ("Caravana", single column) may or may
+  // not already be mapped, depending on whether another spec uploaded a file
+  // with this exact header before this one ran — handle both so this spec
+  // doesn't depend on that ordering either. Wait for whichever element the
+  // (async) preview settles on, rather than checking isVisible() right away
+  // (which would race the server action and always read as "not yet there").
+  const tagMappingSelect = page.getByLabel("Caravana", { exact: true });
+  const confirmButton = page.getByRole("button", { name: "Confirmar carga" });
+  await Promise.race([tagMappingSelect.waitFor({ state: "visible" }), confirmButton.waitFor({ state: "visible" })]);
+  if (await tagMappingSelect.isVisible()) {
+    await tagMappingSelect.selectOption("tag");
+    await page.getByRole("button", { name: /continuar/i }).click();
+    await confirmButton.waitFor({ state: "visible" });
+  }
+  await confirmButton.click();
+  await expect(page.getByText(/1 caravanas registradas/)).toBeVisible();
+
   // Create an animal with an initial category via the Transfer activity's
   // Excel path, so this spec has a real animal at a known farm/category to
-  // act on. "AR000000000099" is one of the own_tag rows global-setup.ts
-  // registers under a DICOSE registration on "Campo Norte" (the only farm
-  // db/seed.ts creates), so it resolves to a creatable "new" row rather than
-  // "foreign" — see lib/activities/batch-resolution.ts. The "Categoria"
-  // column lets createNewAnimal (lib/activities/animal-creation.ts) assign
-  // an initial category via a self-recategorize event.
+  // act on. OWN_TAG is registered above under a DICOSE registration on
+  // "Campo Norte" (the only farm db/seed.ts creates), so it resolves to a
+  // creatable "new" row rather than "foreign" — see
+  // lib/activities/batch-resolution.ts. The "Categoria" column lets
+  // createNewAnimal (lib/activities/animal-creation.ts) assign an initial
+  // category via a self-recategorize event.
   const transferPath = path.join(os.tmpdir(), "recategorize-e2e-transfer.xlsx");
-  await writeExcel(
-    transferPath,
-    ["Caravana", "Fecha", "Categoria"],
-    [["AR000000000099", "2026-01-01", "Novillo E2E"]]
-  );
+  await writeExcel(transferPath, ["Caravana", "Fecha", "Categoria"], [[OWN_TAG, "2026-01-01", "Novillo E2E"]]);
 
   await page.goto("/activities/transfer");
   // transfer-form.tsx disables the "Subir" button until a destination farm
@@ -75,7 +121,7 @@ test("uploads a file of tags and confirms a manual recategorization", async ({ p
   await page.getByLabel("Categoria", { exact: true }).selectOption("category");
   await page.getByRole("button", { name: /continuar/i }).click();
 
-  await expect(page.getByText("AR000000000099")).toBeVisible();
+  await expect(page.getByText(OWN_TAG)).toBeVisible();
   // exact:true — a plain substring match for "Nuevo" also hits the hidden
   // "+ Crear potrero nuevo" <option> (Playwright's string getByText is
   // case-insensitive substring matching by default), which resolves first
@@ -86,7 +132,7 @@ test("uploads a file of tags and confirms a manual recategorization", async ({ p
 
   // Now recategorize it manually via the Recategorización activity.
   const recatPath = path.join(os.tmpdir(), "recategorize-e2e-recat.xlsx");
-  await writeExcel(recatPath, ["Caravana", "Fecha"], [["AR000000000099", "2026-06-01"]]);
+  await writeExcel(recatPath, ["Caravana", "Fecha"], [[OWN_TAG, "2026-06-01"]]);
 
   await page.goto("/activities/recategorize");
   await page.getByLabel("Campo").selectOption({ label: "Campo Norte" });
@@ -104,13 +150,14 @@ test("uploads a file of tags and confirms a manual recategorization", async ({ p
 
   // getByText("Novillo E2E") also matches the "Categoría destino" <option>
   // still in the DOM, so scope these to the preview table's cells.
-  await expect(page.getByText("AR000000000099")).toBeVisible();
+  await expect(page.getByText(OWN_TAG)).toBeVisible();
   await expect(page.getByRole("cell", { name: "Novillo E2E", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Novillo E2E +3" })).toBeVisible();
 
   await page.getByRole("button", { name: /confirmar/i }).click();
   await expect(page.getByText("Lote confirmado.")).toBeVisible();
 
+  fs.unlinkSync(ownTagsPath);
   fs.unlinkSync(transferPath);
   fs.unlinkSync(recatPath);
 });
