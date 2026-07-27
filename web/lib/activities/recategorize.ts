@@ -1,4 +1,4 @@
-import { isNotNull, sql } from "drizzle-orm";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
@@ -56,8 +56,9 @@ export async function confirmRecategorizeBatch(input: {
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
+  sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
-  const { userId, role, targetCategoryId, rows, unresolvableDecisions } = input;
+  const { userId, role, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
@@ -73,6 +74,13 @@ export async function confirmRecategorizeBatch(input: {
         .from(category)
         .where(isNotNull(category.minAgeMonths))
     : [];
+
+  const [targetCategoryRow] = await db.select({ sex: category.sex }).from(category).where(eq(category.id, targetCategoryId));
+  const targetCategorySex = targetCategoryRow?.sex ?? null;
+
+  function isSexMismatch(animalSex: "male" | "female" | null): boolean {
+    return targetCategorySex !== null && animalSex !== null && animalSex !== targetCategorySex;
+  }
 
   const plannedChanges: PlannedChange[] = [];
   for (const row of rows) {
@@ -91,6 +99,10 @@ export async function confirmRecategorizeBatch(input: {
         throw new Error(STALE_BATCH_ERROR);
       }
       if (state.current_category_id === targetCategoryId) continue;
+      if (isSexMismatch(state.sex)) {
+        const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
+        if (sexDecision === "skip") continue;
+      }
       plannedChanges.push({
         animalId: row.animalId,
         farmId,
@@ -134,6 +146,10 @@ export async function confirmRecategorizeBatch(input: {
     if (resolvedCategoryId) throw new Error(STALE_BATCH_ERROR);
     const decision = unresolvableDecisions[row.animalId] ?? "skip";
     if (decision === "skip") continue;
+    if (isSexMismatch(state.sex)) {
+      const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
+      if (sexDecision === "skip") continue;
+    }
     plannedChanges.push({
       animalId: row.animalId,
       farmId,

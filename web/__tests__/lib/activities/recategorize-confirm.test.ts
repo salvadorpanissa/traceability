@@ -175,6 +175,7 @@ describe("confirmRecategorizeBatch", () => {
       targetCategoryId: novilloPlus3.id,
       rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id })],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -216,6 +217,7 @@ describe("confirmRecategorizeBatch", () => {
         existingRow(seededFarm.id, { animalId: changingAnimalId, currentCategoryId: other.id, tag: "AR2" }),
       ],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(unchangedAnimalId)).toHaveLength(0);
@@ -238,6 +240,7 @@ describe("confirmRecategorizeBatch", () => {
         targetCategoryId: novillo.id,
         rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id })],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
 
@@ -265,6 +268,7 @@ describe("confirmRecategorizeBatch", () => {
           { tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" },
         ],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow("El lote tiene filas con error; no se puede confirmar");
 
@@ -292,6 +296,7 @@ describe("confirmRecategorizeBatch", () => {
       targetCategoryId: novillo.id,
       rows: [ageResolvedRow(seededFarm.id, { animalId, resolvedCategoryId: ternero.id })],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -312,6 +317,7 @@ describe("confirmRecategorizeBatch", () => {
       targetCategoryId: novillo.id,
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
+      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -346,6 +352,7 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(skippedAnimalId)).toHaveLength(0);
@@ -371,6 +378,7 @@ describe("confirmRecategorizeBatch", () => {
         existingRow(farmB.id, { animalId: animalOnB, currentCategoryId: other.id, tag: "AR2" }),
       ],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     const batches = await recategorizeBatches();
@@ -399,6 +407,7 @@ describe("confirmRecategorizeBatch", () => {
         targetCategoryId: novillo.id,
         rows: [existingRow(otherFarm.id, { animalId, currentCategoryId: other.id })],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow("No tenés acceso a este campo");
   });
@@ -429,6 +438,7 @@ describe("confirmRecategorizeBatch", () => {
         // ...but the payload claims it's on the accessible one.
         rows: [existingRow(accessibleFarm.id, { animalId, currentCategoryId: other.id })],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow("No tenés acceso a este campo");
 
@@ -452,6 +462,7 @@ describe("confirmRecategorizeBatch", () => {
         targetCategoryId: target.id,
         rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id })],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.");
 
@@ -487,6 +498,7 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     ).rejects.toThrow(new RegExp(`No se pudo confirmar la recategorización en los campos: ${farmB.id}`));
 
@@ -502,5 +514,142 @@ describe("confirmRecategorizeBatch", () => {
       sql`select current_category_id from animal_current_state where animal_id = ${animalOnA}`
     );
     expect(state.rows[0].current_category_id).toBe(novillo.id);
+  });
+
+  it("excludes an existing row when the animal's sex doesn't match the target category's sex and the decision is skip (default)", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: vaca.id,
+      sex: "female",
+    });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        targetCategoryId: novilloMacho.id,
+        rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id })],
+        unresolvableDecisions: {},
+        sexMismatchDecisions: {},
+      })
+    ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
+
+    expect(await newEventsFor(animalId)).toHaveLength(0);
+  });
+
+  it("writes the event for an existing row with mismatched sex when the decision is assignTarget", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: vaca.id,
+      sex: "female",
+    });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      targetCategoryId: novilloMacho.id,
+      rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id })],
+      unresolvableDecisions: {},
+      sexMismatchDecisions: { [animalId]: "assignTarget" },
+    });
+
+    const events = await newEventsFor(animalId);
+    expect(events).toHaveLength(1);
+    const [recat] = await testDb.select().from(eventRecategorize).where(eq(eventRecategorize.eventId, events[0].id));
+    expect(recat).toMatchObject({ oldCategoryId: vaca.id, newCategoryId: novilloMacho.id, source: "manual" });
+  });
+
+  it("never asks about sex when the animal has no sex recorded", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, categoryId: vaca.id });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      targetCategoryId: novilloMacho.id,
+      rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id })],
+      unresolvableDecisions: {},
+      sexMismatchDecisions: {},
+    });
+
+    expect(await newEventsFor(animalId)).toHaveLength(1);
+  });
+
+  it("never asks about sex when the target category has no sex restriction", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: vaca.id,
+      sex: "female",
+    });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      targetCategoryId: novillo.id,
+      rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id })],
+      unresolvableDecisions: {},
+      sexMismatchDecisions: {},
+    });
+
+    expect(await newEventsFor(animalId)).toHaveLength(1);
+  });
+
+  it("excludes an age-unresolvable row assigned to the target when its sex doesn't match and the sex decision is skip", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, sex: "female" });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        targetCategoryId: novilloMacho.id,
+        rows: [unresolvableRow(seededFarm.id, { animalId })],
+        unresolvableDecisions: { [animalId]: "assignTarget" },
+        sexMismatchDecisions: {},
+      })
+    ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
+
+    expect(await newEventsFor(animalId)).toHaveLength(0);
+  });
+
+  it("writes the event for an age-unresolvable row assigned to the target despite mismatched sex when the sex decision is assignTarget", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novilloMacho] = await testDb.insert(category).values({ name: "Novillo", sex: "male" }).returning();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, sex: "female" });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      targetCategoryId: novilloMacho.id,
+      rows: [unresolvableRow(seededFarm.id, { animalId })],
+      unresolvableDecisions: { [animalId]: "assignTarget" },
+      sexMismatchDecisions: { [animalId]: "assignTarget" },
+    });
+
+    const events = await newEventsFor(animalId);
+    expect(events).toHaveLength(1);
+    const [recat] = await testDb.select().from(eventRecategorize).where(eq(eventRecategorize.eventId, events[0].id));
+    expect(recat).toMatchObject({ oldCategoryId: novilloMacho.id, newCategoryId: novilloMacho.id, source: "initial" });
   });
 });
