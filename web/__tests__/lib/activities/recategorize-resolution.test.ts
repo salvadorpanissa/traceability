@@ -131,6 +131,7 @@ describe("resolveRecategorizeBatchRows", () => {
         currentFarmId: seededFarm.id,
         currentCategoryId: novillo.id,
         currentCategoryName: "Novillo",
+        sex: null,
       },
     ]);
   });
@@ -303,5 +304,38 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows([row({ tag: "AR1", date: "2026-03-01" })], null);
 
     expect(result[0]).toMatchObject({ status: "age-unresolvable" });
+  });
+
+  it("includes the animal's sex on an existing row", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      adminId: admin.id,
+      tag: "AR1",
+      categoryId: novillo.id,
+      sex: "female",
+    });
+
+    const result = await resolveRecategorizeBatchRows([row({ tag: "AR1", date: "2026-03-01" })], null);
+
+    expect(result[0]).toMatchObject({ status: "existing", sex: "female" });
+  });
+
+  it("includes the animal's sex on an age-unresolvable row", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    await testDb.insert(category).values({ name: "Novillo", sex: "male", minAgeMonths: 24 });
+    await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      adminId: admin.id,
+      tag: "AR1",
+      categoryId: null,
+      sex: "female",
+      birthDate: null,
+    });
+
+    const result = await resolveRecategorizeBatchRows([row({ tag: "AR1", date: "2026-03-01" })], null);
+
+    expect(result[0]).toMatchObject({ status: "age-unresolvable", sex: "female" });
   });
 });

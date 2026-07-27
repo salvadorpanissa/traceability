@@ -17,6 +17,7 @@ export type RecategorizeResolvedRow =
       currentFarmId: string;
       currentCategoryId: string;
       currentCategoryName: string | null;
+      sex: "male" | "female" | null;
     }
   | {
       tag: string;
@@ -35,6 +36,7 @@ export type RecategorizeResolvedRow =
       status: "age-unresolvable";
       animalId: string;
       currentFarmId: string;
+      sex: "male" | "female" | null;
     }
   | { tag: string; eventDate: string; notes: string | null; status: "error"; reason: string };
 
@@ -149,6 +151,7 @@ export async function resolveRecategorizeBatchRows(
         status: "age-unresolvable",
         animalId,
         currentFarmId: state.current_farm_id,
+        sex: state.sex,
       });
       continue;
     }
@@ -162,6 +165,7 @@ export async function resolveRecategorizeBatchRows(
       currentFarmId: state.current_farm_id,
       currentCategoryId: state.current_category_id,
       currentCategoryName: state.category_name,
+      sex: state.sex,
     });
   }
 
