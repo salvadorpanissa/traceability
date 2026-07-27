@@ -1,4 +1,7 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
+import type { PaddockMismatch } from "@/lib/activities/health";
 
 export function PaddockMismatchWarning({
   mismatches,
@@ -6,7 +9,7 @@ export function PaddockMismatchWarning({
   decision,
   onDecide,
 }: {
-  mismatches: { tag: string; currentPaddockId: string }[];
+  mismatches: PaddockMismatch[];
   paddockNameById: Map<string, string>;
   decision: boolean | null;
   onDecide: (transfer: boolean) => void;

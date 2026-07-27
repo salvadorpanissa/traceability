@@ -164,7 +164,7 @@ export function HealthForm({
     setConfirmed(true);
   }
 
-  const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId), [rows, paddockId]);
+  const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId, farmId), [rows, paddockId, farmId]);
   const paddockNameById = useMemo(() => new Map(paddocks.map((p) => [p.id, p.name])), [paddocks]);
 
   if (confirmed) {

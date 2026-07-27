@@ -16,14 +16,33 @@ export type HealthProduct = {
 
 export type PaddockMismatch = { tag: string; currentPaddockId: string };
 
-export function findPaddockMismatches(rows: ResolvedRow[], paddockId: string | null): PaddockMismatch[] {
+// Only same-farm mismatches are eligible: an "existing" row can resolve to an
+// animal that currently lives at a *different* farm, and relocating it from
+// here would bypass the cross-farm authorization the real traslado flow
+// enforces (see requireTransferAuthorization in lib/activities/transfer.ts).
+function isSameFarmMismatch(
+  row: ResolvedRow,
+  paddockId: string,
+  operatingFarmId: string
+): row is Extract<ResolvedRow, { status: "existing" }> & { currentPaddockId: string } {
+  return (
+    row.status === "existing" &&
+    row.currentFarmId === operatingFarmId &&
+    !!row.currentPaddockId &&
+    row.currentPaddockId !== paddockId
+  );
+}
+
+export function findPaddockMismatches(
+  rows: ResolvedRow[],
+  paddockId: string | null,
+  operatingFarmId: string
+): PaddockMismatch[] {
   if (!paddockId) return [];
   const mismatches: PaddockMismatch[] = [];
   for (const row of rows) {
-    if (row.status !== "existing") continue;
-    if (row.currentPaddockId && row.currentPaddockId !== paddockId) {
-      mismatches.push({ tag: row.tag, currentPaddockId: row.currentPaddockId });
-    }
+    if (!isSameFarmMismatch(row, paddockId, operatingFarmId)) continue;
+    mismatches.push({ tag: row.tag, currentPaddockId: row.currentPaddockId });
   }
   return mismatches;
 }
@@ -141,16 +160,18 @@ export async function confirmHealthBatch(input: {
     // also moving any existing animal whose current potrero differs from
     // the one the sanidad was performed in — same batch, same transaction.
     if (transferMismatchedToPaddock && paddockId) {
-      const existingRowByTag = new Map(
-        rows.filter((row): row is Extract<ResolvedRow, { status: "existing" }> => row.status === "existing").map((row) => [row.tag, row])
-      );
-      for (const mismatch of findPaddockMismatches(rows, paddockId)) {
-        const row = existingRowByTag.get(mismatch.tag)!;
+      // The traslado records when the physical relocation happens (now), not
+      // when the historical sanidad took place — a backdated eventDate would
+      // lose to the animal's latest real transfer in animal_current_state and
+      // silently move nothing.
+      const relocationDate = new Date().toISOString().slice(0, 10);
+      for (const row of rows) {
+        if (!isSameFarmMismatch(row, paddockId, operatingFarmId)) continue;
         const [transferEvent] = await tx
           .insert(event)
           .values({
             eventType: "transfer",
-            eventDate: row.eventDate,
+            eventDate: relocationDate,
             animalId: row.animalId,
             farmId: operatingFarmId,
             batchOperationId: batch.id,
@@ -161,7 +182,7 @@ export async function confirmHealthBatch(input: {
           eventId: transferEvent.id,
           originFarmId: operatingFarmId,
           destinationFarmId: operatingFarmId,
-          originPaddockId: mismatch.currentPaddockId,
+          originPaddockId: row.currentPaddockId,
           destinationPaddockId: paddockId,
         });
       }
