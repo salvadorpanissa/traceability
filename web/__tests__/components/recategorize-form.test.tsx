@@ -67,6 +67,7 @@ describe("RecategorizeForm", () => {
         targetCategoryId: "cat-novillo-plus3",
         rows: expect.any(Array),
         unresolvableDecisions: {},
+        sexMismatchDecisions: {},
       })
     );
     expect(screen.getByText("Lote confirmado.")).toBeInTheDocument();
@@ -224,6 +225,108 @@ describe("RecategorizeForm", () => {
     await waitFor(() =>
       expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith(
         expect.objectContaining({ unresolvableDecisions: { "animal-4": "assignTarget" } })
+      )
+    );
+  });
+
+  it("excludes a sex-mismatched existing row by default, and includes it when overridden to assignTarget", async () => {
+    vi.mocked(previewRecategorizeBatch).mockResolvedValue({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: "sig",
+      mapping: [],
+      rows: [
+        {
+          tag: "AR5",
+          eventDate: "2026-03-01",
+          notes: null,
+          status: "existing",
+          animalId: "animal-5",
+          currentFarmId: "farm-1",
+          currentCategoryId: "cat-vaca",
+          currentCategoryName: "Vaca",
+          sex: "female",
+        },
+      ],
+    });
+    vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
+
+    render(
+      <RecategorizeForm
+        categories={[
+          { id: "cat-vaca", name: "Vaca", sex: null, minAgeMonths: null },
+          { id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null },
+        ]}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
+    await user.upload(screen.getByLabelText("Archivo"), sampleFile());
+    await user.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByText("AR5")).toBeInTheDocument());
+    // Default global decision is "Omitir" — Confirmar stays disabled since there's nothing to change.
+    expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Decisión de sexo para AR5"), "assignTarget");
+    expect(screen.getByRole("button", { name: "Confirmar" })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() =>
+      expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({ sexMismatchDecisions: { "animal-5": "assignTarget" } })
+      )
+    );
+  });
+
+  it("shows a second decision selector on an age-unresolvable row once assigned to a mismatched target", async () => {
+    vi.mocked(previewRecategorizeBatch).mockResolvedValue({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: "sig",
+      mapping: [],
+      rows: [
+        {
+          tag: "AR6",
+          eventDate: "2026-03-01",
+          notes: null,
+          status: "age-unresolvable",
+          animalId: "animal-6",
+          currentFarmId: "farm-1",
+          sex: "female",
+        },
+      ],
+    });
+    vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
+
+    render(
+      <RecategorizeForm categories={[{ id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null }]} />
+    );
+
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
+    await user.upload(screen.getByLabelText("Archivo"), sampleFile());
+    await user.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByText("AR6")).toBeInTheDocument());
+    // The sex-mismatch selector only appears once the age decision is "assignTarget".
+    expect(screen.queryByLabelText("Decisión de sexo para AR6")).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Decisión para AR6"), "assignTarget");
+    expect(screen.getByLabelText("Decisión de sexo para AR6")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Decisión de sexo para AR6"), "assignTarget");
+    expect(screen.getByRole("button", { name: "Confirmar" })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() =>
+      expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          unresolvableDecisions: { "animal-6": "assignTarget" },
+          sexMismatchDecisions: { "animal-6": "assignTarget" },
+        })
       )
     );
   });

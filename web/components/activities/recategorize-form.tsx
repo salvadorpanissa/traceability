@@ -25,6 +25,8 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [globalUnresolvableDefault, setGlobalUnresolvableDefault] = useState<UnresolvableDecision>("skip");
   const [unresolvableOverrides, setUnresolvableOverrides] = useState<Record<string, UnresolvableDecision>>({});
+  const [globalSexMismatchDefault, setGlobalSexMismatchDefault] = useState<UnresolvableDecision>("skip");
+  const [sexMismatchOverrides, setSexMismatchOverrides] = useState<Record<string, UnresolvableDecision>>({});
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
@@ -32,6 +34,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
     setPreview(null);
     setRows([]);
     setUnresolvableOverrides({});
+    setSexMismatchOverrides({});
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
@@ -62,8 +65,51 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
     return decisions;
   }, [rows, unresolvableOverrides, globalUnresolvableDefault]);
 
+  const targetCategorySex = categories.find((c) => c.id === targetCategoryId)?.sex ?? null;
+
+  // A row only needs a sex decision when it's actually headed for
+  // targetCategoryId (an "existing" row changing category, or an
+  // "age-unresolvable" row whose age decision is "assignTarget") AND both
+  // sexes are known and differ — resolveCategoryForAge already guarantees
+  // "age-resolved" rows can never mismatch, so they're never in scope here.
+  const sexMismatchAnimalIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!targetCategorySex) return ids;
+    for (const row of rows) {
+      if (
+        row.status === "existing" &&
+        row.currentCategoryId !== targetCategoryId &&
+        row.sex &&
+        row.sex !== targetCategorySex
+      ) {
+        ids.add(row.animalId);
+      }
+      if (
+        row.status === "age-unresolvable" &&
+        unresolvableDecisions[row.animalId] === "assignTarget" &&
+        row.sex &&
+        row.sex !== targetCategorySex
+      ) {
+        ids.add(row.animalId);
+      }
+    }
+    return ids;
+  }, [rows, targetCategoryId, targetCategorySex, unresolvableDecisions]);
+
+  const sexMismatchDecisions = useMemo(() => {
+    const decisions: Record<string, UnresolvableDecision> = {};
+    for (const animalId of sexMismatchAnimalIds) {
+      decisions[animalId] = sexMismatchOverrides[animalId] ?? globalSexMismatchDefault;
+    }
+    return decisions;
+  }, [sexMismatchAnimalIds, sexMismatchOverrides, globalSexMismatchDefault]);
+
   function handleDecisionChange(animalId: string, decision: UnresolvableDecision) {
     setUnresolvableOverrides((prev) => ({ ...prev, [animalId]: decision }));
+  }
+
+  function handleSexMismatchDecisionChange(animalId: string, decision: UnresolvableDecision) {
+    setSexMismatchOverrides((prev) => ({ ...prev, [animalId]: decision }));
   }
 
   async function handleConfirm() {
@@ -80,6 +126,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
         targetCategoryId,
         rows,
         unresolvableDecisions,
+        sexMismatchDecisions,
       });
       setConfirmed(true);
     } catch (error) {
@@ -93,12 +140,21 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
 
   const targetCategoryName = categories.find((c) => c.id === targetCategoryId)?.name ?? "";
   const hasUnresolvableRows = rows.some((r) => r.status === "age-unresolvable");
-  const hasConfirmableRow = rows.some(
-    (r) =>
-      (r.status === "existing" && r.currentCategoryId !== targetCategoryId) ||
-      r.status === "age-resolved" ||
-      (r.status === "age-unresolvable" && unresolvableDecisions[r.animalId] === "assignTarget")
-  );
+  const hasSexMismatchRows = sexMismatchAnimalIds.size > 0;
+  const hasConfirmableRow = rows.some((r) => {
+    if (r.status === "age-resolved") return true;
+    if (r.status === "existing") {
+      if (r.currentCategoryId === targetCategoryId) return false;
+      if (sexMismatchAnimalIds.has(r.animalId)) return sexMismatchDecisions[r.animalId] === "assignTarget";
+      return true;
+    }
+    if (r.status === "age-unresolvable") {
+      if (unresolvableDecisions[r.animalId] !== "assignTarget") return false;
+      if (sexMismatchAnimalIds.has(r.animalId)) return sexMismatchDecisions[r.animalId] === "assignTarget";
+      return true;
+    }
+    return false;
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -174,11 +230,37 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
               </div>
             </div>
           ) : null}
+          {hasSexMismatchRows ? (
+            <div className="flex flex-col gap-1 text-sm">
+              <p>Animales de sexo distinto al de la categoría destino:</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={globalSexMismatchDefault === "skip" ? "default" : "outline"}
+                  onClick={() => setGlobalSexMismatchDefault("skip")}
+                >
+                  Omitir
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={globalSexMismatchDefault === "assignTarget" ? "default" : "outline"}
+                  onClick={() => setGlobalSexMismatchDefault("assignTarget")}
+                >
+                  Asignar igual
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <RecategorizePreviewTable
             rows={rows}
             targetCategoryName={targetCategoryName}
             unresolvableDecisions={unresolvableDecisions}
             onDecisionChange={handleDecisionChange}
+            sexMismatchAnimalIds={sexMismatchAnimalIds}
+            sexMismatchDecisions={sexMismatchDecisions}
+            onSexMismatchDecisionChange={handleSexMismatchDecisionChange}
           />
           <Button
             type="button"
