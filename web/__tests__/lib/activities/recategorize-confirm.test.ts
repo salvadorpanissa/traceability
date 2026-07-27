@@ -1,16 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { role, farm, userAccount, userFarm, category, animal, event, eventRecategorize, batchOperation } from "@/db/schema";
+import { refreshDerivedState } from "../../../test/refresh-derived-state";
+import {
+  role,
+  farm,
+  userAccount,
+  userFarm,
+  category,
+  animal,
+  event,
+  eventTransfer,
+  eventRecategorize,
+  batchOperation,
+} from "@/db/schema";
 import type { RecategorizeResolvedRow } from "@/lib/activities/recategorize-resolution";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
 const { confirmRecategorizeBatch } = await import("@/lib/activities/recategorize");
 
+// Ids of the event rows written by the seed helpers below, so assertions can
+// tell the animal's pre-existing history apart from what the call under test
+// wrote.
+let seededEventIds: string[] = [];
+
 beforeEach(async () => {
   await resetTestDb();
+  seededEventIds = [];
 });
 
 async function seedFarmAndAdmin(farmName = "Campo Norte") {
@@ -23,11 +41,75 @@ async function seedFarmAndAdmin(farmName = "Campo Norte") {
   return { admin, seededFarm };
 }
 
-// event.animalId is a NOT NULL foreign key to animal.id — every test row
-// needs a real animal row behind it, not just a random UUID.
-async function seedBareAnimal(): Promise<string> {
-  const [created] = await testDb.insert(animal).values({}).returning();
-  return created.id;
+// confirmRecategorizeBatch re-derives every animal's campo/categoría from
+// animal_current_state instead of trusting the client-supplied preview row,
+// so each test animal needs real transfer/recategorize history behind it —
+// a bare `animal` row with no events resolves to "no campo asignado" and is
+// (correctly) rejected as stale.
+async function seedAnimalAtFarm(opts: {
+  farmId: string;
+  createdBy: string;
+  categoryId?: string;
+  birthDate?: string;
+  sex?: "male" | "female";
+}): Promise<string> {
+  const [createdAnimal] = await testDb
+    .insert(animal)
+    .values({ birthDate: opts.birthDate ?? null, sex: opts.sex ?? null })
+    .returning();
+
+  const [batch] = await testDb
+    .insert(batchOperation)
+    .values({ eventType: "transfer", farmId: opts.farmId, animalCount: 1, createdBy: opts.createdBy })
+    .returning();
+
+  const [transferEvent] = await testDb
+    .insert(event)
+    .values({
+      eventType: "transfer",
+      eventDate: "2026-01-01",
+      animalId: createdAnimal.id,
+      farmId: opts.farmId,
+      batchOperationId: batch.id,
+      createdBy: opts.createdBy,
+    })
+    .returning();
+  await testDb
+    .insert(eventTransfer)
+    .values({ eventId: transferEvent.id, originFarmId: opts.farmId, destinationFarmId: opts.farmId });
+  seededEventIds.push(transferEvent.id);
+
+  if (opts.categoryId) {
+    const [recatEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "recategorize",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        farmId: opts.farmId,
+        batchOperationId: batch.id,
+        createdBy: opts.createdBy,
+      })
+      .returning();
+    await testDb
+      .insert(eventRecategorize)
+      .values({ eventId: recatEvent.id, oldCategoryId: opts.categoryId, newCategoryId: opts.categoryId });
+    seededEventIds.push(recatEvent.id);
+  }
+
+  return createdAnimal.id;
+}
+
+async function newEventsFor(animalId: string) {
+  const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
+  return events.filter((e) => !seededEventIds.includes(e.id));
+}
+
+// The seed helper's own batchOperation rows are eventType 'transfer'; only
+// the ones written by confirmRecategorizeBatch are 'recategorize'.
+async function recategorizeBatches() {
+  const batches = await testDb.select().from(batchOperation);
+  return batches.filter((b) => b.eventType === "recategorize");
 }
 
 function existingRow(
@@ -84,7 +166,8 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [novilloPlus3] = await testDb.insert(category).values({ name: "Novillo +3 años" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, categoryId: novillo.id });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -94,7 +177,7 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: {},
     });
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
+    const events = await newEventsFor(animalId);
     expect(events).toHaveLength(1);
     expect(events[0].eventType).toBe("recategorize");
 
@@ -103,7 +186,7 @@ describe("confirmRecategorizeBatch", () => {
     expect(recat.newCategoryId).toBe(novilloPlus3.id);
     expect(recat.source).toBe("manual");
 
-    const [batch] = await testDb.select().from(batchOperation);
+    const [batch] = await recategorizeBatches();
     expect(batch.eventType).toBe("recategorize");
     expect(batch.animalCount).toBe(1);
   });
@@ -112,8 +195,17 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [other] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const unchangedAnimalId = await seedBareAnimal();
-    const changingAnimalId = await seedBareAnimal();
+    const unchangedAnimalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: novillo.id,
+    });
+    const changingAnimalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: other.id,
+    });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -126,19 +218,18 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: {},
     });
 
-    const unchangedEvents = await testDb.select().from(event).where(eq(event.animalId, unchangedAnimalId));
-    expect(unchangedEvents).toHaveLength(0);
-    const changingEvents = await testDb.select().from(event).where(eq(event.animalId, changingAnimalId));
-    expect(changingEvents).toHaveLength(1);
+    expect(await newEventsFor(unchangedAnimalId)).toHaveLength(0);
+    expect(await newEventsFor(changingAnimalId)).toHaveLength(1);
 
-    const [batch] = await testDb.select().from(batchOperation);
+    const [batch] = await recategorizeBatches();
     expect(batch.animalCount).toBe(1);
   });
 
   it("rejects when every row is a no-op", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, categoryId: novillo.id });
+    await refreshDerivedState();
 
     await expect(
       confirmRecategorizeBatch({
@@ -150,15 +241,19 @@ describe("confirmRecategorizeBatch", () => {
       })
     ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
 
-    const batches = await testDb.select().from(batchOperation);
-    expect(batches).toHaveLength(0);
+    expect(await recategorizeBatches()).toHaveLength(0);
   });
 
   it("rejects the whole batch if any row is an error", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [otherCategory] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: otherCategory.id,
+    });
+    await refreshDerivedState();
 
     await expect(
       confirmRecategorizeBatch({
@@ -173,15 +268,23 @@ describe("confirmRecategorizeBatch", () => {
       })
     ).rejects.toThrow("El lote tiene filas con error; no se puede confirmar");
 
-    const batches = await testDb.select().from(batchOperation);
-    expect(batches).toHaveLength(0);
+    expect(await recategorizeBatches()).toHaveLength(0);
   });
 
   it("assigns the resolved category to an age-resolved row with a self-loop 'initial' event", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
-    const [ternero] = await testDb.insert(category).values({ name: "Ternero/a" }).returning();
+    const [ternero] = await testDb
+      .insert(category)
+      .values({ name: "Ternero/a", minAgeMonths: 0 })
+      .returning();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      birthDate: "2025-06-01",
+      sex: "male",
+    });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -191,7 +294,7 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: {},
     });
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
+    const events = await newEventsFor(animalId);
     expect(events).toHaveLength(1);
     const [recat] = await testDb.select().from(eventRecategorize).where(eq(eventRecategorize.eventId, events[0].id));
     expect(recat).toMatchObject({ oldCategoryId: ternero.id, newCategoryId: ternero.id, source: "initial" });
@@ -200,7 +303,8 @@ describe("confirmRecategorizeBatch", () => {
   it("assigns the target category to an age-unresolvable row when the decision is 'assignTarget'", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -210,7 +314,7 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: { [animalId]: "assignTarget" },
     });
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
+    const events = await newEventsFor(animalId);
     expect(events).toHaveLength(1);
     const [recat] = await testDb.select().from(eventRecategorize).where(eq(eventRecategorize.eventId, events[0].id));
     expect(recat).toMatchObject({ oldCategoryId: novillo.id, newCategoryId: novillo.id, source: "initial" });
@@ -218,9 +322,15 @@ describe("confirmRecategorizeBatch", () => {
 
   it("skips an age-unresolvable row when the decision is 'skip' (or missing)", async () => {
     const { admin, seededFarm } = await seedFarmAndAdmin();
-    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    const skippedAnimalId = await seedBareAnimal();
-    const changingAnimalId = await seedBareAnimal();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo", minAgeMonths: 0 }).returning();
+    const skippedAnimalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id });
+    const changingAnimalId = await seedAnimalAtFarm({
+      farmId: seededFarm.id,
+      createdBy: admin.id,
+      birthDate: "2024-01-01",
+      sex: "male",
+    });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -238,9 +348,8 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: {},
     });
 
-    const skippedEvents = await testDb.select().from(event).where(eq(event.animalId, skippedAnimalId));
-    expect(skippedEvents).toHaveLength(0);
-    const [batch] = await testDb.select().from(batchOperation);
+    expect(await newEventsFor(skippedAnimalId)).toHaveLength(0);
+    const [batch] = await recategorizeBatches();
     expect(batch.animalCount).toBe(1);
   });
 
@@ -249,8 +358,9 @@ describe("confirmRecategorizeBatch", () => {
     const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [other] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const animalOnA = await seedBareAnimal();
-    const animalOnB = await seedBareAnimal();
+    const animalOnA = await seedAnimalAtFarm({ farmId: farmA.id, createdBy: admin.id, categoryId: other.id });
+    const animalOnB = await seedAnimalAtFarm({ farmId: farmB.id, createdBy: admin.id, categoryId: other.id });
+    await refreshDerivedState();
 
     await confirmRecategorizeBatch({
       userId: admin.id,
@@ -263,7 +373,7 @@ describe("confirmRecategorizeBatch", () => {
       unresolvableDecisions: {},
     });
 
-    const batches = await testDb.select().from(batchOperation);
+    const batches = await recategorizeBatches();
     expect(batches).toHaveLength(2);
     expect(batches.map((b) => b.farmId).sort()).toEqual([farmA.id, farmB.id].sort());
   });
@@ -279,7 +389,8 @@ describe("confirmRecategorizeBatch", () => {
     await testDb.insert(userFarm).values({ userId: manager.id, farmId: accessibleFarm.id });
     const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
     const [other] = await testDb.insert(category).values({ name: "Vaca" }).returning();
-    const animalId = await seedBareAnimal();
+    const animalId = await seedAnimalAtFarm({ farmId: otherFarm.id, createdBy: manager.id, categoryId: other.id });
+    await refreshDerivedState();
 
     await expect(
       confirmRecategorizeBatch({
@@ -290,5 +401,106 @@ describe("confirmRecategorizeBatch", () => {
         unresolvableDecisions: {},
       })
     ).rejects.toThrow("No tenés acceso a este campo");
+  });
+
+  // Finding 1: the preview row round-trips through the browser, so its
+  // currentFarmId is attacker-controlled. Claiming an accessible campo for an
+  // animal that actually lives on an inaccessible one must not write anything.
+  it("ignores a client-supplied currentFarmId and enforces access against the animal's real farm", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [accessibleFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [foreignFarm] = await testDb.insert(farm).values({ name: "Campo Ajeno" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: accessibleFarm.id });
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const [other] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    // The animal really lives on the campo the manager has NO access to.
+    const animalId = await seedAnimalAtFarm({ farmId: foreignFarm.id, createdBy: manager.id, categoryId: other.id });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: manager.id,
+        role: "manager",
+        targetCategoryId: novillo.id,
+        // ...but the payload claims it's on the accessible one.
+        rows: [existingRow(accessibleFarm.id, { animalId, currentCategoryId: other.id })],
+        unresolvableDecisions: {},
+      })
+    ).rejects.toThrow("No tenés acceso a este campo");
+
+    expect(await newEventsFor(animalId)).toHaveLength(0);
+    expect(await recategorizeBatches()).toHaveLength(0);
+  });
+
+  it("rejects the batch when the client-supplied currentCategoryId is stale", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const [target] = await testDb.insert(category).values({ name: "Novillo +3 años" }).returning();
+    // DB says "Vaca"; the preview row still claims "Novillo".
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, categoryId: vaca.id });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        targetCategoryId: target.id,
+        rows: [existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id })],
+        unresolvableDecisions: {},
+      })
+    ).rejects.toThrow("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.");
+
+    expect(await newEventsFor(animalId)).toHaveLength(0);
+    expect(await recategorizeBatches()).toHaveLength(0);
+  });
+
+  // Finding 2: one campo's transaction failing must not stop the other campos
+  // from being written, nor skip the materialized-view refresh for them.
+  it("still commits and refreshes the other farms when one farm's transaction fails", async () => {
+    const { admin, seededFarm: farmA } = await seedFarmAndAdmin("Campo A");
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const [other] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const animalOnA = await seedAnimalAtFarm({ farmId: farmA.id, createdBy: admin.id, categoryId: other.id });
+    const animalOnB = await seedAnimalAtFarm({ farmId: farmB.id, createdBy: admin.id, categoryId: other.id });
+    await refreshDerivedState();
+
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        targetCategoryId: novillo.id,
+        rows: [
+          existingRow(farmA.id, { animalId: animalOnA, currentCategoryId: other.id, tag: "AR1" }),
+          // event.event_date is a real `date` column: Postgres rejects this
+          // value outright, failing only Campo B's transaction.
+          existingRow(farmB.id, {
+            animalId: animalOnB,
+            currentCategoryId: other.id,
+            tag: "AR2",
+            eventDate: "no-es-una-fecha",
+          }),
+        ],
+        unresolvableDecisions: {},
+      })
+    ).rejects.toThrow(new RegExp(`No se pudo confirmar la recategorización en los campos: ${farmB.id}`));
+
+    // Campo A's writes survived...
+    const batches = await recategorizeBatches();
+    expect(batches).toHaveLength(1);
+    expect(batches[0].farmId).toBe(farmA.id);
+    expect(await newEventsFor(animalOnA)).toHaveLength(1);
+    expect(await newEventsFor(animalOnB)).toHaveLength(0);
+
+    // ...and the refresh ran anyway, so they're visible in the derived state.
+    const state = await testDb.execute<{ current_category_id: string | null }>(
+      sql`select current_category_id from animal_current_state where animal_id = ${animalOnA}`
+    );
+    expect(state.rows[0].current_category_id).toBe(novillo.id);
   });
 });
