@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
@@ -61,7 +61,7 @@ export function DataTable<T>({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(pageSize ?? Infinity);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const columnByKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
 
@@ -81,12 +81,15 @@ export function DataTable<T>({
     return [...filteredRows].sort((a, b) => sign * compareValues(column.sortValue!(a), column.sortValue!(b)));
   }, [filteredRows, sort, columnByKey]);
 
-  const visibleRows = sortedRows.slice(0, visibleCount);
-  const hasMore = visibleRows.length < sortedRows.length;
+  const totalPages = pageSize ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
+  const safePage = Math.min(currentPage, totalPages - 1);
+  const pageStart = pageSize ? safePage * pageSize : 0;
+  const pageEnd = pageSize ? Math.min(pageStart + pageSize, sortedRows.length) : sortedRows.length;
+  const visibleRows = pageSize ? sortedRows.slice(pageStart, pageEnd) : sortedRows;
 
   function handleSearchChange(value: string) {
     setQuery(value);
-    setVisibleCount(pageSize ?? Infinity);
+    setCurrentPage(0);
   }
 
   function handleSort(column: DataTableColumn<T>) {
@@ -96,6 +99,7 @@ export function DataTable<T>({
       if (prev.direction === "asc") return { key: column.key, direction: "desc" };
       return null;
     });
+    setCurrentPage(0);
   }
 
   function toggleExpanded(id: string) {
@@ -128,6 +132,8 @@ export function DataTable<T>({
   }
 
   const colSpan = columns.length + (expandable ? 1 : 0);
+  const showingFrom = pageStart + 1;
+  const showingTo = pageEnd;
 
   return (
     <div className="flex flex-col gap-2">
@@ -225,16 +231,48 @@ export function DataTable<T>({
               })}
             </tbody>
           </table>
-          {hasMore ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => setVisibleCount((prev) => prev + (pageSize ?? sortedRows.length))}
-            >
-              {translate(locale, "dataTable.showMore")}
-            </Button>
+
+          {pageSize && sortedRows.length > pageSize ? (
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Mostrando {showingFrom}–{showingTo} de {sortedRows.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  disabled={safePage === 0}
+                  onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <Button
+                    key={i}
+                    type="button"
+                    variant={i === safePage ? "default" : "outline"}
+                    size="icon-xs"
+                    onClick={() => setCurrentPage(i)}
+                    aria-label={`Página ${i + 1}`}
+                    aria-current={i === safePage ? "page" : undefined}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                  aria-label="Página siguiente"
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
           ) : null}
         </>
       )}

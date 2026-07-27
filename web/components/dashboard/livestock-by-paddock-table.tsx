@@ -35,16 +35,12 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
       getRowId={(row) => `${row.farmName ?? ""}-${row.paddockName ?? ""}`}
       locale={locale}
       searchable
-      expandable
       exportable
       exportFileName="animales-por-potrero"
-      renderExpanded={(row) => (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-muted-foreground">{translate(locale, "livestock.animalsInGroup")}</p>
-          <p className="text-sm">{row.animals.map((a) => a.tag ?? "—").join(", ")}</p>
-        </div>
-      )}
+      pageSize={10}
       emptyMessage={translate(locale, "livestock.byPaddockEmpty")}
+      expandable
+      renderExpanded={(row) => row.animals.map((a) => a.tag).join(", ")}
     />
   );
 }
