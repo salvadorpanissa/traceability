@@ -107,7 +107,6 @@ describe("previewRecategorizeBatch", () => {
     await refreshDerivedState();
 
     const formData = await excelFormData([["AR1", "2026-03-01"]]);
-    formData.set("farmId", seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -129,7 +128,6 @@ describe("previewRecategorizeBatch", () => {
     const { seededFarm } = await seedManagerAndFarm();
 
     const formData = await excelFormData([["AR1", "2026-03-01"]]);
-    formData.set("farmId", seededFarm.id);
 
     const result = await previewRecategorizeBatch(formData);
 
@@ -151,7 +149,6 @@ describe("confirmRecategorizeBatchAction", () => {
         { header: "Fecha", meaning: "date" },
       ],
       targetCategoryId: novilloPlus3.id,
-      farmId: seededFarm.id,
       rows: [
         {
           tag: "AR1",
@@ -159,10 +156,12 @@ describe("confirmRecategorizeBatchAction", () => {
           notes: null,
           status: "existing",
           animalId: createdAnimal.id,
+          currentFarmId: seededFarm.id,
           currentCategoryId: novillo.id,
           currentCategoryName: "Novillo",
         },
       ],
+      unresolvableDecisions: {},
     });
 
     // seedAnimalAtFarm already wrote one "initial" recategorize event (novillo

@@ -4,10 +4,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
-import { resolveRecategorizeBatchRows, type RecategorizeResolvedRow } from "@/lib/activities/recategorize-resolution";
+import {
+  resolveRecategorizeBatchRows,
+  type RecategorizeResolvedRow,
+  type UnresolvableDecision,
+} from "@/lib/activities/recategorize-resolution";
 import { confirmRecategorizeBatch } from "@/lib/activities/recategorize";
 import { listCategories, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
@@ -27,9 +30,7 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
 }
 
 export async function previewRecategorizeBatch(formData: FormData): Promise<PreviewResult> {
-  const session = await requireSession();
-  const operatingFarmId = formData.get("farmId") as string;
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  await requireSession();
 
   const file = formData.get("file") as File;
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -61,7 +62,7 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
+  const resolvedRows = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate);
 
   return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
 }
@@ -71,10 +72,9 @@ export async function confirmRecategorizeBatchAction(input: {
   mapping: ColumnMapping[];
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
-  farmId: string;
+  unresolvableDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
 
   await db
     .insert(columnMapping)
@@ -84,9 +84,9 @@ export async function confirmRecategorizeBatchAction(input: {
   await confirmRecategorizeBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: input.farmId,
     targetCategoryId: input.targetCategoryId,
     rows: input.rows,
+    unresolvableDecisions: input.unresolvableDecisions,
   });
 }
 
