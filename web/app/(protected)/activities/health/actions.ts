@@ -95,6 +95,7 @@ export async function confirmHealthBatchAction(input: {
   rows: ResolvedRow[];
   paddockId: string | null;
   farmId: string;
+  transferMismatchedToPaddock?: boolean;
 }): Promise<void> {
   const session = await requireSession();
   await requireFarmAccess(session.user.id, session.user.role, input.farmId);
@@ -111,6 +112,7 @@ export async function confirmHealthBatchAction(input: {
     products: input.products,
     rows: input.rows,
     paddockId: input.paddockId,
+    transferMismatchedToPaddock: input.transferMismatchedToPaddock,
   });
 }
 
