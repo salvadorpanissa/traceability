@@ -100,6 +100,7 @@ export async function confirmRecategorizeBatchAction(input: {
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
+  sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
   const session = await requireSession();
 
@@ -114,6 +115,7 @@ export async function confirmRecategorizeBatchAction(input: {
     targetCategoryId: input.targetCategoryId,
     rows: input.rows,
     unresolvableDecisions: input.unresolvableDecisions,
+    sexMismatchDecisions: input.sexMismatchDecisions,
   });
 }
 

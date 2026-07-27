@@ -204,6 +204,7 @@ describe("confirmRecategorizeBatchAction", () => {
         },
       ],
       unresolvableDecisions: {},
+      sexMismatchDecisions: {},
     });
 
     // seedAnimalAtFarm already wrote one "initial" recategorize event (novillo
