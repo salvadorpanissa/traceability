@@ -25,6 +25,16 @@ export async function getOrCreateSystemUser(): Promise<string> {
   const [created] = await db
     .insert(userAccount)
     .values({ name: SYSTEM_USER_NAME, email: SYSTEM_USER_EMAIL, passwordHash, roleId: chosenRole.id })
+    .onConflictDoNothing({ target: userAccount.email })
     .returning();
-  return created.id;
+  if (created) return created.id;
+
+  // A concurrent first-call (e.g. CLI and cron overlapping on a cold start)
+  // won the race and inserted first; onConflictDoNothing silently skipped
+  // our insert, so re-select the row it created.
+  const [winner] = await db.select().from(userAccount).where(eq(userAccount.email, SYSTEM_USER_EMAIL));
+  if (!winner) {
+    throw new Error("No se pudo crear ni recuperar el usuario del sistema tras un conflicto de concurrencia");
+  }
+  return winner.id;
 }

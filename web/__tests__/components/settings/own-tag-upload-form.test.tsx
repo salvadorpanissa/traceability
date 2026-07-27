@@ -158,7 +158,12 @@ describe("OwnTagUploadForm", () => {
       pendingPaddockNames: [],
       pendingCategoryNames: ["Vaca"],
     });
-    vi.mocked(createOwnTagCategoryAction).mockResolvedValue({ id: "c1", name: "Vaca", sortOrder: 0 });
+    vi.mocked(createOwnTagCategoryAction).mockResolvedValue({
+      id: "c1",
+      name: "Vaca",
+      sex: null,
+      minAgeMonths: null,
+    });
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 

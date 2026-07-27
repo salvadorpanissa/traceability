@@ -15,25 +15,22 @@ describe("CategoryCatalogForm", () => {
   it("lists categories, adds a new one, and edits an existing one", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Toro", sortOrder: 1 },
+      entry: { id: "cat-2", name: "Toro", sex: null, minAgeMonths: null },
     });
     vi.mocked(updateCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-1", name: "Vaca de invernada", sortOrder: 0 },
+      entry: { id: "cat-1", name: "Vaca de invernada", sex: null, minAgeMonths: null },
     });
 
-    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sortOrder: 0 }]} />);
+    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sex: null, minAgeMonths: null }]} />);
 
     expect(screen.getByText("Vaca")).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Nombre"), "Toro");
-    const sortOrderInput = screen.getByLabelText("Orden");
-    await userEvent.clear(sortOrderInput);
-    await userEvent.type(sortOrderInput, "1");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("Toro")).toBeInTheDocument());
-    expect(createCategoryAction).toHaveBeenCalledWith({ name: "Toro", sortOrder: 1 });
+    expect(createCategoryAction).toHaveBeenCalledWith({ name: "Toro", sex: null, minAgeMonths: null });
 
     await userEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
     const editNameInput = screen.getByLabelText("Editar nombre");
@@ -42,7 +39,12 @@ describe("CategoryCatalogForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() =>
-      expect(updateCategoryAction).toHaveBeenCalledWith({ id: "cat-1", name: "Vaca de invernada", sortOrder: 0 })
+      expect(updateCategoryAction).toHaveBeenCalledWith({
+        id: "cat-1",
+        name: "Vaca de invernada",
+        sex: null,
+        minAgeMonths: null,
+      })
     );
     expect(screen.getByText("Vaca de invernada")).toBeInTheDocument();
   });
@@ -56,5 +58,29 @@ describe("CategoryCatalogForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("Ya existe una categoría con ese nombre")).toBeInTheDocument());
+  });
+
+  it("creates a category with a sex scope and minimum age", async () => {
+    vi.mocked(createCategoryAction).mockResolvedValue({
+      ok: true,
+      entry: { id: "cat-2", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
+    });
+
+    render(<CategoryCatalogForm categories={[]} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Nombre"), "Novillo +3 años");
+    await user.selectOptions(screen.getByLabelText("Sexo"), "male");
+    await user.type(screen.getByLabelText("Edad mínima (meses)"), "36");
+    await user.click(screen.getByRole("button", { name: "Agregar" }));
+
+    await waitFor(() =>
+      expect(createCategoryAction).toHaveBeenCalledWith({
+        name: "Novillo +3 años",
+        sex: "male",
+        minAgeMonths: 36,
+      })
+    );
+    expect(screen.getByText("Novillo +3 años")).toBeInTheDocument();
   });
 });

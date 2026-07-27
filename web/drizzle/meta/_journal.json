@@ -162,6 +162,27 @@
       "when": 1784922543739,
       "tag": "0022_sparkling_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784936201497,
+      "tag": "0023_clean_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784937071692,
+      "tag": "0024_heavy_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784991673894,
+      "tag": "0025_shiny_corsair",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,2 @@
+ALTER TABLE "event_recategorize" ADD COLUMN "source" text DEFAULT 'initial' NOT NULL;--> statement-breakpoint
+ALTER TABLE "event_recategorize" ADD CONSTRAINT "event_recategorize_source_check" CHECK ("event_recategorize"."source" in ('initial', 'manual', 'auto_age'));
