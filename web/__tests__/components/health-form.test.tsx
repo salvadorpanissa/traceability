@@ -229,4 +229,103 @@ describe("HealthForm", () => {
     await user.upload(screen.getByLabelText(/archivo/i), file);
     expect(screen.getByRole("button", { name: /subir/i })).not.toBeDisabled();
   });
+
+  it("shows a paddock-mismatch warning for an existing row in a different potrero, and blocks Confirmar until a choice is made", async () => {
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000091",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "existing",
+          animalId: "animal-1",
+          currentFarmId: "farm-1",
+          currentPaddockId: "pd2",
+        },
+      ],
+      productSuggestions: [{ rawValue: "Ivermectina 1%", matchedProductId: "p1" }],
+    });
+
+    const paddocksWithSecond: PaddockCatalogEntry[] = [...paddocks, { id: "pd2", name: "Potrero 2", farmId: "farm-1" }];
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} paddocks={paddocksWithSecond} />);
+    const user = userEvent.setup();
+
+    await selectPaddockAndUploadFile(user);
+    await waitFor(() => expect(screen.getByText("AR000000000091")).toBeInTheDocument());
+
+    expect(screen.getByText(/actualmente en Potrero 2/)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Dosis"), "10");
+    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
+    expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /no, dej/i }));
+    expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
+    await waitFor(() =>
+      expect(confirmHealthBatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({ transferMismatchedToPaddock: false })
+      )
+    );
+  });
+
+  it("sends transferMismatchedToPaddock: true when the user chooses to also relocate mismatched caravanas", async () => {
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000092",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "existing",
+          animalId: "animal-2",
+          currentFarmId: "farm-1",
+          currentPaddockId: "pd2",
+        },
+      ],
+      productSuggestions: [{ rawValue: "Ivermectina 1%", matchedProductId: "p1" }],
+    });
+
+    const paddocksWithSecond: PaddockCatalogEntry[] = [...paddocks, { id: "pd2", name: "Potrero 2", farmId: "farm-1" }];
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} paddocks={paddocksWithSecond} />);
+    const user = userEvent.setup();
+
+    await selectPaddockAndUploadFile(user);
+    await waitFor(() => expect(screen.getByText("AR000000000092")).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText("Dosis"), "10");
+    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
+
+    await user.click(screen.getByRole("button", { name: /sí, trasladarlas/i }));
+    expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
+    await waitFor(() =>
+      expect(confirmHealthBatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({ transferMismatchedToPaddock: true })
+      )
+    );
+  });
+
+  it("does not show the paddock-mismatch warning when there are no mismatched rows", async () => {
+    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} paddocks={paddocks} />);
+    const user = userEvent.setup();
+
+    await selectPaddockAndUploadFile(user);
+    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+
+    expect(screen.queryByText(/trasladarlas también a este potrero/i)).not.toBeInTheDocument();
+  });
 });
