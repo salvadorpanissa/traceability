@@ -3,7 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, userFarm, dicoseRegistration, owner, ownTag, event, eventSale } from "@/db/schema";
+import {
+  role,
+  farm,
+  userAccount,
+  userFarm,
+  dicoseRegistration,
+  owner,
+  ownTag,
+  event,
+  eventSale,
+  animal,
+  animalTagHistory,
+  product,
+  batchOperation,
+  eventHealth,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -47,7 +62,7 @@ async function seedManagerAndFarm() {
 
   vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
 
-  return { manager, seededFarm };
+  return { manager, seededFarm, seededRegistration };
 }
 
 function fakeGuide(overrides: Partial<Awaited<ReturnType<typeof parseSnigGuide>>> = {}) {
@@ -77,6 +92,53 @@ describe("previewSaleBatchFromPdf", () => {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].status).toBe("new");
       expect(result.withdrawalWarnings).toEqual([]);
+    }
+  });
+
+  it("maps a pending withdrawal back to its caravana in withdrawalWarnings", async () => {
+    const { manager, seededFarm, seededRegistration } = await seedManagerAndFarm();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000302" });
+    await testDb.insert(ownTag).values({ tag: "AR000000000302", dicoseRegistrationId: seededRegistration.id });
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [healthBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "health", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const [healthEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "health",
+        eventDate: "2026-02-01",
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: healthBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventHealth).values({
+      eventId: healthEvent.id,
+      productId: productA.id,
+      dose: "10",
+      doseUnit: "ml",
+      route: "subcutánea",
+      withdrawalDays: 21,
+    });
+
+    vi.mocked(parseSnigGuide).mockResolvedValue(
+      fakeGuide({ eventDate: "2026-02-10", animals: [{ tag: "AR000000000302", sex: "H", ageMonths: 36 }] })
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([Buffer.from("fake")]), "guia.pdf");
+
+    const result = await previewSaleBatchFromPdf(formData);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.rows[0].status).toBe("existing");
+      expect(result.withdrawalWarnings).toEqual([
+        { tag: "AR000000000302", productName: "Ivermectina 1%", restrictionEndDate: "2026-02-22" },
+      ]);
     }
   });
 
@@ -111,7 +173,6 @@ describe("confirmSaleBatchFromPdfAction", () => {
     const formData = new FormData();
     formData.set("originFarmId", seededFarm.id);
     formData.set("guideNumber", "D963691");
-    formData.set("eventDate", "2026-02-01");
     formData.set("buyer", "Cledinor S.A.");
     formData.set("price", "5.27");
     formData.set("weightKg", "260");

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { batchOperation, event, eventTransfer, eventSale } from "@/db/schema";
 import { db } from "@/db";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
@@ -19,7 +19,6 @@ export async function confirmSaleBatch(input: {
   role: string | undefined;
   operatingFarmId: string;
   guideNumber: string;
-  eventDate: string;
   buyer: string | null;
   price: string | null;
   weightKg: string | null;
@@ -27,8 +26,7 @@ export async function confirmSaleBatch(input: {
   forcedWithdrawalTags: string[];
   guideDocument?: GuideDocument;
 }): Promise<void> {
-  const { userId, role, operatingFarmId, guideNumber, eventDate, buyer, price, weightKg, rows, forcedWithdrawalTags } =
-    input;
+  const { userId, role, operatingFarmId, guideNumber, buyer, price, weightKg, rows, forcedWithdrawalTags } = input;
 
   await requireFarmAccess(userId, role, operatingFarmId);
 
@@ -43,13 +41,28 @@ export async function confirmSaleBatch(input: {
     throw new Error("El lote tiene propietarios pendientes de crear; no se puede confirmar");
   }
 
+  // An "existing" row is any alive animal in the system with that caravana —
+  // resolveBatchRows does not scope that lookup by farm. Selling an animal that
+  // is currently standing at a different campo would permanently mark another
+  // farm's animal as sold, from a farm the user may have no access to at all.
+  const misplaced = rows.find(
+    (row): row is Extract<ResolvedRow, { status: "existing" }> =>
+      row.status === "existing" && row.currentFarmId !== operatingFarmId
+  );
+  if (misplaced) {
+    throw new Error(`La caravana ${misplaced.tag} figura en otro campo; no se puede vender desde acá`);
+  }
+
   // Server-side re-check: the client's decision to force a caravana past its
   // withdrawal period is only trusted for tags it actually flagged — recompute
   // here instead of accepting whatever the browser claims was pending.
+  // The reference date comes from the rows themselves so it can never diverge
+  // from the dates actually written to the sale events below.
+  const asOfDate = rows.find((r) => r.eventDate)?.eventDate ?? new Date().toISOString().slice(0, 10);
   const existingAnimalIds = rows
     .filter((row): row is Extract<ResolvedRow, { status: "existing" }> => row.status === "existing")
     .map((row) => row.animalId);
-  const pendingWithdrawals = await findPendingWithdrawals(existingAnimalIds, eventDate);
+  const pendingWithdrawals = await findPendingWithdrawals(existingAnimalIds, asOfDate);
   if (pendingWithdrawals.length > 0) {
     const animalIdToTag = new Map(
       rows

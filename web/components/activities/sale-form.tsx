@@ -39,16 +39,26 @@ export function SaleForm() {
   const [weightKg, setWeightKg] = useState("");
   const [forcedWithdrawalTags, setForcedWithdrawalTags] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    const result = await previewSaleBatchFromPdf(formData);
-    setPreview(result);
-    if (result.ok) {
-      setRows(result.rows);
-      setForcedWithdrawalTags(new Set());
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await previewSaleBatchFromPdf(formData);
+      setPreview(result);
+      if (result.ok) {
+        setRows(result.rows);
+        setForcedWithdrawalTags(new Set());
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -81,18 +91,25 @@ export function SaleForm() {
 
   async function handleConfirm() {
     if (!preview?.ok || !file) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    formData.set("originFarmId", preview.originFarmId);
-    formData.set("guideNumber", preview.guideNumber);
-    formData.set("eventDate", preview.eventDate);
-    formData.set("buyer", buyer);
-    formData.set("price", price);
-    formData.set("weightKg", weightKg);
-    formData.set("forcedWithdrawalTags", JSON.stringify(Array.from(forcedWithdrawalTags)));
-    formData.set("rows", JSON.stringify(rows));
-    await confirmSaleBatchFromPdfAction(formData);
-    setConfirmed(true);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("originFarmId", preview.originFarmId);
+      formData.set("guideNumber", preview.guideNumber);
+      formData.set("buyer", buyer);
+      formData.set("price", price);
+      formData.set("weightKg", weightKg);
+      formData.set("forcedWithdrawalTags", JSON.stringify(Array.from(forcedWithdrawalTags)));
+      formData.set("rows", JSON.stringify(rows));
+      await confirmSaleBatchFromPdfAction(formData);
+      setConfirmed(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (confirmed) {
@@ -123,11 +140,12 @@ export function SaleForm() {
           }}
         />
       </div>
-      <Button type="button" disabled={!file} onClick={handleUpload}>
+      <Button type="button" disabled={!file || isSubmitting} onClick={handleUpload}>
         Subir
       </Button>
 
       {preview && !preview.ok ? <p className="text-sm text-destructive">{preview.error}</p> : null}
+      {error && !preview?.ok ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {preview?.ok ? (
         <div className="flex flex-col gap-4">
@@ -171,7 +189,7 @@ export function SaleForm() {
                 </thead>
                 <tbody>
                   {withdrawalWarnings.map((w) => (
-                    <tr key={`${w.tag}-${w.productName}`}>
+                    <tr key={`${w.tag}-${w.productName}-${w.restrictionEndDate}`}>
                       <td className="py-1 pr-2">{w.tag}</td>
                       <td className="py-1 pr-2">{w.productName}</td>
                       <td className="py-1 pr-2">{w.restrictionEndDate}</td>
@@ -195,11 +213,18 @@ export function SaleForm() {
           <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
           <Button
             type="button"
-            disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow || hasUnresolvedWithdrawal}
+            disabled={
+              isSubmitting ||
+              rows.some((r) => r.status === "error") ||
+              pendingNames.length > 0 ||
+              !hasConfirmableRow ||
+              hasUnresolvedWithdrawal
+            }
             onClick={handleConfirm}
           >
             Confirmar
           </Button>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
       ) : null}
     </div>

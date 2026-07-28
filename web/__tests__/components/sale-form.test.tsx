@@ -55,6 +55,25 @@ describe("SaleForm", () => {
     await waitFor(() => expect(confirmSaleBatchFromPdfAction).toHaveBeenCalled());
   });
 
+  it("surfaces a rejected confirm as an error message and leaves Confirmar usable again", async () => {
+    const { confirmSaleBatchFromPdfAction } = await import("@/app/(protected)/activities/sale/actions");
+    vi.mocked(confirmSaleBatchFromPdfAction).mockRejectedValueOnce(
+      new Error("La caravana AR000000000300 figura en otro campo; no se puede vender desde acá")
+    );
+
+    render(<SaleForm />);
+    const user = userEvent.setup();
+
+    await uploadGuide(user);
+    await waitFor(() => expect(screen.getByText("AR000000000300")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    await waitFor(() => expect(screen.getByText(/figura en otro campo/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
+    expect(screen.queryByText("Venta confirmada.")).not.toBeInTheDocument();
+  });
+
   it("shows a withdrawal warning with a per-caravana checkbox, and blocks Confirmar until it's forced", async () => {
     const { previewSaleBatchFromPdf } = await import("@/app/(protected)/activities/sale/actions");
     vi.mocked(previewSaleBatchFromPdf).mockResolvedValueOnce({

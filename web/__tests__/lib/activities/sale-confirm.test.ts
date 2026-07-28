@@ -65,7 +65,6 @@ describe("confirmSaleBatch", () => {
       role: "manager",
       operatingFarmId: seededFarm.id,
       guideNumber: "D963691",
-      eventDate: "2026-02-01",
       buyer: "Cledinor S.A.",
       price: "5.27",
       weightKg: "260",
@@ -109,7 +108,6 @@ describe("confirmSaleBatch", () => {
       role: "manager",
       operatingFarmId: seededFarm.id,
       guideNumber: "D963692",
-      eventDate: "2026-02-01",
       buyer: null,
       price: null,
       weightKg: null,
@@ -143,7 +141,6 @@ describe("confirmSaleBatch", () => {
       role: "manager",
       operatingFarmId: seededFarm.id,
       guideNumber: "D963693",
-      eventDate: "2026-02-01",
       buyer: null,
       price: null,
       weightKg: null,
@@ -168,7 +165,6 @@ describe("confirmSaleBatch", () => {
         role: "manager",
         operatingFarmId: seededFarm.id,
         guideNumber: "D963694",
-        eventDate: "2026-02-01",
         buyer: null,
         price: null,
         weightKg: null,
@@ -200,7 +196,6 @@ describe("confirmSaleBatch", () => {
         role: "manager",
         operatingFarmId: seededFarm.id,
         guideNumber: "D963695",
-        eventDate: "2026-02-01",
         buyer: null,
         price: null,
         weightKg: null,
@@ -253,7 +248,6 @@ describe("confirmSaleBatch", () => {
         role: "manager",
         operatingFarmId: seededFarm.id,
         guideNumber: "D963696",
-        eventDate: "2026-02-10",
         buyer: null,
         price: null,
         weightKg: null,
@@ -308,7 +302,6 @@ describe("confirmSaleBatch", () => {
       role: "manager",
       operatingFarmId: seededFarm.id,
       guideNumber: "D963697",
-      eventDate: "2026-02-10",
       buyer: null,
       price: null,
       weightKg: null,
@@ -318,6 +311,41 @@ describe("confirmSaleBatch", () => {
 
     const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
     expect(animalEvents.filter((e) => e.eventType === "sale")).toHaveLength(1);
+  });
+
+  it("rejects the batch when an existing row's animal is currently at another farm", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000208" });
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000208",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: otherFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+
+    await expect(
+      confirmSaleBatch({
+        userId: manager.id,
+        role: "manager",
+        operatingFarmId: seededFarm.id,
+        guideNumber: "D963699",
+        buyer: null,
+        price: null,
+        weightKg: null,
+        rows,
+        forcedWithdrawalTags: [],
+      })
+    ).rejects.toThrow("figura en otro campo");
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    expect(animalEvents).toHaveLength(0);
   });
 
   it("stores the guide PDF on the batch operation", async () => {
@@ -341,7 +369,6 @@ describe("confirmSaleBatch", () => {
       role: "manager",
       operatingFarmId: seededFarm.id,
       guideNumber: "D963698",
-      eventDate: "2026-02-01",
       buyer: null,
       price: null,
       weightKg: null,

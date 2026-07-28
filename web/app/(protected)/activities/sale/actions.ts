@@ -91,12 +91,18 @@ export async function confirmSaleBatchFromPdfAction(formData: FormData): Promise
   const price = (formData.get("price") as string | null) || null;
   const weightKg = (formData.get("weightKg") as string | null) || null;
 
+  // guide_number is the column the future liquidación-linking feature keys on —
+  // a silently-NULL one would be unrecoverable after the fact.
+  const guideNumber = (formData.get("guideNumber") as string | null) || null;
+  if (!guideNumber) {
+    throw new Error("Falta el número de guía; no se puede confirmar la venta");
+  }
+
   await confirmSaleBatch({
     userId: session.user.id,
     role: session.user.role,
     operatingFarmId: originFarmId,
-    guideNumber: formData.get("guideNumber") as string,
-    eventDate: formData.get("eventDate") as string,
+    guideNumber,
     buyer,
     price,
     weightKg,
