@@ -41,7 +41,7 @@ export async function visibleHealthBatchesSince(
   sinceDate: string
 ): Promise<HealthBatchRow[]> {
   const farmScope = isAdmin(role)
-    ? sql.empty
+    ? sql.empty()
     : sql`and e.farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<HealthBatchDbRow>(sql`
@@ -81,7 +81,7 @@ export async function countDistinctAnimalsTreatedThisMonth(
   const sinceDate = firstOfMonth.toISOString().slice(0, 10);
 
   const farmScope = isAdmin(role)
-    ? sql.empty
+    ? sql.empty()
     : sql`and e.farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<{ cnt: number }>(sql`

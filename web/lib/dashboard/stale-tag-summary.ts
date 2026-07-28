@@ -48,7 +48,7 @@ export async function findStaleTags(
   thresholdDays: number
 ): Promise<StaleTagRow[]> {
   const farmScope = isAdmin(role)
-    ? sql.empty
+    ? sql.empty()
     : sql`and acs.current_farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<StaleTagDbRow>(sql`
