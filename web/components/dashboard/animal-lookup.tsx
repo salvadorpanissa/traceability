@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,7 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" data-testid="animal-lookup">
       <Label htmlFor="animal-lookup-tag">{translate(locale, "animalLookup.title")}</Label>
       <div className="flex gap-2">
         <Input
@@ -79,6 +80,11 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
             <p>
               {translate(locale, "animalLookup.status")}: {statusLabel(result.state.status, locale)}
             </p>
+            {result.state.status === "alive" ? (
+              <Link href={`/activities/death?tag=${encodeURIComponent(result.tag)}`} className="text-sm underline">
+                {translate(locale, "animalLookup.registerDeath")}
+              </Link>
+            ) : null}
           </div>
         ) : (
           <p className="text-muted-foreground">{translate(locale, "animalLookup.notFound")}</p>

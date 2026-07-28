@@ -86,4 +86,48 @@ describe("AnimalLookup", () => {
 
     await waitFor(() => expect(lookupAnimalByTagAction).toHaveBeenCalledWith("AR001"));
   });
+
+  it("shows a Registrar muerte link only when the animal is alive", async () => {
+    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
+      animalId: "a1",
+      currentTag: "AR001",
+      currentFarmId: "f1",
+      farmName: "Campo Norte",
+      currentPaddockId: null,
+      paddockName: null,
+      currentCategoryId: null,
+      categoryName: null,
+      status: "alive",
+    });
+
+    render(<AnimalLookup locale="es" />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    const link = await screen.findByRole("link", { name: "Registrar muerte" });
+    expect(link).toHaveAttribute("href", "/activities/death?tag=AR001");
+  });
+
+  it("hides the Registrar muerte link when the animal is already dead", async () => {
+    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
+      animalId: "a1",
+      currentTag: "AR001",
+      currentFarmId: "f1",
+      farmName: "Campo Norte",
+      currentPaddockId: null,
+      paddockName: null,
+      currentCategoryId: null,
+      categoryName: null,
+      status: "dead",
+    });
+
+    render(<AnimalLookup locale="es" />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(screen.getByText(/muerta/i)).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "Registrar muerte" })).not.toBeInTheDocument();
+  });
 });
