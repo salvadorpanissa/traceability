@@ -16,8 +16,8 @@ describe("SettingsSidebar", () => {
 
     render(<SettingsSidebar />);
 
-    expect(screen.getByRole("link", { name: "DICOSE" })).toHaveAttribute("href", "/settings/dicose");
-    expect(screen.getByRole("link", { name: "Caravanas propias" })).toHaveAttribute("href", "/settings/own-tags");
+    expect(screen.getByRole("link", { name: "Registrar DICOSE" })).toHaveAttribute("href", "/settings/dicose");
+    expect(screen.getByRole("link", { name: "Registrar caravanas propias" })).toHaveAttribute("href", "/settings/own-tags");
     expect(screen.getByRole("link", { name: "Potreros" })).toHaveAttribute("href", "/settings/paddocks");
     expect(screen.getByRole("link", { name: "Categorías" })).toHaveAttribute("href", "/settings/categories");
     expect(screen.getByRole("link", { name: "Guías" })).toHaveAttribute("href", "/settings/guides");
