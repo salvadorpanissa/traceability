@@ -38,6 +38,11 @@ const navItems: NavItem[] = [
     labelKey: "appShell.navSale",
     isActive: (pathname) => pathname.startsWith("/activities/sale"),
   },
+  {
+    href: "/activities/sale-settlement",
+    labelKey: "appShell.navSaleSettlement",
+    isActive: (pathname) => pathname.startsWith("/activities/sale-settlement"),
+  },
 ];
 
 export function AppShell({
