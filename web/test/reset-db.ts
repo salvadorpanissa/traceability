@@ -3,6 +3,7 @@ import { testDb } from "./db";
 
 export async function resetTestDb() {
   // Truncate in FK-safe order: children before parents
+  await testDb.execute(sql`TRUNCATE TABLE sale_settlement CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE event_transfer CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE event_health CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE event_retag CASCADE`);
