@@ -24,12 +24,13 @@ import {
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<Buffer> {
+async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
   sheet.addRow(headers);
   for (const r of rows) sheet.addRow(r);
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer as ArrayBuffer;
 }
 
 const { auth } = await import("@/auth");
@@ -164,7 +165,7 @@ describe("previewRecategorizeBatch", () => {
   });
 
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    const { seededFarm } = await seedManagerAndFarm();
+    await seedManagerAndFarm();
 
     const formData = await excelFormData([["AR1", "2026-03-01"]]);
 

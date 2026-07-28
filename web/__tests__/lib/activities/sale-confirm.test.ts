@@ -3,18 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import {
-  role,
-  farm,
-  userAccount,
-  userFarm,
-  animal,
-  animalTagHistory,
-  event,
-  eventSale,
-  eventTransfer,
-  product,
-} from "@/db/schema";
+import { role, farm, userAccount, userFarm, animal, animalTagHistory, event, eventSale, product } from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
 vi.mock("@/db", () => ({ db: testDb }));

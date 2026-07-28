@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const signInMock = vi.fn(async () => undefined);
-const isLoginLockedMock = vi.fn(async () => false);
-const recordFailedLoginMock = vi.fn(async () => undefined);
+const signInMock = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+const isLoginLockedMock = vi.fn<(...args: unknown[]) => Promise<boolean>>(async () => false);
+const recordFailedLoginMock = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 
 vi.mock("@/auth", () => ({
   signIn: (...args: unknown[]) => signInMock(...args),

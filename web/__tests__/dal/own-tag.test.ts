@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, owner, dicoseRegistration, category, ownTag, paddock, animal, animalTagHistory } from "@/db/schema";
+import { role, farm, userAccount, owner, dicoseRegistration, category, paddock, animal, animalTagHistory } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { MappedOwnTagRow } from "@/lib/activities/column-mapping";
 

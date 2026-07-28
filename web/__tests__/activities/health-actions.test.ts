@@ -20,12 +20,13 @@ beforeEach(async () => {
   await resetTestDb();
 });
 
-async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<Buffer> {
+async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
   sheet.addRow(headers);
   for (const r of rows) sheet.addRow(r);
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer as ArrayBuffer;
 }
 
 async function seedManagerSession() {
@@ -66,7 +67,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("applies a submitted mapping and resolves rows", async () => {
-    const { manager, seededFarm } = await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
     await seedOwnTag("AR000000000081", seededFarm.id, "AIP");
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
@@ -477,7 +478,7 @@ describe("confirmHealthBatchAction", () => {
 
 describe("createProductAction", () => {
   it("creates a product and returns it", async () => {
-    const { seededFarm } = await seedManagerSession();
+    await seedManagerSession();
 
     const created = await createProductAction("Ivermectina 1%");
 
@@ -489,7 +490,7 @@ describe("createProductAction", () => {
 
 describe("createOwnerAction", () => {
   it("creates an owner and returns it", async () => {
-    const { seededFarm } = await seedManagerSession();
+    await seedManagerSession();
 
     const created = await createOwnerAction("Pérez");
 

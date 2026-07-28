@@ -9,7 +9,6 @@ import {
   userFarm,
   paddock,
   category,
-  animal,
   animalTagHistory,
   batchOperation,
   event,
