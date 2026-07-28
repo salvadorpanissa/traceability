@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -79,6 +80,11 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
             <p>
               {translate(locale, "animalLookup.status")}: {statusLabel(result.state.status, locale)}
             </p>
+            {result.state.status === "alive" ? (
+              <Link href={`/activities/death?tag=${encodeURIComponent(result.tag)}`} className="text-sm underline">
+                {translate(locale, "animalLookup.registerDeath")}
+              </Link>
+            ) : null}
           </div>
         ) : (
           <p className="text-muted-foreground">{translate(locale, "animalLookup.notFound")}</p>
