@@ -36,7 +36,12 @@ const navItems: NavItem[] = [
   {
     href: "/activities/sale",
     labelKey: "appShell.navSale",
-    isActive: (pathname) => pathname.startsWith("/activities/sale"),
+    isActive: (pathname) => pathname === "/activities/sale" || pathname.startsWith("/activities/sale/"),
+  },
+  {
+    href: "/activities/sale-settlement",
+    labelKey: "appShell.navSaleSettlement",
+    isActive: (pathname) => pathname.startsWith("/activities/sale-settlement"),
   },
 ];
 

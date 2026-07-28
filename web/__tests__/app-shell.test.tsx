@@ -45,4 +45,19 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
+
+  it("only marks Liquidaciones as active on /activities/sale-settlement, not Venta", async () => {
+    mockedPathname = "/activities/sale-settlement";
+
+    render(
+      <LocaleProvider initialLocale="es">
+        <AppShell userName="Encargado Norte">
+          <p>contenido</p>
+        </AppShell>
+      </LocaleProvider>
+    );
+
+    expect(screen.getByRole("link", { name: "Liquidaciones" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Venta" })).not.toHaveAttribute("aria-current", "page");
+  });
 });
