@@ -2,6 +2,7 @@ import { isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { category, batchOperation, event, eventRecategorize } from "@/db/schema";
 import { getOrCreateSystemUser } from "@/lib/dal/system-user";
+import { logError } from "@/lib/logger";
 
 // Whole elapsed calendar months between two ISO dates (yyyy-mm-dd),
 // matching everyday "age in months" semantics: the day-of-month must have
@@ -183,7 +184,7 @@ export async function runAgeBasedRecategorization(input?: {
       });
       recategorized += animals.length;
     } catch (error) {
-      console.error(`runAgeBasedRecategorization: failed to recategorize farm ${farmId}`, error);
+      logError("runAgeBasedRecategorization.farmFailed", error, { farmId });
     }
   }
 

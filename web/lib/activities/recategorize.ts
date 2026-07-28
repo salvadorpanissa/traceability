@@ -4,6 +4,7 @@ import { batchOperation, category, event, eventRecategorize } from "@/db/schema"
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
+import { logError } from "@/lib/logger";
 
 type PlannedChange = {
   animalId: string;
@@ -220,7 +221,7 @@ export async function confirmRecategorizeBatch(input: {
       });
       succeededFarmIds.push(farmId);
     } catch (error) {
-      console.error(`confirmRecategorizeBatch: failed to recategorize farm ${farmId}`, error);
+      logError("confirmRecategorizeBatch.farmFailed", error, { farmId });
       failedFarmIds.push(farmId);
     }
   }

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { role, farm, userAccount, paddock } from "@/db/schema";
+import { role, farm, userAccount, userFarm, paddock } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -26,6 +26,8 @@ async function seedManagerSession() {
     .insert(userAccount)
     .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
     .returning();
+
+  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
 
   vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
 

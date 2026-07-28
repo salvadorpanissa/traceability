@@ -27,6 +27,11 @@ export async function listPaddocksForFarms(farmIds: string[]): Promise<PaddockCa
     .orderBy(asc(paddock.name));
 }
 
+export async function getPaddockFarmId(id: string): Promise<string | null> {
+  const [match] = await db.select({ farmId: paddock.farmId }).from(paddock).where(eq(paddock.id, id));
+  return match?.farmId ?? null;
+}
+
 export async function createPaddock(farmId: string, name: string): Promise<PaddockCatalogEntry> {
   const [created] = await db.insert(paddock).values({ farmId, name }).returning();
   return { id: created.id, name: created.name, farmId: created.farmId };

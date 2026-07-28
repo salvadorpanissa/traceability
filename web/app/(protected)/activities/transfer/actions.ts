@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
+import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
@@ -35,7 +36,7 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   const operatingFarmId = formData.get("farmId") as string;
   await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
 
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
   const eventDate = eventDateInput && eventDateInput.length > 0 ? eventDateInput : null;
   const mappingOverride = formData.get("mapping") as string | null;
@@ -115,7 +116,7 @@ export type PdfPreviewResult =
 
 export async function previewTransferBatchFromPdf(formData: FormData): Promise<PdfPreviewResult> {
   const session = await requireSession();
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const buffer = await file.arrayBuffer();
 
   let guide;
@@ -169,7 +170,7 @@ export async function confirmTransferBatchFromPdfAction(formData: FormData): Pro
   const destinationFarmId = formData.get("destinationFarmId") as string;
   await requireFarmAccess(session.user.id, session.user.role, destinationFarmId);
 
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const destinationPaddockId = (formData.get("destinationPaddockId") as string | null) || null;
   const rows = JSON.parse(formData.get("rows") as string) as ResolvedRow[];
 

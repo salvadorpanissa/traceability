@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+import { isLoginLocked, recordFailedLogin } from "@/lib/dal/login-attempts";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -48,6 +49,10 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
     return { error: "Email o contraseña incorrectos" };
   }
 
+  if (await isLoginLocked(parsed.data.email)) {
+    return { error: "Demasiados intentos. Probá de nuevo en unos minutos." };
+  }
+
   const redirectTo = resolveSafeRedirect(formData.get("returnTo"));
 
   try {
@@ -59,6 +64,7 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
     return { error: null };
   } catch (error) {
     if (error instanceof AuthError) {
+      await recordFailedLogin(parsed.data.email);
       return { error: "Email o contraseña incorrectos" };
     }
     throw error;

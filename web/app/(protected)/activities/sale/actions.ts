@@ -2,6 +2,7 @@
 
 import { requireSession } from "@/lib/dal/session";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFile } from "@/lib/dal/form-data";
 import { resolveBatchRows, confirmSaleBatch, type ResolvedRow } from "@/lib/activities/sale";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
@@ -24,7 +25,7 @@ export type PdfPreviewResult =
 
 export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPreviewResult> {
   const session = await requireSession();
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const buffer = await file.arrayBuffer();
 
   let guide;
@@ -84,7 +85,7 @@ export async function confirmSaleBatchFromPdfAction(formData: FormData): Promise
   const originFarmId = formData.get("originFarmId") as string;
   await requireFarmAccess(session.user.id, session.user.role, originFarmId);
 
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const rows = JSON.parse(formData.get("rows") as string) as ResolvedRow[];
   const forcedWithdrawalTags = JSON.parse(formData.get("forcedWithdrawalTags") as string) as string[];
   const buyer = (formData.get("buyer") as string | null) || null;

@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/dal/session";
 import { generateReportingSql } from "@/lib/dal/reporting/generate-sql";
 import { validateReportingSql } from "@/lib/dal/reporting/sql-validator";
 import { withScopedReportingViews, REPORTING_VIEW_NAMES } from "@/lib/dal/reporting/scoped-views";
+import { logError } from "@/lib/logger";
 
 export type QueryResult =
   | { status: "ok"; columns: string[]; rows: Record<string, unknown>[] }
@@ -16,13 +17,13 @@ export async function runNaturalLanguageQuery(question: string): Promise<QueryRe
   try {
     generatedSql = await generateReportingSql(question);
   } catch (error) {
-    console.error("[runNaturalLanguageQuery] Gemini generation failed:", error);
+    logError("runNaturalLanguageQuery.geminiFailed", error);
     return { status: "error", messageKey: "connectionError" };
   }
 
   const validated = validateReportingSql(generatedSql, REPORTING_VIEW_NAMES);
   if (!validated.ok) {
-    console.error("[runNaturalLanguageQuery] SQL validation rejected generated query:", validated);
+    logError("runNaturalLanguageQuery.sqlValidationRejected", validated);
     return { status: "error", messageKey: "cantGenerate" };
   }
 
@@ -37,10 +38,10 @@ export async function runNaturalLanguageQuery(question: string): Promise<QueryRe
     });
   } catch (error) {
     if (error instanceof Error && /timeout/i.test(error.message)) {
-      console.error("[runNaturalLanguageQuery] SQL execution timed out:", error);
+      logError("runNaturalLanguageQuery.sqlExecutionTimedOut", error);
       return { status: "error", messageKey: "timeout" };
     }
-    console.error("[runNaturalLanguageQuery] SQL execution failed:", error);
+    logError("runNaturalLanguageQuery.sqlExecutionFailed", error);
     return { status: "error", messageKey: "cantGenerate" };
   }
 }

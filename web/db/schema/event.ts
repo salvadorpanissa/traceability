@@ -5,22 +5,29 @@ import { userAccount } from "./user";
 import { animal } from "./animal";
 import { bytea } from "./custom-types";
 
-export const batchOperation = pgTable("batch_operation", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  eventType: text("event_type").notNull(),
-  farmId: uuid("farm_id")
-    .notNull()
-    .references(() => farm.id),
-  selectionCriteria: jsonb("selection_criteria").notNull().default({}),
-  animalCount: integer("animal_count").notNull(),
-  createdBy: uuid("created_by")
-    .notNull()
-    .references(() => userAccount.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  guideFileName: text("guide_file_name"),
-  guideMimeType: text("guide_mime_type"),
-  guideFileData: bytea("guide_file_data"),
-});
+export const batchOperation = pgTable(
+  "batch_operation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: text("event_type").notNull(),
+    farmId: uuid("farm_id")
+      .notNull()
+      .references(() => farm.id),
+    selectionCriteria: jsonb("selection_criteria").notNull().default({}),
+    animalCount: integer("animal_count").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => userAccount.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    guideFileName: text("guide_file_name"),
+    guideMimeType: text("guide_mime_type"),
+    guideFileData: bytea("guide_file_data"),
+  },
+  (table) => [
+    index("batch_operation_farm_id_idx").on(table.farmId),
+    index("batch_operation_created_by_idx").on(table.createdBy),
+  ]
+);
 
 export const event = pgTable(
   "event",
@@ -47,6 +54,8 @@ export const event = pgTable(
   (table) => [
     index("event_animal_id_idx").on(table.animalId),
     index("event_batch_operation_id_idx").on(table.batchOperationId),
+    index("event_farm_id_idx").on(table.farmId),
+    index("event_event_date_idx").on(table.eventDate),
     check(
       "event_type_check",
       sql`${table.eventType} in ('transfer', 'health', 'retag', 'recategorize', 'sale', 'death', 'void')`

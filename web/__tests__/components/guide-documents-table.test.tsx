@@ -34,7 +34,7 @@ describe("GuideDocumentsTable", () => {
       mimeType: "application/pdf",
       base64: btoa("fake pdf bytes"),
     });
-    const createObjectURL = vi.fn((_blob: Blob) => "blob:mock-url");
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:mock-url");
     const revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

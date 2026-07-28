@@ -74,8 +74,8 @@ export function SettingsMenu() {
             >
               <span
                 className={cn(
-                  "mt-[2px] block h-3 w-3 rounded-full bg-primary transition-transform",
-                  isEnglish ? "translate-x-[17px]" : "translate-x-[2px]"
+                  "mt-0.5 block h-3 w-3 rounded-full bg-primary transition-transform",
+                  isEnglish ? "translate-x-4.25" : "translate-x-0.5"
                 )}
               />
             </span>
@@ -99,8 +99,8 @@ export function SettingsMenu() {
             >
               <span
                 className={cn(
-                  "mt-[2px] block h-3 w-3 rounded-full bg-primary transition-transform",
-                  isDarkMode ? "translate-x-[17px]" : "translate-x-[2px]"
+                  "mt-0.5 block h-3 w-3 rounded-full bg-primary transition-transform",
+                  isDarkMode ? "translate-x-4.25" : "translate-x-0.5"
                 )}
               />
             </span>

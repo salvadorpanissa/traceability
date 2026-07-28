@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, integer, check } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, numeric, integer, check, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { event } from "./event";
 import { farm } from "./farm";
@@ -6,35 +6,51 @@ import { product } from "./product";
 import { category } from "./category";
 import { paddock } from "./paddock";
 
-export const eventTransfer = pgTable("event_transfer", {
-  eventId: uuid("event_id")
-    .primaryKey()
-    .references(() => event.id, { onDelete: "cascade" }),
-  originFarmId: uuid("origin_farm_id")
-    .notNull()
-    .references(() => farm.id),
-  destinationFarmId: uuid("destination_farm_id")
-    .notNull()
-    .references(() => farm.id),
-  guideNumber: text("guide_number"),
-  originPaddockId: uuid("origin_paddock_id").references(() => paddock.id),
-  destinationPaddockId: uuid("destination_paddock_id").references(() => paddock.id),
-});
+export const eventTransfer = pgTable(
+  "event_transfer",
+  {
+    eventId: uuid("event_id")
+      .primaryKey()
+      .references(() => event.id, { onDelete: "cascade" }),
+    originFarmId: uuid("origin_farm_id")
+      .notNull()
+      .references(() => farm.id),
+    destinationFarmId: uuid("destination_farm_id")
+      .notNull()
+      .references(() => farm.id),
+    guideNumber: text("guide_number"),
+    originPaddockId: uuid("origin_paddock_id").references(() => paddock.id),
+    destinationPaddockId: uuid("destination_paddock_id").references(() => paddock.id),
+  },
+  (table) => [
+    index("event_transfer_origin_farm_id_idx").on(table.originFarmId),
+    index("event_transfer_destination_farm_id_idx").on(table.destinationFarmId),
+    index("event_transfer_origin_paddock_id_idx").on(table.originPaddockId),
+    index("event_transfer_destination_paddock_id_idx").on(table.destinationPaddockId),
+  ]
+);
 
-export const eventHealth = pgTable("event_health", {
-  eventId: uuid("event_id")
-    .primaryKey()
-    .references(() => event.id, { onDelete: "cascade" }),
-  productId: uuid("product_id")
-    .notNull()
-    .references(() => product.id),
-  dose: numeric("dose").notNull(),
-  doseUnit: text("dose_unit").notNull(),
-  route: text("route").notNull(),
-  withdrawalDays: integer("withdrawal_days"),
-  notes: text("notes"),
-  paddockId: uuid("paddock_id").references(() => paddock.id),
-});
+export const eventHealth = pgTable(
+  "event_health",
+  {
+    eventId: uuid("event_id")
+      .primaryKey()
+      .references(() => event.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => product.id),
+    dose: numeric("dose").notNull(),
+    doseUnit: text("dose_unit").notNull(),
+    route: text("route").notNull(),
+    withdrawalDays: integer("withdrawal_days"),
+    notes: text("notes"),
+    paddockId: uuid("paddock_id").references(() => paddock.id),
+  },
+  (table) => [
+    index("event_health_product_id_idx").on(table.productId),
+    index("event_health_paddock_id_idx").on(table.paddockId),
+  ]
+);
 
 export const eventRetag = pgTable("event_retag", {
   eventId: uuid("event_id")
@@ -65,7 +81,11 @@ export const eventRecategorize = pgTable(
     // 'manual' — this column is what lets a human override stick.
     source: text("source").notNull().default("initial"),
   },
-  (table) => [check("event_recategorize_source_check", sql`${table.source} in ('initial', 'manual', 'auto_age')`)]
+  (table) => [
+    check("event_recategorize_source_check", sql`${table.source} in ('initial', 'manual', 'auto_age')`),
+    index("event_recategorize_old_category_id_idx").on(table.oldCategoryId),
+    index("event_recategorize_new_category_id_idx").on(table.newCategoryId),
+  ]
 );
 
 export const eventSale = pgTable("event_sale", {

@@ -34,7 +34,7 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function PdfGuideTransferForm({ farms: _farms }: { farms: { id: string; name: string }[] }) {
+export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PdfPreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);

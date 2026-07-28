@@ -2,6 +2,8 @@
 
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
   computeHeaderSignature,
@@ -17,7 +19,11 @@ import {
   findMissingCategoryNames,
   type OwnTagImportResult,
 } from "@/lib/dal/own-tag";
-import { listDicoseRegistrations, type DicoseRegistrationEntry } from "@/lib/dal/dicose-registration";
+import {
+  listDicoseRegistrations,
+  getDicoseRegistrationFarmId,
+  type DicoseRegistrationEntry,
+} from "@/lib/dal/dicose-registration";
 import { createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { createCategory, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import { db } from "@/db";
@@ -40,10 +46,20 @@ function ownTagHeaderSignature(headers: string[]): string {
   return computeHeaderSignature(["__own_tag__", ...headers]);
 }
 
-export async function previewOwnTagUpload(dicoseRegistrationId: string, formData: FormData): Promise<OwnTagPreviewResult> {
-  await requireSession();
+async function requireDicoseRegistrationAccess(
+  session: { user: { id: string; role?: string } },
+  dicoseRegistrationId: string
+): Promise<void> {
+  const farmId = await getDicoseRegistrationFarmId(dicoseRegistrationId);
+  if (!farmId) throw new Error("Registro DICOSE no encontrado");
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+}
 
-  const file = formData.get("file") as File;
+export async function previewOwnTagUpload(dicoseRegistrationId: string, formData: FormData): Promise<OwnTagPreviewResult> {
+  const session = await requireSession();
+  await requireDicoseRegistrationAccess(session, dicoseRegistrationId);
+
+  const file = requireFile(formData, "file");
   const mappingOverride = formData.get("mapping") as string | null;
 
   const buffer = await file.arrayBuffer();
@@ -80,7 +96,8 @@ export async function previewOwnTagUpload(dicoseRegistrationId: string, formData
 }
 
 export async function createOwnTagPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
-  await requireSession();
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
   return createPaddock(farmId, name);
 }
 
@@ -96,6 +113,7 @@ export async function confirmOwnTagUpload(
   rows: MappedOwnTagRow[]
 ): Promise<OwnTagImportResult> {
   const session = await requireSession();
+  await requireDicoseRegistrationAccess(session, dicoseRegistrationId);
 
   await db
     .insert(columnMapping)

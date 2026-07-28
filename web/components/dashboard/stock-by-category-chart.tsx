@@ -1,6 +1,5 @@
 "use client";
 
-import { useLocale } from "@/lib/i18n/context";
 import type { LivestockByCategoryRow } from "@/lib/dashboard/livestock-summary";
 
 const COLORS = [
@@ -108,9 +107,7 @@ export function StockByCategoryChart({
 }: {
   rows: LivestockByCategoryRow[];
 }) {
-  const { t } = useLocale();
   const segments = sumPieSegments(rows.filter((r) => r.count > 0));
-  const total = segments.reduce((s, sgm) => s + sgm.value, 0);
 
   return (
     <div className="flex flex-col gap-4">
