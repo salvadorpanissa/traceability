@@ -46,16 +46,13 @@ async function seedAliveAnimal(tag: string) {
     );
     // Deliberately recent (not > the dashboard's stale-tag threshold, see
     // lib/dashboard/stale-tag-summary.ts's DEFAULT_STALE_TAG_THRESHOLD_DAYS
-    // usage in app/(protected)/dashboard/page.tsx). A stale animal without
-    // any retag event also surfaces in the dashboard's "Noticias" stale-tag
-    // widget with its own "Registrar muerte" link — but that widget reads
-    // its tag from animal_current_state.current_tag, which (per
-    // drizzle/0009_add_paddock_to_derived_state.sql) is only ever populated
-    // by a retag event, so for an animal seeded here (no retag) it renders
-    // an empty tag and a broken `?tag=` link. That's a pre-existing bug in
-    // the Task 9 stale-tag widget, out of scope for this e2e task — keeping
-    // this seeded animal fresh avoids colliding with it (and avoids a
-    // strict-mode "Registrar muerte" ambiguity) without needing to fix it.
+    // usage in app/(protected)/dashboard/page.tsx). If this animal ever
+    // aged past the threshold, it would also surface in the dashboard's
+    // "Noticias" stale-tag widget with its own "Registrar muerte" link —
+    // that widget correctly resolves its tag from animal_tag_history, but
+    // a second "Registrar muerte" link on the page would still make the
+    // unscoped locator below ambiguous under Playwright's strict mode.
+    // Keeping this seeded animal fresh avoids that collision.
     const {
       rows: [{ id: eventId }],
     } = await client.query(
@@ -85,10 +82,11 @@ test("registers a death for an existing caravana from the dashboard lookup", asy
   await page.waitForURL(/\/dashboard/);
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-  await page.getByPlaceholder("Número de caravana").fill(DEATH_CANDIDATE_TAG);
-  await page.getByRole("button", { name: "Buscar" }).click();
+  const animalLookup = page.getByTestId("animal-lookup");
+  await animalLookup.getByPlaceholder("Número de caravana").fill(DEATH_CANDIDATE_TAG);
+  await animalLookup.getByRole("button", { name: "Buscar" }).click();
 
-  const deathLink = page.getByRole("link", { name: "Registrar muerte" });
+  const deathLink = animalLookup.getByRole("link", { name: "Registrar muerte" });
   await expect(deathLink).toBeVisible();
   await expect(deathLink).toHaveAttribute("href", `/activities/death?tag=${DEATH_CANDIDATE_TAG}`);
   await deathLink.click();

@@ -42,7 +42,7 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" data-testid="animal-lookup">
       <Label htmlFor="animal-lookup-tag">{translate(locale, "animalLookup.title")}</Label>
       <div className="flex gap-2">
         <Input
