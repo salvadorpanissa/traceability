@@ -4,7 +4,9 @@ directories:
   output: dist
 files:
   - main.js
-  - app-config.json
+extraResources:
+  - from: build-input
+    to: app
 win:
   target:
     - target: portable

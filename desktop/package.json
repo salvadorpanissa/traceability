@@ -5,11 +5,17 @@
   "description": "Portable desktop wrapper for the traceability web app",
   "main": "main.js",
   "scripts": {
+    "build:web": "npm --prefix ../web run build",
+    "stage": "node scripts/copy-standalone.js",
     "start": "electron .",
-    "package": "electron-builder"
+    "dist": "electron-builder",
+    "package": "npm run build:web && npm run stage && npm run dist"
   },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "get-port": "^5.1.1"
   }
 }

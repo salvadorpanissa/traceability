@@ -9,9 +9,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Produces .next/standalone/server.js, a minimal self-contained server —
-  // useful for container-based hosting (e.g. Railway/Docker) that doesn't
-  // run `next start` directly against the full node_modules tree.
+  // Produces .next/standalone/server.js, a minimal self-contained server used
+  // to package the app inside the Electron desktop build (see desktop/).
   output: "standalone",
   // Don't advertise the framework in responses.
   poweredByHeader: false,
