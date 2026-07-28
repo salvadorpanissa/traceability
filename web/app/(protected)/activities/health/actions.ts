@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
   computeHeaderSignature,
@@ -39,7 +40,7 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   const operatingFarmId = formData.get("farmId") as string;
   await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
 
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
   const eventDate = eventDateInput && eventDateInput.length > 0 ? eventDateInput : null;
   const mappingOverride = formData.get("mapping") as string | null;

@@ -1,6 +1,7 @@
 "use server";
 
 import { requireSession } from "@/lib/dal/session";
+import { requireFile } from "@/lib/dal/form-data";
 import { parseCledinorSettlement } from "@/lib/activities/cledinor-settlement-parsing";
 import { findSaleBatchByGuideNumber } from "@/lib/dal/sale-batch";
 import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
@@ -29,7 +30,7 @@ export type SettlementPreviewResult =
 
 export async function previewSaleSettlement(formData: FormData): Promise<SettlementPreviewResult> {
   const session = await requireSession();
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const buffer = await file.arrayBuffer();
 
   let settlement;
@@ -73,7 +74,7 @@ export async function previewSaleSettlement(formData: FormData): Promise<Settlem
 
 export async function linkSaleSettlementAction(formData: FormData): Promise<void> {
   const session = await requireSession();
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const buffer = await file.arrayBuffer();
 
   const settlement = await parseCledinorSettlement(buffer);

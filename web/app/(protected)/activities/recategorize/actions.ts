@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
+import { requireFile } from "@/lib/dal/form-data";
 import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
@@ -56,7 +57,7 @@ function maskRowsOutsideFarmAccess(
 export async function previewRecategorizeBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
 
-  const file = formData.get("file") as File;
+  const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
   const eventDate = eventDateInput && eventDateInput.length > 0 ? eventDateInput : null;
   const mappingOverride = formData.get("mapping") as string | null;

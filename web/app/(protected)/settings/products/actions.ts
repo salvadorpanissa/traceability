@@ -1,10 +1,17 @@
 "use server";
 
+import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
 import { createProduct, updateProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 
 export type ProductCatalogActionResult = { ok: true; entry: ProductCatalogEntry } | { ok: false; error: string };
+
+const productInputSchema = z.object({
+  name: z.string().trim().min(1),
+  defaultDoseUnit: z.string().trim().min(1).nullable(),
+  defaultWithdrawalDays: z.number().int().min(0).nullable(),
+});
 
 export async function createProductAction(input: {
   name: string;
@@ -12,10 +19,12 @@ export async function createProductAction(input: {
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   await requireSession();
+  const parsed = productInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createProduct(input.name, {
-      defaultDoseUnit: input.defaultDoseUnit,
-      defaultWithdrawalDays: input.defaultWithdrawalDays,
+    const entry = await createProduct(parsed.data.name, {
+      defaultDoseUnit: parsed.data.defaultDoseUnit,
+      defaultWithdrawalDays: parsed.data.defaultWithdrawalDays,
     });
     return { ok: true, entry };
   } catch (error) {
@@ -31,8 +40,10 @@ export async function updateProductAction(input: {
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   await requireSession();
+  const parsed = productInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await updateProduct(input.id, input);
+    const entry = await updateProduct(input.id, parsed.data);
     return { ok: true, entry };
   } catch (error) {
     if (isUniqueViolationError(error)) return { ok: false, error: "Ya existe un producto con ese nombre" };

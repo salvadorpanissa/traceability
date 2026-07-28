@@ -3,13 +3,17 @@ import { owner } from "./owner";
 
 export const animalSex = pgEnum("animal_sex", ["male", "female"]);
 
-export const animal = pgTable("animal", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  birthDate: date("birth_date"),
-  sex: animalSex("sex"),
-  ownerId: uuid("owner_id").references(() => owner.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const animal = pgTable(
+  "animal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    birthDate: date("birth_date"),
+    sex: animalSex("sex"),
+    ownerId: uuid("owner_id").references(() => owner.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("animal_owner_id_idx").on(table.ownerId)]
+);
 
 export const animalTagHistory = pgTable(
   "animal_tag_history",

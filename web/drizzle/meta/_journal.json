@@ -197,6 +197,13 @@
       "when": 1785200577923,
       "tag": "0027_new_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785241670339,
+      "tag": "0028_previous_lockjaw",
+      "breakpoints": true
     }
   ]
 }

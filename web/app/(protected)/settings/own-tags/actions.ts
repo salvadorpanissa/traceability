@@ -3,6 +3,7 @@
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
   computeHeaderSignature,
@@ -58,8 +59,7 @@ export async function previewOwnTagUpload(dicoseRegistrationId: string, formData
   const session = await requireSession();
   await requireDicoseRegistrationAccess(session, dicoseRegistrationId);
 
-  const file = formData.get("file") as File | null;
-  if (!file) throw new Error("Falta el archivo");
+  const file = requireFile(formData, "file");
   const mappingOverride = formData.get("mapping") as string | null;
 
   const buffer = await file.arrayBuffer();

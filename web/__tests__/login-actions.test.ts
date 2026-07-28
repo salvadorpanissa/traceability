@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const signInMock = vi.fn(async () => undefined);
+const isLoginLockedMock = vi.fn(async () => false);
+const recordFailedLoginMock = vi.fn(async () => undefined);
 
 vi.mock("@/auth", () => ({
   signIn: (...args: unknown[]) => signInMock(...args),
@@ -8,6 +10,11 @@ vi.mock("@/auth", () => ({
 
 vi.mock("next-auth", () => ({
   AuthError: class AuthError extends Error {},
+}));
+
+vi.mock("@/lib/dal/login-attempts", () => ({
+  isLoginLocked: (...args: unknown[]) => isLoginLockedMock(...args),
+  recordFailedLogin: (...args: unknown[]) => recordFailedLoginMock(...args),
 }));
 
 import { loginAction } from "@/app/login/actions";
@@ -23,6 +30,30 @@ function buildFormData(fields: Record<string, string>): FormData {
 describe("loginAction", () => {
   beforeEach(() => {
     signInMock.mockClear();
+    isLoginLockedMock.mockClear();
+    isLoginLockedMock.mockResolvedValue(false);
+    recordFailedLoginMock.mockClear();
+  });
+
+  it("rejects with a generic message when the account is locked, without attempting sign-in", async () => {
+    isLoginLockedMock.mockResolvedValue(true);
+    const formData = buildFormData({ email: "user@example.com", password: "correct-password" });
+
+    const result = await loginAction({ error: null }, formData);
+
+    expect(result.error).toBe("Demasiados intentos. Probá de nuevo en unos minutos.");
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("records a failed attempt when the credentials are wrong", async () => {
+    const { AuthError } = await import("next-auth");
+    signInMock.mockRejectedValueOnce(new AuthError("bad credentials"));
+    const formData = buildFormData({ email: "user@example.com", password: "wrong-password" });
+
+    const result = await loginAction({ error: null }, formData);
+
+    expect(result.error).toBe("Email o contraseña incorrectos");
+    expect(recordFailedLoginMock).toHaveBeenCalledWith("user@example.com");
   });
 
   it("falls back to /dashboard when returnTo is a protocol-relative URL", async () => {
