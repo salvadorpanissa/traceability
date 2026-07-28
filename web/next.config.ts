@@ -9,9 +9,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Produces .next/standalone/server.js, a minimal self-contained server used
-  // to package the app inside the Electron desktop build (see desktop/).
-  output: "standalone",
   // Don't advertise the framework in responses.
   poweredByHeader: false,
   async headers() {

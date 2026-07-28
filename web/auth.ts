@@ -11,10 +11,10 @@ import { userAccount, role } from "@/db/schema";
 const DUMMY_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8FoJHF9M5H0Y0GaTMd/lyOgP8gsC1O";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // The Electron desktop build (see desktop/) serves this app on
-  // 127.0.0.1 at a port chosen at runtime, so there's no fixed AUTH_URL to
-  // pin. Safe because that server is never reachable except from loopback.
-  trustHost: true,
+  // No trustHost here: this server is reachable from the internet at a
+  // fixed hosted URL, so the Host header must not be trusted blindly. Set
+  // AUTH_URL to that fixed URL in production; Vercel deployments detect it
+  // automatically instead.
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [

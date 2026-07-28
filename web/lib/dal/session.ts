@@ -15,9 +15,8 @@ export async function requireSession() {
     redirect("/login");
   }
 
-  // The desktop build ships its own DATABASE_URL/AUTH_SECRET on every
-  // install, so a leaked AUTH_SECRET must not be enough on its own to grant
-  // admin: re-derive the role from the DB on every request instead of
+  // If AUTH_SECRET is ever leaked, it must not be enough on its own to
+  // grant admin: re-derive the role from the DB on every request instead of
   // trusting whatever role the signed JWT claims. A forged token can still
   // impersonate a specific known user id, but can no longer just declare
   // itself admin.
