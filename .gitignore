@@ -1,9 +1,10 @@
 .DS_Store
 supabase/.branches
 supabase/.temp
-/docs
+/docs/*
 /.claude
 /.superpowers
 /graphify-out
 
 
+node_modules
