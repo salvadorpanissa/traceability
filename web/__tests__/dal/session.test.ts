@@ -17,8 +17,8 @@ describe("requireSession", () => {
     expect(session.user.id).toBe("user-1");
   });
 
-  it("throws when there is no session", async () => {
+  it("redirects to /login when there is no session", async () => {
     vi.mocked(auth).mockResolvedValue(null);
-    await expect(requireSession()).rejects.toThrow("No autenticado");
+    await expect(requireSession()).rejects.toThrow("NEXT_REDIRECT");
   });
 });

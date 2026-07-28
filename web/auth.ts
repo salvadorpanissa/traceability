@@ -11,6 +11,11 @@ import { userAccount, role } from "@/db/schema";
 const DUMMY_HASH = "$2b$10$CwTycUXWue0Thq9StjUM0uJ8FoJHF9M5H0Y0GaTMd/lyOgP8gsC1O";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // No trustHost here: this server is reachable from the internet at a
+  // fixed hosted URL (the desktop app is a thin browser shell pointed at
+  // it — see desktop/main.js — not a local server anymore), so the Host
+  // header must not be trusted blindly. Set AUTH_URL to that fixed URL in
+  // production; Vercel deployments detect it automatically instead.
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [

@@ -2,6 +2,7 @@
 
 import { asc } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { db } from "@/db";
 import { farm } from "@/db/schema";
 import { createDicoseRegistration, type DicoseRegistrationEntry } from "@/lib/dal/dicose-registration";
@@ -16,6 +17,7 @@ export async function createDicoseRegistrationAction(input: {
   farmId: string;
   dicoseCode: string;
 }): Promise<DicoseRegistrationEntry> {
-  await requireSession();
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
   return createDicoseRegistration(input);
 }

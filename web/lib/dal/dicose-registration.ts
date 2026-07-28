@@ -56,6 +56,14 @@ export async function createDicoseRegistration(input: {
   };
 }
 
+export async function getDicoseRegistrationFarmId(id: string): Promise<string | null> {
+  const [match] = await db
+    .select({ farmId: dicoseRegistration.farmId })
+    .from(dicoseRegistration)
+    .where(eq(dicoseRegistration.id, id));
+  return match?.farmId ?? null;
+}
+
 export async function findFarmByDicoseCode(dicoseCode: string): Promise<{ farmId: string; farmName: string } | null> {
   const [match] = await db
     .select({ farmId: dicoseRegistration.farmId, farmName: farm.name })
