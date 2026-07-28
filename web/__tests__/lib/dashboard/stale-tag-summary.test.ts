@@ -96,4 +96,43 @@ describe("findStaleTags", () => {
     const rows = await findStaleTags(manager.id, "manager", 100);
     expect(rows.map((r) => r.currentTag)).not.toContain("AR000000000924");
   });
+
+  it("resolves currentTag from animal_tag_history, not from retag events", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    // Create an animal with only tag history and a transfer event (no retag event)
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    const tag = "AR000000000925";
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+
+    // Only create a transfer event, not a retag event
+    const [transferBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const eventDate = daysAgoISODate(150);
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate,
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: transferBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({
+      eventId: transferEvent.id,
+      originFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      originPaddockId: null,
+      destinationPaddockId: null,
+    });
+
+    await refreshDerivedState();
+
+    const rows = await findStaleTags(manager.id, "manager", 100);
+    expect(rows.map((r) => r.currentTag)).toContain(tag);
+    expect(rows.find((r) => r.animalId === createdAnimal.id)?.currentTag).toBe(tag);
+  });
 });

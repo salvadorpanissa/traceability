@@ -55,7 +55,7 @@ export async function findStaleTags(
     with candidate as (
       select
         acs.animal_id,
-        acs.current_tag,
+        cur_tag.tag as current_tag,
         f.name as farm_name,
         p.name as paddock_name,
         le.event_type as last_event_type,
@@ -64,6 +64,13 @@ export async function findStaleTags(
       join animal a on a.id = acs.animal_id
       left join farm f on f.id = acs.current_farm_id
       left join paddock p on p.id = acs.current_paddock_id
+      left join lateral (
+        select ath.tag
+        from animal_tag_history ath
+        where ath.animal_id = acs.animal_id
+        order by ath.valid_from desc
+        limit 1
+      ) cur_tag on true
       left join lateral (
         select e.event_type, e.event_date
         from event e
