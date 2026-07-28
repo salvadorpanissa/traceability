@@ -97,6 +97,83 @@ describe("findStaleTags", () => {
     expect(rows.map((r) => r.currentTag)).not.toContain("AR000000000924");
   });
 
+  it("excludes an event annulled by a void from counting as the last observation", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    const tag = "AR000000000926";
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+
+    // An old transfer establishes the animal on the farm well past the threshold.
+    const [oldBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const [oldTransferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: daysAgoISODate(150),
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: oldBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({
+      eventId: oldTransferEvent.id,
+      originFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      originPaddockId: null,
+      destinationPaddockId: null,
+    });
+
+    // A recent transfer would (incorrectly) make the animal look recently observed.
+    const [recentBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const [recentTransferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: daysAgoISODate(5),
+        animalId: createdAnimal.id,
+        farmId: seededFarm.id,
+        batchOperationId: recentBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({
+      eventId: recentTransferEvent.id,
+      originFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      originPaddockId: null,
+      destinationPaddockId: null,
+    });
+
+    // Void the recent transfer — it should no longer count as the last real observation.
+    const [voidBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "void", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    await testDb.insert(event).values({
+      eventType: "void",
+      eventDate: daysAgoISODate(1),
+      animalId: createdAnimal.id,
+      farmId: seededFarm.id,
+      batchOperationId: voidBatch.id,
+      createdBy: manager.id,
+      voidsEventId: recentTransferEvent.id,
+    });
+
+    await refreshDerivedState();
+
+    const rows = await findStaleTags(manager.id, "manager", 100);
+    const row = rows.find((r) => r.animalId === createdAnimal.id);
+    expect(row).toBeDefined();
+    expect(row?.daysSinceLastEvent).toBeGreaterThanOrEqual(150);
+  });
+
   it("resolves currentTag from animal_tag_history, not from retag events", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     // Create an animal with only tag history and a transfer event (no retag event)

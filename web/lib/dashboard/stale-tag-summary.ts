@@ -74,7 +74,9 @@ export async function findStaleTags(
       left join lateral (
         select e.event_type, e.event_date
         from event e
-        where e.animal_id = acs.animal_id and e.event_type <> 'void'
+        where e.animal_id = acs.animal_id
+          and e.event_type <> 'void'
+          and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = e.id)
         order by e.event_date desc, e.created_at desc
         limit 1
       ) le on true
