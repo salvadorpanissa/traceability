@@ -139,6 +139,31 @@ describe("linkSaleSettlement", () => {
     expect(updatedSale.weightKg).toBeNull();
   });
 
+  it("rejects a second liquidación for a venta that is already linked", async () => {
+    const { manager, batch } = await seedManagerFarmAndSale({ buyer: null, price: null, weightKg: null });
+    const base = {
+      userId: manager.id,
+      role: "manager",
+      guideNumber: "D963691",
+      frigorifico: "Cledinor S.A.",
+      weighDate: "2026-07-11",
+      totalAmount: "23396.21",
+      weightKg: "255.52",
+      pricePerKg: "5.2189",
+      guideDocument: { fileName: "liquidacion.pdf", mimeType: "application/pdf", data: Buffer.from("fake-pdf") },
+    };
+
+    await linkSaleSettlement(base);
+
+    await expect(linkSaleSettlement({ ...base, totalAmount: "999.99" })).rejects.toThrow(
+      "ya tiene una liquidación vinculada"
+    );
+
+    const rows = await testDb.select().from(saleSettlement).where(eq(saleSettlement.batchOperationId, batch.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].totalAmount).toBe("23396.21");
+  });
+
   it("rejects when no venta has that guide number", async () => {
     const { manager } = await seedManagerFarmAndSale({ buyer: null, price: null, weightKg: null });
 

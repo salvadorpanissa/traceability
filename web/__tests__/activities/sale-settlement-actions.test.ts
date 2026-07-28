@@ -91,6 +91,42 @@ describe("previewSaleSettlement", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("does not disclose a venta at a campo the user has no access to", async () => {
+    const { manager } = await seedManagerFarmAndSale();
+    // A second campo the manager is NOT assigned to, with its own venta.
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Ajeno" }).returning();
+    const [otherBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "sale", farmId: otherFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    const [otherAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: otherAnimal.id, tag: "858000099999999" });
+    const [otherEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "sale",
+        eventDate: "2026-07-12",
+        animalId: otherAnimal.id,
+        farmId: otherFarm.id,
+        batchOperationId: otherBatch.id,
+        createdBy: manager.id,
+      })
+      .returning();
+    await testDb.insert(eventSale).values({ eventId: otherEvent.id, guideNumber: "D777777", buyer: "Cledinor S.A.", price: "5.27", weightKg: "260" });
+
+    vi.mocked(parseCledinorSettlement).mockResolvedValue(fakeSettlement({ guideNumber: "D777777" }));
+    const formData = new FormData();
+    formData.set("file", new Blob([Buffer.from("fake")]), "liquidacion.pdf");
+
+    const result = await previewSaleSettlement(formData);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).not.toContain("Campo Ajeno");
+      expect(result.error).not.toContain("858000099999999");
+    }
+  });
+
   it("surfaces the parser's error when the PDF isn't a recognizable liquidación", async () => {
     await seedManagerFarmAndSale();
     vi.mocked(parseCledinorSettlement).mockRejectedValue(new Error("No se encontró el número de guía en la liquidación"));

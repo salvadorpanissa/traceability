@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { event, eventSale, batchOperation, farm, animalTagHistory } from "@/db/schema";
 
@@ -13,7 +13,22 @@ export type SaleBatchMatch = {
   weightKg: string | null;
 };
 
-export async function findSaleBatchByGuideNumber(guideNumber: string): Promise<SaleBatchMatch | null> {
+// The search is always scoped to the campos the caller can actually see: an
+// admin passes "all", a manager passes their user_farm ids. A venta at a campo
+// the caller has no access to is invisible to the query, so it returns the same
+// null as a guide number that doesn't exist anywhere — no cross-campo leak, and
+// no two campos locking each other out over a reused guide number.
+export async function findSaleBatchByGuideNumber(
+  guideNumber: string,
+  accessibleFarmIds: string[] | "all"
+): Promise<SaleBatchMatch | null> {
+  if (accessibleFarmIds !== "all" && accessibleFarmIds.length === 0) return null;
+
+  const scope =
+    accessibleFarmIds === "all"
+      ? eq(eventSale.guideNumber, guideNumber)
+      : and(eq(eventSale.guideNumber, guideNumber), inArray(batchOperation.farmId, accessibleFarmIds));
+
   const rows = await db
     .select({
       batchOperationId: event.batchOperationId,
@@ -25,7 +40,8 @@ export async function findSaleBatchByGuideNumber(guideNumber: string): Promise<S
     })
     .from(eventSale)
     .innerJoin(event, eq(event.id, eventSale.eventId))
-    .where(eq(eventSale.guideNumber, guideNumber));
+    .innerJoin(batchOperation, eq(batchOperation.id, event.batchOperationId))
+    .where(scope);
 
   if (rows.length === 0) return null;
 

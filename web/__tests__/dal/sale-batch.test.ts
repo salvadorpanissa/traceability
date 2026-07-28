@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, animal, animalTagHistory, batchOperation, event, eventSale } from "@/db/schema";
+import { role, farm, userAccount, userFarm, animal, animalTagHistory, batchOperation, event, eventSale } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
@@ -45,7 +45,7 @@ async function seedSaleEvent(
 
 describe("findSaleBatchByGuideNumber", () => {
   it("returns null when no sale has that guide number", async () => {
-    const result = await findSaleBatchByGuideNumber("D000000");
+    const result = await findSaleBatchByGuideNumber("D000000", "all");
     expect(result).toBeNull();
   });
 
@@ -58,7 +58,7 @@ describe("findSaleBatchByGuideNumber", () => {
     await seedSaleEvent(seededFarm.id, user.id, batch.id, "TAG001", "D963691", "Cledinor S.A.", "5.27", "260", "2026-07-11");
     await seedSaleEvent(seededFarm.id, user.id, batch.id, "TAG002", "D963691", "Cledinor S.A.", "5.27", "260", "2026-07-11");
 
-    const result = await findSaleBatchByGuideNumber("D963691");
+    const result = await findSaleBatchByGuideNumber("D963691", "all");
 
     expect(result).not.toBeNull();
     expect(result!.batchOperationId).toBe(batch.id);
@@ -78,7 +78,7 @@ describe("findSaleBatchByGuideNumber", () => {
       .returning();
     await seedSaleEvent(seededFarm.id, user.id, batch.id, "TAG003", "D111111", null, null, null, "2026-07-11");
 
-    const result = await findSaleBatchByGuideNumber("D111111");
+    const result = await findSaleBatchByGuideNumber("D111111", "all");
 
     expect(result!.buyer).toBeNull();
     expect(result!.price).toBeNull();
@@ -98,6 +98,26 @@ describe("findSaleBatchByGuideNumber", () => {
     await seedSaleEvent(seededFarm.id, user.id, batchA.id, "TAG004", "D222222", null, null, null, "2026-07-11");
     await seedSaleEvent(seededFarm.id, user.id, batchB.id, "TAG005", "D222222", null, null, null, "2026-07-12");
 
-    await expect(findSaleBatchByGuideNumber("D222222")).rejects.toThrow("Hay más de una venta");
+    await expect(findSaleBatchByGuideNumber("D222222", "all")).rejects.toThrow("Hay más de una venta");
+  });
+
+  it("does not find a venta at a campo outside the accessible farm ids", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [farmA] = await testDb.insert(farm).values({ name: "Campo A" }).returning();
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmA.id });
+
+    const [batchB] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "sale", farmId: farmB.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    await seedSaleEvent(farmB.id, manager.id, batchB.id, "TAG006", "D999999", null, null, null, "2026-07-11");
+
+    expect(await findSaleBatchByGuideNumber("D999999", [farmA.id])).toBeNull();
+    expect(await findSaleBatchByGuideNumber("D999999", "all")).not.toBeNull();
   });
 });

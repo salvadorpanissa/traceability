@@ -41,6 +41,8 @@ describe("SaleSettlementForm", () => {
     await waitFor(() => expect(screen.getByText("San Antonio")).toBeInTheDocument());
     expect(screen.getByText("D963691")).toBeInTheDocument();
     expect(screen.getByText("858000064429766")).toBeInTheDocument();
+    expect(screen.getByText("Cledinor S.A. (se va a completar)")).toBeInTheDocument();
+    expect(screen.getByText("5.2189 (se va a completar)")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /vincular/i }));
 

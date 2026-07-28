@@ -10,6 +10,17 @@ import {
   type SettlementPreviewResult,
 } from "@/app/(protected)/activities/sale-settlement/actions";
 
+const FRIGORIFICO = "Cledinor S.A.";
+
+// What the confirm step is about to do with a field on the venta: leave the
+// existing value alone, fill in the blank with the liquidación's value, or
+// leave it blank because the liquidación couldn't determine one.
+function describeBackfill(current: string | null, fromSettlement: string | null): string {
+  if (current !== null) return `${current} (ya cargado, no se modifica)`;
+  if (fromSettlement !== null) return `${fromSettlement} (se va a completar)`;
+  return "no se pudo determinar (varias categorías en la liquidación)";
+}
+
 export function SaleSettlementForm() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<SettlementPreviewResult | null>(null);
@@ -86,6 +97,14 @@ export function SaleSettlementForm() {
             <dd>{preview.total}</dd>
             <dt className="text-muted-foreground">Campo</dt>
             <dd>{preview.match.farmName}</dd>
+            <dt className="text-muted-foreground">Fecha de la venta</dt>
+            <dd>{preview.match.eventDate}</dd>
+            <dt className="text-muted-foreground">Comprador</dt>
+            <dd>{describeBackfill(preview.match.buyer, FRIGORIFICO)}</dd>
+            <dt className="text-muted-foreground">Precio</dt>
+            <dd>{describeBackfill(preview.match.price, preview.pricePerKg)}</dd>
+            <dt className="text-muted-foreground">Peso</dt>
+            <dd>{describeBackfill(preview.match.weightKg, preview.weightKg)}</dd>
             <dt className="text-muted-foreground">Caravanas</dt>
             <dd className="flex flex-wrap gap-x-2 gap-y-1">
               {preview.match.animalTags.map((tag) => (

@@ -3,6 +3,7 @@
 import { requireSession } from "@/lib/dal/session";
 import { parseCledinorSettlement } from "@/lib/activities/cledinor-settlement-parsing";
 import { findSaleBatchByGuideNumber } from "@/lib/dal/sale-batch";
+import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
 import { linkSaleSettlement } from "@/lib/activities/sale-settlement";
 
 const FRIGORIFICO = "Cledinor S.A.";
@@ -27,7 +28,7 @@ export type SettlementPreviewResult =
     };
 
 export async function previewSaleSettlement(formData: FormData): Promise<SettlementPreviewResult> {
-  await requireSession();
+  const session = await requireSession();
   const file = formData.get("file") as File;
   const buffer = await file.arrayBuffer();
 
@@ -38,9 +39,13 @@ export async function previewSaleSettlement(formData: FormData): Promise<Settlem
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo leer el PDF" };
   }
 
+  // Scope the lookup to the caller's campos so a venta they can't access is
+  // simply not found, rather than previewed back to them.
+  const accessibleFarmIds = isAdmin(session.user.role) ? "all" : await userFarmIds(session.user.id);
+
   let match;
   try {
-    match = await findSaleBatchByGuideNumber(settlement.guideNumber);
+    match = await findSaleBatchByGuideNumber(settlement.guideNumber, accessibleFarmIds);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo buscar la venta" };
   }
