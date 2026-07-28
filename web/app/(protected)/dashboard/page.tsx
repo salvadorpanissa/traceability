@@ -10,8 +10,11 @@ import { StatCards } from "@/components/dashboard/stat-cards";
 import { RecentHealthEvents } from "@/components/dashboard/recent-health-events";
 import { AnimalLookup } from "@/components/dashboard/animal-lookup";
 import { NaturalLanguageQuery } from "@/components/dashboard/natural-language-query";
+import { findStaleTags } from "@/lib/dashboard/stale-tag-summary";
+import { StaleTagAlerts } from "@/components/dashboard/stale-tag-alerts";
 
 const RECENT_HEALTH_MONTHS = 3;
+const DEFAULT_STALE_TAG_THRESHOLD_DAYS = 100;
 
 function monthsAgoISODate(months: number, from: Date = new Date()): string {
   const date = new Date(from);
@@ -24,7 +27,7 @@ export default async function DashboardPage() {
   const locale = parseLocaleCookie(cookieStore.get("locale")?.value);
 
   const session = await requireSession();
-  const [rows, healthBatches, healthEventsThisMonth] = await Promise.all([
+  const [rows, healthBatches, healthEventsThisMonth, staleTags] = await Promise.all([
     visibleCurrentStateWithNames(session.user.id, session.user.role),
     visibleHealthBatchesSince(
       session.user.id,
@@ -32,6 +35,7 @@ export default async function DashboardPage() {
       monthsAgoISODate(RECENT_HEALTH_MONTHS)
     ),
     countDistinctAnimalsTreatedThisMonth(session.user.id, session.user.role),
+    findStaleTags(session.user.id, session.user.role, DEFAULT_STALE_TAG_THRESHOLD_DAYS),
   ]);
 
   const alive = rows.filter((r) => r.status === "alive");
@@ -70,6 +74,14 @@ export default async function DashboardPage() {
           </div>
           <div>
             <AnimalLookup locale={locale} />
+          </div>
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.staleTagsTitle")}</h2>
+            <StaleTagAlerts
+              initialRows={staleTags}
+              initialThreshold={DEFAULT_STALE_TAG_THRESHOLD_DAYS}
+              locale={locale}
+            />
           </div>
         </div>
       </div>
