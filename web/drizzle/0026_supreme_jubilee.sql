@@ -1,0 +1,1 @@
+ALTER TABLE "event_sale" ADD COLUMN "guide_number" text;

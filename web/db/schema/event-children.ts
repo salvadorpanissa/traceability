@@ -75,6 +75,7 @@ export const eventSale = pgTable("event_sale", {
   buyer: text("buyer"),
   price: numeric("price"),
   weightKg: numeric("weight_kg"),
+  guideNumber: text("guide_number"),
 });
 
 export const eventDeath = pgTable("event_death", {

@@ -183,6 +183,13 @@
       "when": 1784991673894,
       "tag": "0025_shiny_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785193605397,
+      "tag": "0026_supreme_jubilee",
+      "breakpoints": true
     }
   ]
 }

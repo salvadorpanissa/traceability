@@ -104,6 +104,15 @@ describe("event_sale table", () => {
     expect(row.price).toBeNull();
     expect(row.weightKg).toBeNull();
   });
+
+  it("stores an optional guide number", async () => {
+    const { createdEvent } = await seedEvent("sale");
+    const [row] = await testDb
+      .insert(eventSale)
+      .values({ eventId: createdEvent.id, guideNumber: "D963691" })
+      .returning();
+    expect(row.guideNumber).toBe("D963691");
+  });
 });
 
 describe("event_death table", () => {
