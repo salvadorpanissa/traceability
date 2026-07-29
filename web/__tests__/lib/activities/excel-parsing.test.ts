@@ -35,4 +35,16 @@ describe("parseExcelFile", () => {
     expect(headers).toEqual(["IDE"]);
     expect(rows).toEqual([]);
   });
+
+  it("formats a real Excel date cell as an ISO date instead of a locale-formatted string", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Sheet1");
+    sheet.addRow(["IDE", "Fecha alta"]);
+    sheet.addRow(["123456789012345", new Date("2026-06-11T00:00:00.000Z")]);
+    const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+
+    const { rows } = await parseExcelFile(buffer);
+
+    expect(rows[0][1]).toBe("2026-06-11");
+  });
 });

@@ -5,6 +5,18 @@ export type ParsedExcel = {
   rows: string[][];
 };
 
+// Excel/ExcelJS store date-only values as a UTC-midnight Date instance —
+// `cell.text` instead formats that Date using the *host machine's* local
+// timezone, which silently shifts the calendar day (and produces a string
+// no date parser in this codebase recognizes). Reading `cell.value`
+// directly and taking its UTC calendar date sidesteps both problems.
+function cellText(cell: ExcelJS.Cell): string {
+  if (cell.value instanceof Date) {
+    return cell.value.toISOString().slice(0, 10);
+  }
+  return cell.text.trim();
+}
+
 export async function parseExcelFile(buffer: ArrayBuffer): Promise<ParsedExcel> {
   const workbook = new ExcelJS.Workbook();
   // exceljs bundles its own (older) @types/node transitively via @fast-csv/*,
@@ -31,7 +43,7 @@ export async function parseExcelFile(buffer: ArrayBuffer): Promise<ParsedExcel> 
     if (row.cellCount === 0) continue;
     const values: string[] = [];
     for (let col = 1; col <= headers.length; col++) {
-      values.push(row.getCell(col).text.trim());
+      values.push(cellText(row.getCell(col)));
     }
     rows.push(values);
   }
