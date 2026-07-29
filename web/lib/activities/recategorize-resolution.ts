@@ -12,6 +12,8 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      secondaryTag?: string | null;
+      breed?: string | null;
       status: "existing";
       animalId: string;
       currentFarmId: string;
@@ -23,6 +25,8 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      secondaryTag?: string | null;
+      breed?: string | null;
       status: "age-resolved";
       animalId: string;
       currentFarmId: string;
@@ -33,12 +37,22 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      secondaryTag?: string | null;
+      breed?: string | null;
       status: "age-unresolvable";
       animalId: string;
       currentFarmId: string;
       sex: "male" | "female" | null;
     }
-  | { tag: string; eventDate: string; notes: string | null; status: "error"; reason: string };
+  | {
+      tag: string;
+      eventDate: string;
+      notes: string | null;
+      secondaryTag?: string | null;
+      breed?: string | null;
+      status: "error";
+      reason: string;
+    };
 
 function resolveEventDate(rowDate: string | null, formEventDate: string | null): string | null {
   if (rowDate) {
@@ -67,6 +81,12 @@ export async function resolveRecategorizeBatchRows(
     tagCounts.set(row.tag, (tagCounts.get(row.tag) ?? 0) + 1);
   }
 
+  const secondaryTagCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.secondaryTag) continue;
+    secondaryTagCounts.set(row.secondaryTag, (secondaryTagCounts.get(row.secondaryTag) ?? 0) + 1);
+  }
+
   const nonEmptyTags = rows.map((r) => r.tag).filter((tag) => tag.length > 0);
   const tagHistoryRows =
     nonEmptyTags.length > 0
@@ -76,6 +96,18 @@ export async function resolveRecategorizeBatchRows(
           .where(inArray(animalTagHistory.tag, nonEmptyTags))
       : [];
   const animalIdByTag = new Map(tagHistoryRows.map((r) => [r.tag, r.animalId]));
+
+  const nonEmptySecondaryTags = rows.map((r) => r.secondaryTag).filter((v): v is string => !!v);
+  const secondaryTagHistoryRows =
+    nonEmptySecondaryTags.length > 0
+      ? await db
+          .select({ secondaryTag: animalTagHistory.secondaryTag, animalId: animalTagHistory.animalId })
+          .from(animalTagHistory)
+          .where(inArray(animalTagHistory.secondaryTag, nonEmptySecondaryTags))
+      : [];
+  const animalIdBySecondaryTag = new Map(
+    secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
+  );
 
   const ageManagedCategories = await db
     .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
@@ -87,23 +119,54 @@ export async function resolveRecategorizeBatchRows(
   for (const row of rows) {
     const eventDate = resolveEventDate(row.date, formEventDate);
     const notes = row.notes;
+    const secondaryTag = row.secondaryTag ?? null;
+    const breed = row.breed ?? null;
 
     if (!eventDate) {
-      result.push({ tag: row.tag, eventDate: "", notes, status: "error", reason: "Falta la fecha" });
+      result.push({ tag: row.tag, eventDate: "", notes, secondaryTag, breed, status: "error", reason: "Falta la fecha" });
       continue;
     }
     if (!row.tag) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Falta la caravana" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Falta la caravana" });
       continue;
     }
     if ((tagCounts.get(row.tag) ?? 0) > 1) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana duplicada en el archivo" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana duplicada en el archivo" });
+      continue;
+    }
+    if (secondaryTag && (secondaryTagCounts.get(secondaryTag) ?? 0) > 1) {
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        secondaryTag,
+        breed,
+        status: "error",
+        reason: "Chip secundario duplicado en el archivo",
+      });
       continue;
     }
 
     const animalId = animalIdByTag.get(row.tag);
+
+    if (secondaryTag) {
+      const secondaryTagOwnerId = animalIdBySecondaryTag.get(secondaryTag);
+      if (secondaryTagOwnerId && secondaryTagOwnerId !== animalId) {
+        result.push({
+          tag: row.tag,
+          eventDate,
+          notes,
+          secondaryTag,
+          breed,
+          status: "error",
+          reason: "Chip secundario ya asignado a otro animal",
+        });
+        continue;
+      }
+    }
+
     if (!animalId) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana no encontrada" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana no encontrada" });
       continue;
     }
 
@@ -118,11 +181,11 @@ export async function resolveRecategorizeBatchRows(
     const state = stateResult.rows[0];
 
     if (!state || state.status !== "alive") {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal está vendido o muerto" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
       continue;
     }
     if (!state.current_farm_id) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal no tiene campo asignado" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
       continue;
     }
 
@@ -135,6 +198,8 @@ export async function resolveRecategorizeBatchRows(
             tag: row.tag,
             eventDate,
             notes,
+            secondaryTag,
+            breed,
             status: "age-resolved",
             animalId,
             currentFarmId: state.current_farm_id,
@@ -148,6 +213,8 @@ export async function resolveRecategorizeBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        secondaryTag,
+        breed,
         status: "age-unresolvable",
         animalId,
         currentFarmId: state.current_farm_id,
@@ -160,6 +227,8 @@ export async function resolveRecategorizeBatchRows(
       tag: row.tag,
       eventDate,
       notes,
+      secondaryTag,
+      breed,
       status: "existing",
       animalId,
       currentFarmId: state.current_farm_id,

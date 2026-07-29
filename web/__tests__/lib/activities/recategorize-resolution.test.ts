@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
@@ -126,6 +127,8 @@ describe("resolveRecategorizeBatchRows", () => {
         tag: "AR1",
         eventDate: "2026-03-01",
         notes: null,
+        secondaryTag: null,
+        breed: null,
         status: "existing",
         animalId: expect.any(String),
         currentFarmId: seededFarm.id,
@@ -170,14 +173,24 @@ describe("resolveRecategorizeBatchRows", () => {
 
     const result = await resolveRecategorizeBatchRows([row({ tag: "AR1", date: null })], null);
 
-    expect(result).toEqual([{ tag: "AR1", eventDate: "", notes: null, status: "error", reason: "Falta la fecha" }]);
+    expect(result).toEqual([
+      { tag: "AR1", eventDate: "", notes: null, secondaryTag: null, breed: null, status: "error", reason: "Falta la fecha" },
+    ]);
   });
 
   it("errors on a missing tag", async () => {
     const result = await resolveRecategorizeBatchRows([row({ tag: "", date: "2026-03-01" })], null);
 
     expect(result).toEqual([
-      { tag: "", eventDate: "2026-03-01", notes: null, status: "error", reason: "Falta la caravana" },
+      {
+        tag: "",
+        eventDate: "2026-03-01",
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+        status: "error",
+        reason: "Falta la caravana",
+      },
     ]);
   });
 
@@ -194,7 +207,15 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows([row({ tag: "AR-NOPE", date: "2026-03-01" })], null);
 
     expect(result).toEqual([
-      { tag: "AR-NOPE", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" },
+      {
+        tag: "AR-NOPE",
+        eventDate: "2026-03-01",
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+        status: "error",
+        reason: "Caravana no encontrada",
+      },
     ]);
   });
 
@@ -337,5 +358,53 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows([row({ tag: "AR1", date: "2026-03-01" })], null);
 
     expect(result[0]).toMatchObject({ status: "age-unresolvable", sex: "female" });
+  });
+
+  it("carries breed and secondaryTag through for an existing, already-categorized animal", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    await seedAnimalAtFarm({ farmId: seededFarm.id, adminId: admin.id, tag: "AR2", categoryId: novillo.id });
+
+    const result = await resolveRecategorizeBatchRows(
+      [row({ tag: "AR2", date: "2026-03-01", breed: "Angus", secondaryTag: "CHIP-AR2" })],
+      null
+    );
+
+    expect(result[0]).toMatchObject({ status: "existing", breed: "Angus", secondaryTag: "CHIP-AR2" });
+  });
+
+  it("errors both rows of a duplicated secondaryTag within the same file", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    await seedAnimalAtFarm({ farmId: seededFarm.id, adminId: admin.id, tag: "AR3", categoryId: novillo.id });
+    await seedAnimalAtFarm({ farmId: seededFarm.id, adminId: admin.id, tag: "AR4", categoryId: novillo.id });
+
+    const result = await resolveRecategorizeBatchRows(
+      [
+        row({ tag: "AR3", date: "2026-03-01", secondaryTag: "CHIP-DUP" }),
+        row({ tag: "AR4", date: "2026-03-01", secondaryTag: "CHIP-DUP" }),
+      ],
+      null
+    );
+
+    expect(result[0]).toMatchObject({ status: "error", reason: "Chip secundario duplicado en el archivo" });
+    expect(result[1]).toMatchObject({ status: "error", reason: "Chip secundario duplicado en el archivo" });
+  });
+
+  it("errors a row whose secondaryTag already belongs to a different animal", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    await seedAnimalAtFarm({ farmId: seededFarm.id, adminId: admin.id, tag: "AR5", categoryId: novillo.id });
+    await seedAnimalAtFarm({ farmId: seededFarm.id, adminId: admin.id, tag: "AR6", categoryId: novillo.id });
+
+    const [ar5Tag] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR5"));
+    await testDb.update(animalTagHistory).set({ secondaryTag: "CHIP-TAKEN" }).where(eq(animalTagHistory.id, ar5Tag.id));
+
+    const result = await resolveRecategorizeBatchRows(
+      [row({ tag: "AR6", date: "2026-03-01", secondaryTag: "CHIP-TAKEN" })],
+      null
+    );
+
+    expect(result[0]).toMatchObject({ status: "error", reason: "Chip secundario ya asignado a otro animal" });
   });
 });
