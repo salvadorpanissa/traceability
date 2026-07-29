@@ -47,6 +47,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [mode, setMode] = useState<"excel" | "pdf">("excel");
+  const [paddockLoadError, setPaddockLoadError] = useState("");
 
   async function handleDestinationFarmChange(farmId: string) {
     setDestinationFarmId(farmId);
@@ -54,11 +55,17 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     setEventDate("");
     setPreview(null);
     setRows([]);
+    setPaddockLoadError("");
     if (!farmId) {
       setPaddocks([]);
       return;
     }
-    setPaddocks(await listPaddocksAction(farmId));
+    try {
+      setPaddocks(await listPaddocksAction(farmId));
+    } catch (err) {
+      setPaddocks([]);
+      setPaddockLoadError(err instanceof Error ? err.message : "No se pudieron cargar los potreros");
+    }
   }
 
   function handleFileChange(selected: File | null) {
@@ -162,6 +169,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
               ))}
             </select>
           </div>
+          {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
           {destinationFarmId ? (
             <PaddockSelector
               paddocks={paddocks}
