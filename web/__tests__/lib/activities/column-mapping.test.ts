@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeHeaderSignature,
   applyColumnMapping,
+  applyOwnTagColumnMapping,
   extractProductColumnValues,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
@@ -33,8 +34,26 @@ describe("applyColumnMapping", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: "2026-01-15", category: null, sex: null, ownerName: null, notes: null },
-      { tag: "223456789012345", date: "", category: null, sex: null, ownerName: null, notes: null },
+      {
+        tag: "123456789012345",
+        date: "2026-01-15",
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+      },
+      {
+        tag: "223456789012345",
+        date: "",
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+      },
     ]);
   });
 
@@ -58,7 +77,16 @@ describe("applyColumnMapping with sex and owner columns", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: null, category: null, sex: "M", ownerName: "Pérez", notes: null },
+      {
+        tag: "123456789012345",
+        date: null,
+        category: null,
+        sex: "M",
+        ownerName: "Pérez",
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+      },
     ]);
   });
 
@@ -70,7 +98,16 @@ describe("applyColumnMapping with sex and owner columns", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: null, category: null, sex: null, ownerName: null, notes: null },
+      {
+        tag: "123456789012345",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        secondaryTag: null,
+        breed: null,
+      },
     ]);
   });
 });
@@ -87,7 +124,16 @@ describe("applyColumnMapping with a notes column", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result).toEqual([
-      { tag: "123456789012345", date: null, category: null, sex: null, ownerName: null, notes: "Cojera leve" },
+      {
+        tag: "123456789012345",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: "Cojera leve",
+        secondaryTag: null,
+        breed: null,
+      },
     ]);
   });
 
@@ -99,6 +145,61 @@ describe("applyColumnMapping with a notes column", () => {
     const result = applyColumnMapping(headers, rows, mapping);
 
     expect(result[0].notes).toBeNull();
+  });
+});
+
+describe("applyColumnMapping with secondaryTag and breed columns", () => {
+  it("maps secondary tag and breed columns", () => {
+    const headers = ["IDE", "CHIP2", "RAZA"];
+    const rows = [["123456789012345", "CHIP-001", "Angus"]];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "CHIP2", meaning: "secondaryTag" },
+      { header: "RAZA", meaning: "breed" },
+    ];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result).toEqual([
+      {
+        tag: "123456789012345",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        secondaryTag: "CHIP-001",
+        breed: "Angus",
+      },
+    ]);
+  });
+
+  it("leaves secondaryTag and breed null when their columns aren't mapped", () => {
+    const headers = ["IDE"];
+    const rows = [["123456789012345"]];
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result[0].secondaryTag).toBeNull();
+    expect(result[0].breed).toBeNull();
+  });
+});
+
+describe("applyOwnTagColumnMapping with secondaryTag and breed columns", () => {
+  it("maps secondary tag and breed columns", () => {
+    const headers = ["IDE", "CHIP2", "RAZA"];
+    const rows = [["300", "CHIP-002", "Braford"]];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "CHIP2", meaning: "secondaryTag" },
+      { header: "RAZA", meaning: "breed" },
+    ];
+
+    const result = applyOwnTagColumnMapping(headers, rows, mapping);
+
+    expect(result[0].secondaryTag).toBe("CHIP-002");
+    expect(result[0].breed).toBe("Braford");
   });
 });
 
