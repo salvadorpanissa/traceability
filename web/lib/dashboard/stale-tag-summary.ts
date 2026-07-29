@@ -39,8 +39,10 @@ const RESULT_LIMIT = 10;
 /**
  * Alive animals with no non-void event in at least `thresholdDays` — a
  * candidate for an unreported death (or any other event nobody logged).
- * `lastEventDate` falls back to the animal's `created_at` when it has no
- * events at all yet.
+ * `lastEventDate` falls back to the earliest `valid_from` in the animal's
+ * `animal_tag_history` when it has no events at all yet — that row is
+ * written in the same transaction as the animal itself (see
+ * `createNewAnimal`), so it's the earliest system timestamp we have for it.
  */
 export async function findStaleTags(
   userId: string,
@@ -59,9 +61,8 @@ export async function findStaleTags(
         f.name as farm_name,
         p.name as paddock_name,
         le.event_type as last_event_type,
-        coalesce(le.event_date, a.created_at::date) as last_event_date
+        coalesce(le.event_date, earliest_tag.valid_from::date) as last_event_date
       from animal_current_state acs
-      join animal a on a.id = acs.animal_id
       left join farm f on f.id = acs.current_farm_id
       left join paddock p on p.id = acs.current_paddock_id
       left join lateral (
@@ -71,6 +72,13 @@ export async function findStaleTags(
         order by ath.valid_from desc
         limit 1
       ) cur_tag on true
+      left join lateral (
+        select ath.valid_from
+        from animal_tag_history ath
+        where ath.animal_id = acs.animal_id
+        order by ath.valid_from asc
+        limit 1
+      ) earliest_tag on true
       left join lateral (
         select e.event_type, e.event_date
         from event e
