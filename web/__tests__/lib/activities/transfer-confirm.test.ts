@@ -9,6 +9,7 @@ import {
   userFarm,
   paddock,
   category,
+  animal,
   animalTagHistory,
   batchOperation,
   event,
@@ -551,5 +552,39 @@ describe("confirmTransferBatch", () => {
       .from(eventTransfer)
       .where(eq(eventTransfer.originFarmId, originFarm.id));
     expect(createdEventTransfer.destinationFarmId).toBe(destinationFarm.id);
+  });
+
+  it("gap-fills breed and secondaryTag on an existing animal that has neither yet", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000090" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000090",
+        eventDate: "2026-02-01",
+        notes: null,
+        breed: "Angus",
+        secondaryTag: "CHIP-090",
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+
+    await confirmTransferBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      destinationFarmId: seededFarm.id,
+      destinationPaddockId: null,
+      rows,
+    });
+
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(updatedAnimal.breed).toBe("Angus");
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, createdAnimal.id));
+    expect(tagRow.secondaryTag).toBe("CHIP-090");
   });
 });

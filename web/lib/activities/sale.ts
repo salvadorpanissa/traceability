@@ -3,6 +3,7 @@ import { batchOperation, event, eventTransfer, eventSale } from "@/db/schema";
 import { db } from "@/db";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
+import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { findPendingWithdrawals } from "@/lib/dal/health-withdrawal";
 
@@ -101,6 +102,8 @@ export async function confirmSaleBatch(input: {
 
       if (row.status === "existing") {
         animalId = row.animalId;
+        await gapFillBreed(tx, animalId, row.breed);
+        await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
       } else {
         animalId = await createNewAnimal(tx, { userId, operatingFarmId, batchId: batch.id, row });
 

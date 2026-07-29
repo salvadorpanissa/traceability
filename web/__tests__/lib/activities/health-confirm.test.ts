@@ -122,6 +122,65 @@ describe("confirmHealthBatch", () => {
     expect(animalEvents[0].eventType).toBe("health");
   });
 
+  it("gap-fills breed and secondaryTag on an existing animal that has neither yet", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000081" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000081",
+        eventDate: "2026-02-01",
+        notes: null,
+        breed: "Angus",
+        secondaryTag: "CHIP-081",
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null });
+
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(updatedAnimal.breed).toBe("Angus");
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, createdAnimal.id));
+    expect(tagRow.secondaryTag).toBe("CHIP-081");
+  });
+
+  it("does not overwrite an existing animal's breed", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({ breed: "Hereford" }).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000082" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000082",
+        eventDate: "2026-02-01",
+        notes: null,
+        breed: "Angus",
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({ userId: manager.id, role: "manager", operatingFarmId: seededFarm.id, products, rows, paddockId: null });
+
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(updatedAnimal.breed).toBe("Hereford");
+  });
+
   it("rejects an empty product list", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const rows: ResolvedRow[] = [

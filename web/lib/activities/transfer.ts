@@ -5,6 +5,7 @@ import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { requireTransferAuthorization } from "@/lib/dal/animal-access";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
+import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 
 export { resolveBatchRows, type ResolvedRow };
 
@@ -73,6 +74,8 @@ export async function confirmTransferBatch(input: {
 
       if (row.status === "existing") {
         animalId = row.animalId;
+        await gapFillBreed(tx, animalId, row.breed);
+        await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
         originFarmId = row.currentFarmId ?? operatingFarmId;
         originPaddockId = row.currentPaddockId;
       } else {

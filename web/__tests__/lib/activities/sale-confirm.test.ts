@@ -109,6 +109,42 @@ describe("confirmSaleBatch", () => {
     expect(animalEvents[0].eventType).toBe("sale");
   });
 
+  it("gap-fills breed and secondaryTag on an existing animal that has neither yet", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000209" });
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000209",
+        eventDate: "2026-02-01",
+        notes: null,
+        breed: "Angus",
+        secondaryTag: "CHIP-209",
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentFarmId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+
+    await confirmSaleBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingFarmId: seededFarm.id,
+      guideNumber: "D963699",
+      buyer: null,
+      price: null,
+      weightKg: null,
+      rows,
+      forcedWithdrawalTags: [],
+    });
+
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(updatedAnimal.breed).toBe("Angus");
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, createdAnimal.id));
+    expect(tagRow.secondaryTag).toBe("CHIP-209");
+  });
+
   it("stores null buyer/price/weightKg when omitted", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
