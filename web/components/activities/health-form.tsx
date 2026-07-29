@@ -200,7 +200,7 @@ export function HealthForm({
       {preview?.mappingNeeded ? (
         <ColumnMapper
           headers={preview.headers}
-          availableMeanings={["tag", "date", "category", "product", "sex", "owner", "notes", "ignore"]}
+          availableMeanings={["tag", "date", "category", "product", "sex", "owner", "notes", "secondaryTag", "breed", "ignore"]}
           initialMapping={preview.initialMapping}
           onSubmit={(mapping) => runPreview(mapping)}
         />

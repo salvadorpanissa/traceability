@@ -186,7 +186,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
       {preview?.mappingNeeded ? (
         <ColumnMapper
           headers={preview.headers}
-          availableMeanings={["tag", "date", "notes", "ignore"]}
+          availableMeanings={["tag", "date", "notes", "secondaryTag", "breed", "ignore"]}
           initialMapping={preview.initialMapping}
           onSubmit={(mapping) => runPreview(mapping)}
         />

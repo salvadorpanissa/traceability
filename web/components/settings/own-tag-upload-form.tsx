@@ -141,7 +141,7 @@ export function OwnTagUploadForm({
         {preview?.mappingNeeded ? (
           <ColumnMapper
             headers={preview.headers}
-            availableMeanings={["tag", "sex", "category", "birthDate", "paddock", "date", "ignore"]}
+            availableMeanings={["tag", "sex", "category", "birthDate", "paddock", "date", "secondaryTag", "breed", "ignore"]}
             initialMapping={preview.initialMapping}
             onSubmit={(mapping) => runPreview(mapping)}
           />
