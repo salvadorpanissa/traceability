@@ -211,6 +211,20 @@
       "when": 1785243114476,
       "tag": "0029_flawless_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785360546982,
+      "tag": "0030_sparkling_rage",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785360558274,
+      "tag": "0031_vengeful_catseye",
+      "breakpoints": true
     }
   ]
 }

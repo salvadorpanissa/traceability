@@ -9,8 +9,8 @@ export const animal = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     birthDate: date("birth_date"),
     sex: animalSex("sex"),
+    breed: text("breed"),
     ownerId: uuid("owner_id").references(() => owner.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("animal_owner_id_idx").on(table.ownerId)]
 );
@@ -23,6 +23,7 @@ export const animalTagHistory = pgTable(
       .notNull()
       .references(() => animal.id, { onDelete: "cascade" }),
     tag: text("tag").notNull(),
+    secondaryTag: text("secondary_tag"),
     validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -33,5 +34,10 @@ export const animalTagHistory = pgTable(
     // invariant a real constraint instead of relying on a check-then-insert
     // race between concurrent imports to never happen.
     uniqueIndex("animal_tag_history_tag_idx").on(table.tag),
+    // Same invariant for the secondary tag. Unlike `tag`, secondary_tag is
+    // completed via UPDATE on the animal's current row (see gap-fill.ts),
+    // never via a second INSERT — so this index is never asked to accept a
+    // repeated value for the same animal.
+    uniqueIndex("animal_tag_history_secondary_tag_idx").on(table.secondaryTag),
   ]
 );
