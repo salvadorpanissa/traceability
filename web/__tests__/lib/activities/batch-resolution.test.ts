@@ -332,4 +332,82 @@ describe("resolveBatchRows", () => {
       registeredFarmName: "Campo San Antonio",
     });
   });
+
+  it("carries breed and secondaryTag through for a new animal", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    await seedOwnTag("AR000000000090", seededFarm.id, "AIP");
+    const rows: MappedRow[] = [
+      {
+        tag: "AR000000000090",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        breed: "Angus",
+        secondaryTag: "CHIP-090",
+      },
+    ];
+
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({ status: "new", breed: "Angus", secondaryTag: "CHIP-090" });
+  });
+
+  it("carries breed and secondaryTag through for an existing animal", async () => {
+    const { seededFarm } = await seedExistingAnimal("AR000000000091");
+    const rows: MappedRow[] = [
+      {
+        tag: "AR000000000091",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+        breed: "Hereford",
+        secondaryTag: "CHIP-091",
+      },
+    ];
+
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({ status: "existing", breed: "Hereford", secondaryTag: "CHIP-091" });
+  });
+
+  it("errors both rows of a duplicated secondaryTag within the same file", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    const rows: MappedRow[] = [
+      { tag: "AR000000000092", date: null, category: null, sex: null, ownerName: null, notes: null, secondaryTag: "CHIP-DUP" },
+      { tag: "AR000000000093", date: null, category: null, sex: null, ownerName: null, notes: null, secondaryTag: "CHIP-DUP" },
+    ];
+    const resolved = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved[0]).toMatchObject({ status: "error", reason: "Chip secundario duplicado en el archivo" });
+    expect(resolved[1]).toMatchObject({ status: "error", reason: "Chip secundario duplicado en el archivo" });
+  });
+
+  it("errors a row whose secondaryTag already belongs to a different animal", async () => {
+    const { seededFarm, createdAnimal: otherAnimal } = await seedExistingAnimal("AR000000000094");
+    await testDb
+      .update(animalTagHistory)
+      .set({ secondaryTag: "CHIP-TAKEN" })
+      .where(eq(animalTagHistory.animalId, otherAnimal.id));
+
+    const rows: MappedRow[] = [
+      { tag: "AR000000000095", date: null, category: null, sex: null, ownerName: null, notes: null, secondaryTag: "CHIP-TAKEN" },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({ status: "error", reason: "Chip secundario ya asignado a otro animal" });
+  });
+
+  it("does not error when a row's secondaryTag matches its own already-resolved animal", async () => {
+    const { seededFarm, createdAnimal } = await seedExistingAnimal("AR000000000096");
+    await testDb
+      .update(animalTagHistory)
+      .set({ secondaryTag: "CHIP-096" })
+      .where(eq(animalTagHistory.animalId, createdAnimal.id));
+
+    const rows: MappedRow[] = [
+      { tag: "AR000000000096", date: null, category: null, sex: null, ownerName: null, notes: null, secondaryTag: "CHIP-096" },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved.status).toBe("existing");
+  });
 });

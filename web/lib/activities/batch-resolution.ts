@@ -5,7 +5,13 @@ import type { MappedRow } from "@/lib/activities/column-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 import { normalizeDate } from "@/lib/activities/date-normalization";
 
-export type ResolvedRow = { tag: string; eventDate: string; notes: string | null } & (
+export type ResolvedRow = {
+  tag: string;
+  eventDate: string;
+  notes: string | null;
+  secondaryTag?: string | null;
+  breed?: string | null;
+} & (
   | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
   | {
       status: "new";
@@ -61,6 +67,12 @@ export async function resolveBatchRows(
     tagCounts.set(row.tag, (tagCounts.get(row.tag) ?? 0) + 1);
   }
 
+  const secondaryTagCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.secondaryTag) continue;
+    secondaryTagCounts.set(row.secondaryTag, (secondaryTagCounts.get(row.secondaryTag) ?? 0) + 1);
+  }
+
   const nonEmptyTags = rows.map((r) => r.tag).filter((tag) => tag.length > 0);
   const tagHistoryRows =
     nonEmptyTags.length > 0
@@ -70,6 +82,18 @@ export async function resolveBatchRows(
           .where(inArray(animalTagHistory.tag, nonEmptyTags))
       : [];
   const animalIdByTag = new Map(tagHistoryRows.map((r) => [r.tag, r.animalId]));
+
+  const nonEmptySecondaryTags = rows.map((r) => r.secondaryTag).filter((v): v is string => !!v);
+  const secondaryTagHistoryRows =
+    nonEmptySecondaryTags.length > 0
+      ? await db
+          .select({ secondaryTag: animalTagHistory.secondaryTag, animalId: animalTagHistory.animalId })
+          .from(animalTagHistory)
+          .where(inArray(animalTagHistory.secondaryTag, nonEmptySecondaryTags))
+      : [];
+  const animalIdBySecondaryTag = new Map(
+    secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
+  );
 
   const categoryRows = await db.select({ id: category.id, name: category.name }).from(category);
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
@@ -97,35 +121,68 @@ export async function resolveBatchRows(
   for (const row of rows) {
     const eventDate = resolveEventDate(row.date, formEventDate);
     const notes = row.notes;
+    const secondaryTag = row.secondaryTag ?? null;
+    const breed = row.breed ?? null;
 
     if (!eventDate) {
-      result.push({ tag: row.tag, eventDate: "", notes, status: "error", reason: "Falta la fecha" });
+      result.push({ tag: row.tag, eventDate: "", notes, secondaryTag, breed, status: "error", reason: "Falta la fecha" });
       continue;
     }
 
     if (!row.tag) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Falta la caravana" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Falta la caravana" });
       continue;
     }
     if ((tagCounts.get(row.tag) ?? 0) > 1) {
-      result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Caravana duplicada en el archivo" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana duplicada en el archivo" });
+      continue;
+    }
+    if (secondaryTag && (secondaryTagCounts.get(secondaryTag) ?? 0) > 1) {
+      result.push({
+        tag: row.tag,
+        eventDate,
+        notes,
+        secondaryTag,
+        breed,
+        status: "error",
+        reason: "Chip secundario duplicado en el archivo",
+      });
       continue;
     }
 
     const animalId = animalIdByTag.get(row.tag);
+
+    if (secondaryTag) {
+      const secondaryTagOwnerId = animalIdBySecondaryTag.get(secondaryTag);
+      if (secondaryTagOwnerId && secondaryTagOwnerId !== animalId) {
+        result.push({
+          tag: row.tag,
+          eventDate,
+          notes,
+          secondaryTag,
+          breed,
+          status: "error",
+          reason: "Chip secundario ya asignado a otro animal",
+        });
+        continue;
+      }
+    }
+
     if (animalId) {
       const stateResult = await db.execute<CurrentStateRow>(
         sql`select current_farm_id, current_paddock_id, status from animal_current_state where animal_id = ${animalId}`
       );
       const state = stateResult.rows[0];
       if (state && state.status !== "alive") {
-        result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "El animal está vendido o muerto" });
+        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
         continue;
       }
       result.push({
         tag: row.tag,
         eventDate,
         notes,
+        secondaryTag,
+        breed,
         status: "existing",
         animalId,
         currentFarmId: state?.current_farm_id ?? null,
@@ -138,7 +195,7 @@ export async function resolveBatchRows(
     if (row.category) {
       const matchedCategoryId = categoryIdByName.get(row.category);
       if (!matchedCategoryId) {
-        result.push({ tag: row.tag, eventDate, notes, status: "error", reason: "Categoría no reconocida" });
+        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Categoría no reconocida" });
         continue;
       }
       categoryId = matchedCategoryId;
@@ -170,6 +227,8 @@ export async function resolveBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        secondaryTag,
+        breed,
         status: "foreign",
         forced,
         categoryId,
@@ -186,6 +245,8 @@ export async function resolveBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        secondaryTag,
+        breed,
         status: "new",
         categoryId,
         sex,
@@ -198,6 +259,8 @@ export async function resolveBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        secondaryTag,
+        breed,
         status: "wrong_farm",
         categoryId,
         sex,
