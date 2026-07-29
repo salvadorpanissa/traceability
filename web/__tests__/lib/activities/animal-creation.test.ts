@@ -123,4 +123,56 @@ describe("createNewAnimal", () => {
     expect(createdAnimal.sex).toBe("female");
     expect(createdAnimal.ownerId).toBe(createdOwner.id);
   });
+
+  it("writes breed onto the created animal and secondaryTag onto its tag history row", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000063",
+      eventDate: "2026-02-01",
+      notes: null,
+      secondaryTag: "CHIP-063",
+      breed: "Angus",
+      status: "new",
+      categoryId: null,
+      sex: null,
+      birthDate: null,
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.breed).toBe("Angus");
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    expect(tagRow.secondaryTag).toBe("CHIP-063");
+  });
+
+  it("leaves breed and secondaryTag null when the row doesn't carry them", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000064",
+      eventDate: "2026-02-01",
+      notes: null,
+      status: "new",
+      categoryId: null,
+      sex: null,
+      birthDate: null,
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.breed).toBeNull();
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    expect(tagRow.secondaryTag).toBeNull();
+  });
 });

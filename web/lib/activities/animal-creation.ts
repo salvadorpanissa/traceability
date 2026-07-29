@@ -17,9 +17,9 @@ export async function createNewAnimal(
 
   const [createdAnimal] = await tx
     .insert(animal)
-    .values({ sex: row.sex, ownerId: row.ownerId, birthDate: row.birthDate })
+    .values({ sex: row.sex, ownerId: row.ownerId, birthDate: row.birthDate, breed: row.breed ?? null })
     .returning();
-  await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag });
+  await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag, secondaryTag: row.secondaryTag ?? null });
 
   // Self-retag: establishes the new animal's current_tag in the derived
   // state view, which only reflects the *last event_retag*, not
