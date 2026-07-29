@@ -10,6 +10,7 @@ import {
   userFarm,
   category,
   animal,
+  animalTagHistory,
   event,
   eventTransfer,
   eventRecategorize,
@@ -686,5 +687,35 @@ describe("confirmRecategorizeBatch", () => {
     ).rejects.toThrow("Ningún animal cambia de categoría; no se puede confirmar");
 
     expect(await newEventsFor(animalId)).toHaveLength(0);
+  });
+
+  it("gap-fills breed and secondaryTag on an animal that gets recategorized", async () => {
+    const { admin, seededFarm } = await seedFarmAndAdmin();
+    const [oldCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
+    const [newCategory] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+    const animalId = await seedAnimalAtFarm({ farmId: seededFarm.id, createdBy: admin.id, categoryId: oldCategory.id });
+    await testDb.insert(animalTagHistory).values({ animalId, tag: "AR-GAPFILL" });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      targetCategoryId: newCategory.id,
+      rows: [
+        existingRow(seededFarm.id, {
+          animalId,
+          currentCategoryId: oldCategory.id,
+          breed: "Angus",
+          secondaryTag: "CHIP-GAPFILL",
+        }),
+      ],
+      unresolvableDecisions: {},
+      sexMismatchDecisions: {},
+    });
+
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(updatedAnimal.breed).toBe("Angus");
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    expect(tagRow.secondaryTag).toBe("CHIP-GAPFILL");
   });
 });

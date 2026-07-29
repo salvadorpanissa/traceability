@@ -2,6 +2,7 @@ import { eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 import { logError } from "@/lib/logger";
@@ -14,6 +15,8 @@ type PlannedChange = {
   oldCategoryId: string;
   newCategoryId: string;
   source: "manual" | "initial";
+  breed: string | null;
+  secondaryTag: string | null;
 };
 
 // The preview's farm/category data round-trips through the browser, so by the
@@ -112,6 +115,8 @@ export async function confirmRecategorizeBatch(input: {
         oldCategoryId: state.current_category_id,
         newCategoryId: targetCategoryId,
         source: "manual",
+        breed: row.breed ?? null,
+        secondaryTag: row.secondaryTag ?? null,
       });
       continue;
     }
@@ -139,6 +144,8 @@ export async function confirmRecategorizeBatch(input: {
         oldCategoryId: resolvedCategoryId,
         newCategoryId: resolvedCategoryId,
         source: "initial",
+        breed: row.breed ?? null,
+        secondaryTag: row.secondaryTag ?? null,
       });
       continue;
     }
@@ -159,6 +166,8 @@ export async function confirmRecategorizeBatch(input: {
       oldCategoryId: targetCategoryId,
       newCategoryId: targetCategoryId,
       source: "initial",
+      breed: row.breed ?? null,
+      secondaryTag: row.secondaryTag ?? null,
     });
   }
 
@@ -217,6 +226,9 @@ export async function confirmRecategorizeBatch(input: {
             newCategoryId: change.newCategoryId,
             source: change.source,
           });
+
+          await gapFillBreed(tx, change.animalId, change.breed);
+          await gapFillSecondaryTag(tx, change.animalId, change.secondaryTag);
         }
       });
       succeededFarmIds.push(farmId);
