@@ -14,6 +14,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // pdfjs-dist (lib/activities/pdf-text-extraction.ts) polyfills DOMMatrix
+  // via a dynamically-constructed require() (process.getBuiltinModule
+  // ("module").createRequire(...)), which Vercel's output file tracer
+  // (@vercel/nft) can't follow statically — see Next's own docs on
+  // outputFileTracingIncludes, which cite this exact pattern (sharp is
+  // their example). Without this, @napi-rs/canvas is missing from the
+  // deployed function, DOMMatrix stays undefined, and every server action
+  // in any route that imports pdf-text-extraction.ts crashes at module
+  // load, not just the PDF-parsing one.
+  outputFileTracingIncludes: {
+    "/*": ["node_modules/@napi-rs/canvas/**/*", "node_modules/@napi-rs/canvas-linux-x64-gnu/**/*"],
+  },
 };
 
 export default nextConfig;
