@@ -51,8 +51,10 @@ type CurrentStateRow = { current_farm_id: string | null; current_paddock_id: str
 export async function resolveBatchRows(
   rows: MappedRow[],
   formEventDate: string | null,
-  operatingFarmId: string
+  operatingFarmId: string,
+  options?: { autoForceForeignWithoutOwner?: boolean }
 ): Promise<ResolvedRow[]> {
+  const autoForceForeignWithoutOwner = options?.autoForceForeignWithoutOwner ?? false;
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
     if (!row.tag) continue;
@@ -159,12 +161,17 @@ export async function resolveBatchRows(
           pendingOwnerName = row.ownerName.trim();
         }
       }
+      // A row with no owner name at all has nothing pending to review — force
+      // it in as "ajena" automatically instead of making the user tick the
+      // per-row checkbox. A row that does carry an owner name (matched or
+      // pending) still goes through the normal manual-confirm path.
+      const forced = autoForceForeignWithoutOwner && !row.ownerName;
       result.push({
         tag: row.tag,
         eventDate,
         notes,
         status: "foreign",
-        forced: false,
+        forced,
         categoryId,
         sex,
         birthDate,

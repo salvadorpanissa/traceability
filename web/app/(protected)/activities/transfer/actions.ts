@@ -66,7 +66,9 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId, {
+    autoForceForeignWithoutOwner: true,
+  });
 
   return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
 }
@@ -147,7 +149,9 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
     birthDate: a.ageMonths !== null ? estimateBirthDateFromAge(guide.eventDate, a.ageMonths) : null,
   }));
 
-  const rows = await resolveBatchRows(mappedRows, guide.eventDate, destination.farmId);
+  const rows = await resolveBatchRows(mappedRows, guide.eventDate, destination.farmId, {
+    autoForceForeignWithoutOwner: true,
+  });
 
   return {
     ok: true,

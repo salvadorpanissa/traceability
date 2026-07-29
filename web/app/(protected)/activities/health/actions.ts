@@ -70,7 +70,9 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId, {
+    autoForceForeignWithoutOwner: true,
+  });
 
   const productValues = extractProductColumnValues(headers, rows, mapping);
   const catalog = await listProducts();
