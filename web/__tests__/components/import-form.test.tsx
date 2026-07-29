@@ -67,4 +67,54 @@ describe("ImportForm", () => {
 
     await waitFor(() => expect(screen.getByText("Falta la caravana")).toBeInTheDocument());
   });
+
+  it("dispatches chunks sequentially, one in flight at a time, never in parallel", async () => {
+    const headers = ["IDE (caravana electrónica)", "Estancia"];
+    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
+
+    let inFlight = false;
+    // Records, synchronously at the moment each call starts, whether a
+    // previous call was still in flight. A parallel (Promise.all-style)
+    // dispatch would start the second call while the first is still
+    // "in flight" (true here isn't reset until after its delay), so this
+    // array would contain `true` if dispatch weren't sequential.
+    const inFlightAtCallStart: boolean[] = [];
+
+    vi.mocked(importChunkAction).mockImplementation(async (chunkRows) => {
+      inFlightAtCallStart.push(inFlight);
+      inFlight = true;
+
+      if (chunkRows.length === 200) {
+        // Delay the first chunk so a parallel dispatch would have already
+        // started the second chunk's mock before this one resolves.
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      inFlight = false;
+      return { createdCount: chunkRows.length, errors: [] };
+    });
+
+    render(<ImportForm />);
+
+    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    await userEvent.upload(input, new File(["x"], "base.xlsx"));
+    fireEvent.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(screen.getByText(/250 filas creadas/)).toBeInTheDocument());
+
+    expect(importChunkAction).toHaveBeenCalledTimes(2);
+    expect(inFlightAtCallStart).toEqual([false, false]);
+    expect(importChunkAction).toHaveBeenNthCalledWith(
+      1,
+      expect.arrayContaining([expect.objectContaining({ tag: "TAG1" })])
+    );
+    const firstCallArg = vi.mocked(importChunkAction).mock.calls[0][0];
+    const secondCallArg = vi.mocked(importChunkAction).mock.calls[1][0];
+    expect(firstCallArg).toHaveLength(200);
+    expect(secondCallArg).toHaveLength(50);
+  });
 });

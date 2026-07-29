@@ -8,7 +8,11 @@ import {
   type ImportColumnMapping,
   type MappedImportRow,
 } from "@/lib/activities/bulk-import-mapping";
-import { parseImportFileAction, importChunkAction } from "@/app/(protected)/settings/import/actions";
+import {
+  parseImportFileAction,
+  importChunkAction,
+  type ImportChunkActionResult,
+} from "@/app/(protected)/settings/import/actions";
 
 const CHUNK_SIZE = 200;
 
@@ -16,7 +20,8 @@ type Phase =
   | { step: "upload" }
   | { step: "map"; headers: string[]; rows: string[][] }
   | { step: "importing"; total: number; processed: number }
-  | { step: "done"; createdCount: number; errors: { tag: string; reason: string }[] };
+  | { step: "done"; createdCount: number; errors: ImportChunkActionResult["errors"] }
+  | { step: "error"; message: string };
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -26,16 +31,28 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Ocurrió un error";
+}
+
 export function ImportForm() {
   const [phase, setPhase] = useState<Phase>({ step: "upload" });
   const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    const { headers, rows } = await parseImportFileAction(formData);
-    setPhase({ step: "map", headers, rows });
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const { headers, rows } = await parseImportFileAction(formData);
+      setPhase({ step: "map", headers, rows });
+    } catch (error) {
+      setPhase({ step: "error", message: errorMessage(error) });
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleMappingSubmit(mapping: ImportColumnMapping[]) {
@@ -46,15 +63,20 @@ export function ImportForm() {
     setPhase({ step: "importing", total: mappedRows.length, processed: 0 });
 
     let createdCount = 0;
-    const errors: { tag: string; reason: string }[] = [];
+    const errors: ImportChunkActionResult["errors"] = [];
     let processed = 0;
 
-    for (const rowsChunk of chunks) {
-      const result = await importChunkAction(rowsChunk);
-      createdCount += result.createdCount;
-      errors.push(...result.errors);
-      processed += rowsChunk.length;
-      setPhase({ step: "importing", total: mappedRows.length, processed });
+    try {
+      for (const rowsChunk of chunks) {
+        const result = await importChunkAction(rowsChunk);
+        createdCount += result.createdCount;
+        errors.push(...result.errors);
+        processed += rowsChunk.length;
+        setPhase({ step: "importing", total: mappedRows.length, processed });
+      }
+    } catch (error) {
+      setPhase({ step: "error", message: errorMessage(error) });
+      return;
     }
 
     setPhase({ step: "done", createdCount, errors });
@@ -73,11 +95,15 @@ export function ImportForm() {
           accept=".xlsx"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
-        <Button type="button" disabled={!file} onClick={handleUpload}>
+        <Button type="button" disabled={!file || uploading} onClick={handleUpload}>
           Subir
         </Button>
       </div>
     );
+  }
+
+  if (phase.step === "error") {
+    return <p className="text-sm text-destructive">{phase.message}</p>;
   }
 
   if (phase.step === "map") {
