@@ -15,6 +15,7 @@ import {
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 import { normalizeDate } from "@/lib/activities/date-normalization";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
+import { gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import type { MappedOwnTagRow } from "@/lib/activities/column-mapping";
 
 export type OwnTagImportResult = {
@@ -37,6 +38,8 @@ type OwnTagRowDetails = {
   birthDate: string | null;
   paddockName: string | null;
   eventDate: string | null;
+  breed: string | null;
+  secondaryTag: string | null;
 };
 
 // A tag is a legal/DICOSE fact ("this caravana is ours") that can exist with
@@ -44,7 +47,7 @@ type OwnTagRowDetails = {
 // or location data, there's a real animal to create now; a bare tag with
 // none of these just registers the caravana.
 function hasAnimalSignal(details: OwnTagRowDetails): boolean {
-  return !!(details.sex || details.categoryId || details.birthDate || details.paddockName);
+  return !!(details.sex || details.categoryId || details.birthDate || details.paddockName || details.breed);
 }
 
 // Names referenced by a "paddock"-mapped column that don't exist yet for the
@@ -104,6 +107,8 @@ export async function importOwnTags(
       birthDate: row.birthDate ? normalizeDate(row.birthDate) : null,
       paddockName: row.paddock?.trim() || null,
       eventDate: row.date ? normalizeDate(row.date) : null,
+      breed: row.breed?.trim() || null,
+      secondaryTag: row.secondaryTag?.trim() || null,
     });
   }
 
@@ -189,6 +194,8 @@ export async function importOwnTags(
             birthDate: details.birthDate,
             ownerId: registration.ownerId,
             pendingOwnerName: null,
+            breed: details.breed,
+            secondaryTag: details.secondaryTag,
           },
         });
 
@@ -234,7 +241,26 @@ export async function importOwnTags(
         .where(inArray(event.animalId, animalIds));
       const animalsWithCategory = new Set(categorizedRows.map((r) => r.animalId));
 
-      const plans: { tag: string; animalId: string; sex?: "male" | "female"; birthDate?: string; categoryId?: string }[] = [];
+      // Cross-animal conflict check for secondaryTag, mirroring
+      // batch-resolution.ts/recategorize-resolution.ts: without this, calling
+      // gapFillSecondaryTag with a value already owned by a *different*
+      // animal would hit animal_tag_history_secondary_tag_idx and throw,
+      // aborting this whole import transaction over one incidental field.
+      const candidateSecondaryTags = tagsWithAnimal
+        .map((tag) => rowByTag.get(tag)!.secondaryTag)
+        .filter((v): v is string => !!v);
+      const secondaryTagOwnerRows =
+        candidateSecondaryTags.length > 0
+          ? await tx
+              .select({ secondaryTag: animalTagHistory.secondaryTag, animalId: animalTagHistory.animalId })
+              .from(animalTagHistory)
+              .where(inArray(animalTagHistory.secondaryTag, candidateSecondaryTags))
+          : [];
+      const animalIdBySecondaryTag = new Map(
+        secondaryTagOwnerRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
+      );
+
+      const plans: { tag: string; animalId: string; sex?: "male" | "female"; birthDate?: string; categoryId?: string; breed?: string }[] = [];
       for (const tag of tagsWithAnimal) {
         const animalId = animalIdByTag.get(tag)!;
         const details = rowByTag.get(tag)!;
@@ -244,8 +270,20 @@ export async function importOwnTags(
         if (details.sex && !currentAnimal.sex) plan.sex = details.sex;
         if (details.birthDate && !currentAnimal.birthDate) plan.birthDate = details.birthDate;
         if (details.categoryId && !animalsWithCategory.has(animalId)) plan.categoryId = details.categoryId;
+        if (details.breed && !currentAnimal.breed) plan.breed = details.breed;
 
-        if (plan.sex || plan.birthDate || plan.categoryId) plans.push(plan);
+        if (plan.sex || plan.birthDate || plan.categoryId || plan.breed) plans.push(plan);
+
+        if (details.secondaryTag) {
+          const conflictingOwnerId = animalIdBySecondaryTag.get(details.secondaryTag);
+          if (!conflictingOwnerId || conflictingOwnerId === animalId) {
+            await gapFillSecondaryTag(tx, animalId, details.secondaryTag);
+          }
+          // A conflicting secondaryTag still counts as a productive row: the
+          // rest of the row (registration, sex/category/etc.) is unaffected,
+          // only this one field is silently dropped.
+          productiveTags.add(tag);
+        }
       }
 
       const plansNeedingCategory = plans.filter((p) => p.categoryId);
@@ -264,9 +302,10 @@ export async function importOwnTags(
       }
 
       for (const plan of plans) {
-        const animalPatch: Partial<{ sex: "male" | "female"; birthDate: string }> = {};
+        const animalPatch: Partial<{ sex: "male" | "female"; birthDate: string; breed: string }> = {};
         if (plan.sex) animalPatch.sex = plan.sex;
         if (plan.birthDate) animalPatch.birthDate = plan.birthDate;
+        if (plan.breed) animalPatch.breed = plan.breed;
         if (Object.keys(animalPatch).length > 0) {
           await tx.update(animal).set(animalPatch).where(eq(animal.id, plan.animalId));
           needsRefresh = true;

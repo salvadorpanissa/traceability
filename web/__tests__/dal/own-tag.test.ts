@@ -240,6 +240,34 @@ describe("importOwnTags", () => {
     expect(state.rows[0].current_category_id).toBe(vaca.id);
     expect(state.rows[0].current_category_id).not.toBe(toro.id);
   });
+
+  it("sets breed on a newly created animal and secondaryTag on its tag history row", async () => {
+    const { registration, user } = await seedRegistration();
+
+    await importOwnTags(registration.id, user.id, [
+      { tag: "700", sex: "MACHO", category: null, birthDate: null, paddock: null, date: null, breed: "Angus", secondaryTag: "CHIP-700" },
+    ]);
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "700"));
+    expect(tagRow.secondaryTag).toBe("CHIP-700");
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, tagRow.animalId));
+    expect(createdAnimal.breed).toBe("Angus");
+  });
+
+  it("gap-fills breed on an existing animal that has none yet", async () => {
+    const { registration, user } = await seedRegistration();
+    await importOwnTags(registration.id, user.id, [
+      { tag: "701", sex: "MACHO", category: null, birthDate: null, paddock: null, date: null },
+    ]);
+
+    await importOwnTags(registration.id, user.id, [
+      { tag: "701", sex: null, category: null, birthDate: null, paddock: null, date: null, breed: "Braford" },
+    ]);
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "701"));
+    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, tagRow.animalId));
+    expect(updatedAnimal.breed).toBe("Braford");
+  });
 });
 
 describe("findMissingPaddockNames", () => {
