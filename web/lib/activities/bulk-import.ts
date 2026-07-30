@@ -16,6 +16,7 @@ import {
 import type { MappedImportRow } from "@/lib/activities/bulk-import-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 import { normalizeDate } from "@/lib/activities/date-normalization";
+import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 
 export type ResolvedImportRow =
   | {
@@ -47,6 +48,24 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
       : [];
   const existingTags = new Set(existingTagRows.map((r) => r.tag));
 
+  const secondaryTagCounts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.secondaryTag) continue;
+    secondaryTagCounts.set(row.secondaryTag, (secondaryTagCounts.get(row.secondaryTag) ?? 0) + 1);
+  }
+
+  const nonEmptySecondaryTags = rows.map((r) => r.secondaryTag).filter((v): v is string => !!v);
+  const secondaryTagHistoryRows =
+    nonEmptySecondaryTags.length > 0
+      ? await db
+          .select({ secondaryTag: animalTagHistory.secondaryTag, animalId: animalTagHistory.animalId })
+          .from(animalTagHistory)
+          .where(inArray(animalTagHistory.secondaryTag, nonEmptySecondaryTags))
+      : [];
+  const animalIdBySecondaryTag = new Map(
+    secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
+  );
+
   const farmRows = await db.select({ id: farm.id, name: farm.name }).from(farm);
   const farmIdByName = new Map(farmRows.map((f) => [f.name.trim(), f.id]));
 
@@ -76,6 +95,18 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
     if (!eventDate) {
       result.push({ status: "error", tag: row.tag, reason: "Falta fecha de alta" });
       continue;
+    }
+
+    if (row.secondaryTag && (secondaryTagCounts.get(row.secondaryTag) ?? 0) > 1) {
+      result.push({ status: "error", tag: row.tag, reason: "Chip secundario duplicado en el archivo" });
+      continue;
+    }
+    if (row.secondaryTag) {
+      const existingAnimalId = animalIdBySecondaryTag.get(row.secondaryTag);
+      if (existingAnimalId) {
+        result.push({ status: "error", tag: row.tag, reason: "Chip secundario ya asignado a otro animal" });
+        continue;
+      }
     }
 
     result.push({
@@ -134,10 +165,11 @@ async function resolvePaddockId(
   name: string | null
 ): Promise<string | null> {
   if (!name) return null;
-  const key = `${farmId}:${name}`;
+  const trimmedName = name.trim();
+  const key = `${farmId}:${trimmedName.toLowerCase()}`;
   const existing = paddockIdByFarmAndName.get(key);
   if (existing) return existing;
-  const [created] = await tx.insert(paddock).values({ farmId, name }).returning();
+  const [created] = await tx.insert(paddock).values({ farmId, name: trimmedName }).returning();
   paddockIdByFarmAndName.set(key, created.id);
   return created.id;
 }
@@ -149,69 +181,56 @@ export async function confirmImportChunk(input: {
   const { userId, rows } = input;
   if (rows.length === 0) return { createdCount: 0 };
 
-  return db.transaction(async (tx) => {
-    const ownerIdByName = new Map<string, string>();
-    const existingOwners = await tx.select({ id: owner.id, name: owner.name }).from(owner);
-    for (const o of existingOwners) ownerIdByName.set(o.name.trim().toLowerCase(), o.id);
+  try {
+    return await db.transaction(async (tx) => {
+      const ownerIdByName = new Map<string, string>();
+      const existingOwners = await tx.select({ id: owner.id, name: owner.name }).from(owner);
+      for (const o of existingOwners) ownerIdByName.set(o.name.trim().toLowerCase(), o.id);
 
-    const categoryIdByName = new Map<string, string>();
-    const existingCategories = await tx.select({ id: category.id, name: category.name }).from(category);
-    for (const c of existingCategories) categoryIdByName.set(c.name, c.id);
+      const categoryIdByName = new Map<string, string>();
+      const existingCategories = await tx.select({ id: category.id, name: category.name }).from(category);
+      for (const c of existingCategories) categoryIdByName.set(c.name, c.id);
 
-    const paddockIdByFarmAndName = new Map<string, string>();
-    const existingPaddocks = await tx.select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId }).from(paddock);
-    for (const p of existingPaddocks) paddockIdByFarmAndName.set(`${p.farmId}:${p.name}`, p.id);
+      const paddockIdByFarmAndName = new Map<string, string>();
+      const existingPaddocks = await tx.select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId }).from(paddock);
+      for (const p of existingPaddocks) paddockIdByFarmAndName.set(`${p.farmId}:${p.name.trim().toLowerCase()}`, p.id);
 
-    const rowsByFarm = new Map<string, typeof rows>();
-    for (const row of rows) {
-      const group = rowsByFarm.get(row.farmId) ?? [];
-      group.push(row);
-      rowsByFarm.set(row.farmId, group);
-    }
+      const rowsByFarm = new Map<string, typeof rows>();
+      for (const row of rows) {
+        const group = rowsByFarm.get(row.farmId) ?? [];
+        group.push(row);
+        rowsByFarm.set(row.farmId, group);
+      }
 
-    let createdCount = 0;
-    for (const [farmId, farmRows] of rowsByFarm) {
-      const [batch] = await tx
-        .insert(batchOperation)
-        .values({
-          eventType: "transfer",
-          farmId,
-          animalCount: farmRows.length,
-          createdBy: userId,
-        })
-        .returning();
-
-      for (const row of farmRows) {
-        const ownerId = await resolveOwnerId(tx, ownerIdByName, row.ownerName);
-        const categoryId = await resolveCategoryId(tx, categoryIdByName, row.categoryName);
-        const paddockId = await resolvePaddockId(tx, paddockIdByFarmAndName, farmId, row.paddockName);
-
-        const [createdAnimal] = await tx
-          .insert(animal)
-          .values({ sex: row.sex, ownerId, birthDate: row.birthDate, breed: row.breed })
-          .returning();
-        await tx
-          .insert(animalTagHistory)
-          .values({ animalId: createdAnimal.id, tag: row.tag, secondaryTag: row.secondaryTag });
-
-        const [retagEvent] = await tx
-          .insert(event)
+      let createdCount = 0;
+      for (const [farmId, farmRows] of rowsByFarm) {
+        const [batch] = await tx
+          .insert(batchOperation)
           .values({
-            eventType: "retag",
-            eventDate: row.eventDate,
-            animalId: createdAnimal.id,
+            eventType: "transfer",
             farmId,
-            batchOperationId: batch.id,
+            animalCount: farmRows.length,
             createdBy: userId,
           })
           .returning();
-        await tx.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: row.tag, newTag: row.tag });
 
-        if (categoryId) {
-          const [recategorizeEvent] = await tx
+        for (const row of farmRows) {
+          const ownerId = await resolveOwnerId(tx, ownerIdByName, row.ownerName);
+          const categoryId = await resolveCategoryId(tx, categoryIdByName, row.categoryName);
+          const paddockId = await resolvePaddockId(tx, paddockIdByFarmAndName, farmId, row.paddockName);
+
+          const [createdAnimal] = await tx
+            .insert(animal)
+            .values({ sex: row.sex, ownerId, birthDate: row.birthDate, breed: row.breed })
+            .returning();
+          await tx
+            .insert(animalTagHistory)
+            .values({ animalId: createdAnimal.id, tag: row.tag, secondaryTag: row.secondaryTag });
+
+          const [retagEvent] = await tx
             .insert(event)
             .values({
-              eventType: "recategorize",
+              eventType: "retag",
               eventDate: row.eventDate,
               animalId: createdAnimal.id,
               farmId,
@@ -219,34 +238,54 @@ export async function confirmImportChunk(input: {
               createdBy: userId,
             })
             .returning();
-          await tx
-            .insert(eventRecategorize)
-            .values({ eventId: recategorizeEvent.id, oldCategoryId: categoryId, newCategoryId: categoryId, source: "initial" });
+          await tx.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: row.tag, newTag: row.tag });
+
+          if (categoryId) {
+            const [recategorizeEvent] = await tx
+              .insert(event)
+              .values({
+                eventType: "recategorize",
+                eventDate: row.eventDate,
+                animalId: createdAnimal.id,
+                farmId,
+                batchOperationId: batch.id,
+                createdBy: userId,
+              })
+              .returning();
+            await tx
+              .insert(eventRecategorize)
+              .values({ eventId: recategorizeEvent.id, oldCategoryId: categoryId, newCategoryId: categoryId, source: "initial" });
+          }
+
+          const [transferEvent] = await tx
+            .insert(event)
+            .values({
+              eventType: "transfer",
+              eventDate: row.eventDate,
+              animalId: createdAnimal.id,
+              farmId,
+              batchOperationId: batch.id,
+              createdBy: userId,
+            })
+            .returning();
+          await tx.insert(eventTransfer).values({
+            eventId: transferEvent.id,
+            originFarmId: farmId,
+            destinationFarmId: farmId,
+            destinationPaddockId: paddockId,
+          });
+
+          createdCount += 1;
         }
-
-        const [transferEvent] = await tx
-          .insert(event)
-          .values({
-            eventType: "transfer",
-            eventDate: row.eventDate,
-            animalId: createdAnimal.id,
-            farmId,
-            batchOperationId: batch.id,
-            createdBy: userId,
-          })
-          .returning();
-        await tx.insert(eventTransfer).values({
-          eventId: transferEvent.id,
-          originFarmId: farmId,
-          destinationFarmId: farmId,
-          destinationPaddockId: paddockId,
-        });
-
-        createdCount += 1;
       }
-    }
 
-    await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
-    return { createdCount };
-  });
+      await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
+      return { createdCount };
+    });
+  } catch (error) {
+    if (isUniqueViolationError(error)) {
+      throw new Error("Chip secundario o caravana duplicados");
+    }
+    throw error;
+  }
 }

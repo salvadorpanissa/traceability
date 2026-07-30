@@ -98,4 +98,38 @@ describe("resolveImportRows", () => {
     const [resolved] = await resolveImportRows([baseRow({ sex: "??", birthDate: "no-date" })]);
     expect(resolved).toMatchObject({ status: "valid", sex: null, birthDate: null });
   });
+
+  it("errors every row sharing a secondaryTag that's duplicated within the file", async () => {
+    await testDb.insert(farm).values({ name: "San Antonio" });
+    const rows = [
+      baseRow({ tag: "TAG1", secondaryTag: "CHIP1" }),
+      baseRow({ tag: "TAG2", secondaryTag: "CHIP1" }),
+    ];
+
+    const resolved = await resolveImportRows(rows);
+
+    expect(resolved).toEqual([
+      { status: "error", tag: "TAG1", reason: "Chip secundario duplicado en el archivo" },
+      { status: "error", tag: "TAG2", reason: "Chip secundario duplicado en el archivo" },
+    ]);
+  });
+
+  it("errors a row whose secondaryTag already exists in animal_tag_history", async () => {
+    const [seededFarm] = await testDb.insert(farm).values({ name: "San Antonio" }).returning();
+    const [existingAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({
+      animalId: existingAnimal.id,
+      tag: "OTHERTAG",
+      secondaryTag: "CHIP1",
+    });
+
+    const [resolved] = await resolveImportRows([baseRow({ tag: "TAG1", secondaryTag: "CHIP1" })]);
+
+    expect(resolved).toEqual({
+      status: "error",
+      tag: "TAG1",
+      reason: "Chip secundario ya asignado a otro animal",
+    });
+    void seededFarm;
+  });
 });

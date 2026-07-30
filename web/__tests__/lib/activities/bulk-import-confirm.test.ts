@@ -130,6 +130,23 @@ describe("confirmImportChunk", () => {
     expect(transfer.originFarmId).toBe(seededFarm.id);
   });
 
+  it("reuses an existing paddock when the row's paddock name differs only in case/whitespace", async () => {
+    const admin = await seedAdmin();
+    const [seededFarm] = await testDb.insert(farm).values({ name: "San Antonio" }).returning();
+
+    await confirmImportChunk({
+      userId: admin.id,
+      rows: [
+        validRow(seededFarm.id, { tag: "TAG1", paddockName: "Arerunguá" }),
+        validRow(seededFarm.id, { tag: "TAG2", paddockName: "  ARERUNGUÁ  " }),
+      ],
+    });
+
+    const paddocks = await testDb.select().from(paddock).where(eq(paddock.farmId, seededFarm.id));
+    expect(paddocks).toHaveLength(1);
+    expect(paddocks[0].name).toBe("Arerunguá");
+  });
+
   it("does not create a recategorize event when the row has no category name", async () => {
     const admin = await seedAdmin();
     const [seededFarm] = await testDb.insert(farm).values({ name: "San Antonio" }).returning();
