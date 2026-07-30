@@ -91,11 +91,11 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
       continue;
     }
 
-    const eventDate = row.eventDate ? normalizeDate(row.eventDate) : null;
-    if (!eventDate) {
-      result.push({ status: "error", tag: row.tag, reason: "Falta fecha de alta" });
-      continue;
-    }
+    // A missing or unparseable "Fecha alta en sistema" falls back to today
+    // rather than erroring the row — the column is often blank or malformed
+    // on real management-system exports, and the exact historical date
+    // matters far less here than getting the animal into the system at all.
+    const eventDate = (row.eventDate ? normalizeDate(row.eventDate) : null) ?? new Date().toISOString().slice(0, 10);
 
     if (row.secondaryTag && (secondaryTagCounts.get(row.secondaryTag) ?? 0) > 1) {
       result.push({ status: "error", tag: row.tag, reason: "Chip secundario duplicado en el archivo" });

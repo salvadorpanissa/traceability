@@ -87,10 +87,15 @@ describe("resolveImportRows", () => {
     expect(resolved).toEqual({ status: "error", tag: "858000048233520", reason: "Estancia no reconocida" });
   });
 
-  it("errors a row with no parseable Fecha alta en sistema", async () => {
+  it("falls back to today's date when Fecha alta en sistema is missing or unparseable, instead of erroring the row", async () => {
     await testDb.insert(farm).values({ name: "San Antonio" });
-    const [resolved] = await resolveImportRows([baseRow({ eventDate: null })]);
-    expect(resolved).toEqual({ status: "error", tag: "858000048233520", reason: "Falta fecha de alta" });
+    const today = new Date().toISOString().slice(0, 10);
+
+    const [missing] = await resolveImportRows([baseRow({ eventDate: null })]);
+    const [unparseable] = await resolveImportRows([baseRow({ eventDate: "not-a-date" })]);
+
+    expect(missing).toMatchObject({ status: "valid", eventDate: today });
+    expect(unparseable).toMatchObject({ status: "valid", eventDate: today });
   });
 
   it("leaves sex and birth date null when they don't match a known value, without erroring the row", async () => {
