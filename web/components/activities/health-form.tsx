@@ -8,7 +8,7 @@ import { ColumnMapper } from "@/components/activities/column-mapper";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
-import { FarmPaddockPicker } from "@/components/activities/farm-paddock-picker";
+import { PaddockSelector } from "@/components/activities/paddock-selector";
 import { PaddockMismatchWarning } from "@/components/activities/paddock-mismatch-warning";
 import {
   previewHealthBatch,
@@ -16,6 +16,7 @@ import {
   createProductAction,
   createOwnerAction,
   createHealthPaddockAction,
+  listPaddocksAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -61,16 +62,15 @@ export function HealthForm({
   catalog: initialCatalog,
   ownerCatalog: initialOwnerCatalog,
   farms,
-  paddocks: initialPaddocks,
 }: {
   catalog: ProductCatalogEntry[];
   ownerCatalog: OwnerCatalogEntry[];
   farms: { id: string; name: string }[];
-  paddocks: PaddockCatalogEntry[];
 }) {
   const [farmId, setFarmId] = useState("");
   const [paddockId, setPaddockId] = useState<string | null>(null);
-  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>(initialPaddocks);
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
+  const [paddockLoadError, setPaddockLoadError] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -82,9 +82,28 @@ export function HealthForm({
   const [confirmed, setConfirmed] = useState(false);
   const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
 
-  function handlePaddockSelect(selectedPaddockId: string, selectedFarmId: string) {
-    setPaddockId(selectedPaddockId);
+  async function handleFarmChange(selectedFarmId: string) {
     setFarmId(selectedFarmId);
+    setPaddockId(null);
+    setEventDate("");
+    setPreview(null);
+    setRows([]);
+    setTransferMismatched(null);
+    setPaddockLoadError("");
+    if (!selectedFarmId) {
+      setPaddocks([]);
+      return;
+    }
+    try {
+      setPaddocks(await listPaddocksAction(selectedFarmId));
+    } catch (err) {
+      setPaddocks([]);
+      setPaddockLoadError(err instanceof Error ? err.message : "No se pudieron cargar los potreros");
+    }
+  }
+
+  function handlePaddockChange(selectedPaddockId: string | null) {
+    setPaddockId(selectedPaddockId);
     setEventDate("");
     setPreview(null);
     setRows([]);
@@ -131,8 +150,8 @@ export function HealthForm({
     return created;
   }
 
-  async function handleCreatePaddock(farmIdForPaddock: string, name: string): Promise<PaddockCatalogEntry> {
-    const created = await createHealthPaddockAction(farmIdForPaddock, name);
+  async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
+    const created = await createHealthPaddockAction(farmId, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -182,18 +201,39 @@ export function HealthForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <FarmPaddockPicker
-        farms={farms}
-        paddocks={paddocks}
-        paddockId={paddockId}
-        onSelect={handlePaddockSelect}
-        onCreatePaddock={handleCreatePaddock}
-      />
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="farm">Campo</Label>
+        <select
+          id="farm"
+          aria-label="Campo"
+          value={farmId}
+          onChange={(e) => handleFarmChange(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+        >
+          <option value="">Elegir campo</option>
+          {farms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
+      {farmId ? (
+        <PaddockSelector
+          paddocks={paddocks}
+          paddockId={paddockId}
+          onChange={handlePaddockChange}
+          onCreatePaddock={handleCreatePaddock}
+          label="Potrero"
+          allowNone={false}
+        />
+      ) : null}
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" disabled={!farmId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!farmId || !paddockId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 

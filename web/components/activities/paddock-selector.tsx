@@ -15,12 +15,14 @@ export function PaddockSelector({
   onChange,
   onCreatePaddock,
   label = "Potrero destino",
+  allowNone = true,
 }: {
   paddocks: PaddockCatalogEntry[];
   paddockId: string | null;
   onChange: (paddockId: string | null) => void;
   onCreatePaddock: (name: string) => Promise<PaddockCatalogEntry>;
   label?: string;
+  allowNone?: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -59,7 +61,7 @@ export function PaddockSelector({
         onChange={(e) => handleSelect(e.target.value)}
         className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
       >
-        <option value={NONE_VALUE}>Sin potrero</option>
+        <option value={NONE_VALUE}>{allowNone ? "Sin potrero" : "Elegir potrero"}</option>
         {paddocks.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
