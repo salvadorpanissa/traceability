@@ -27,6 +27,7 @@ const {
   visibleCurrentStateWithNames,
   findAnimalLocationByTag,
   findAnimalDetailByTag,
+  visibleAnimalDetails,
 } = await import("@/lib/dal/animal-access");
 
 beforeEach(async () => {
@@ -585,5 +586,102 @@ describe("findAnimalDetailByTag", () => {
     await seedDetailedAnimalAtFarm(farmSur.id, admin.id, "AR000000000062");
 
     expect(await findAnimalDetailByTag(manager.id, "manager", "AR000000000062")).toBeNull();
+  });
+});
+
+describe("visibleAnimalDetails", () => {
+  async function seedDetailedAnimalAtFarm(
+    farmId: string,
+    adminId: string,
+    tag: string,
+    details: { sex?: "male" | "female"; breed?: string; birthDate?: string; ownerId?: string; secondaryTag?: string } = {}
+  ) {
+    const [createdAnimal] = await testDb
+      .insert(animal)
+      .values({ sex: details.sex, breed: details.breed, birthDate: details.birthDate, ownerId: details.ownerId })
+      .returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, secondaryTag: details.secondaryTag });
+
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId, animalCount: 1, createdBy: adminId })
+      .returning();
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        farmId,
+        batchOperationId: batch.id,
+        createdBy: adminId,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({ eventId: transferEvent.id, originFarmId: farmId, destinationFarmId: farmId });
+
+    await refreshDerivedState();
+    return createdAnimal;
+  }
+
+  it("resolves owner, sex, breed, birth date, and secondary tag for every visible animal", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededOwner] = await testDb.insert(owner).values({ name: "SASG" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    await seedDetailedAnimalAtFarm(seededFarm.id, admin.id, "AR000000000070", {
+      sex: "female",
+      breed: "Hereford",
+      birthDate: "2021-01-01",
+      ownerId: seededOwner.id,
+      secondaryTag: "CHIP1",
+    });
+
+    const rows = await visibleAnimalDetails(admin.id, "admin");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      farmName: "Campo Norte",
+      sex: "female",
+      breed: "Hereford",
+      birthDate: "2021-01-01",
+      ownerName: "SASG",
+      secondaryTag: "CHIP1",
+    });
+  });
+
+  it("scopes results to the manager's assigned farm", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [farmNorte] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [farmSur] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmNorte.id });
+    await seedDetailedAnimalAtFarm(farmNorte.id, admin.id, "AR000000000071");
+    await seedDetailedAnimalAtFarm(farmSur.id, admin.id, "AR000000000072");
+
+    const rows = await visibleAnimalDetails(manager.id, "manager");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].farmName).toBe("Campo Norte");
+  });
+
+  it("returns an empty array for a manager with no assigned farms", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [unassignedManager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Sin campo", email: "sincampo2@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+
+    expect(await visibleAnimalDetails(unassignedManager.id, "manager")).toEqual([]);
   });
 });

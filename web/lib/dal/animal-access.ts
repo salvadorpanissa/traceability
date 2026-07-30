@@ -216,6 +216,59 @@ function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
   };
 }
 
+const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
+  select
+    acs.animal_id,
+    acs.current_tag,
+    acs.current_farm_id,
+    f.name as farm_name,
+    acs.current_paddock_id,
+    p.name as paddock_name,
+    acs.current_category_id,
+    c.name as category_name,
+    acs.status,
+    a.sex,
+    a.breed,
+    a.birth_date,
+    o.name as owner_name,
+    (
+      select ath2.secondary_tag
+      from animal_tag_history ath2
+      where ath2.animal_id = acs.animal_id
+      order by ath2.valid_from desc
+      limit 1
+    ) as secondary_tag
+  from animal_current_state acs
+  left join farm f on f.id = acs.current_farm_id
+  left join paddock p on p.id = acs.current_paddock_id
+  left join category c on c.id = acs.current_category_id
+  left join animal a on a.id = acs.animal_id
+  left join owner o on o.id = a.owner_id
+`;
+
+// Same shape and per-animal fields as findAnimalDetailByTag, but for every
+// visible animal instead of a single tag lookup — used by dashboard
+// summaries (e.g. the by-potrero breakdown) that need owner/sex/breed/birth
+// date/secondary tag alongside each animal, not just its tag.
+export async function visibleAnimalDetails(userId: string, role: string | undefined): Promise<AnimalLookupDetail[]> {
+  if (isAdmin(role)) {
+    const result = await db.execute<AnimalLookupDetailRow>(CURRENT_STATE_WITH_DETAILS_SELECT);
+    return result.rows.map(toAnimalLookupDetail);
+  }
+
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.length === 0) return [];
+
+  const farmIdList = sql.join(
+    farmIds.map((farmId) => sql`${farmId}`),
+    sql`, `
+  );
+  const result = await db.execute<AnimalLookupDetailRow>(
+    sql`${CURRENT_STATE_WITH_DETAILS_SELECT} where acs.current_farm_id in (${farmIdList})`
+  );
+  return result.rows.map(toAnimalLookupDetail);
+}
+
 // Same tag resolution and farm scoping as findAnimalLocationByTag, plus the
 // animal-level fields (owner/sex/breed/birth date/secondary tag) that live
 // on `animal`/`animal_tag_history` rather than the derived-state view — kept

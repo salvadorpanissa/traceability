@@ -1,6 +1,15 @@
-import type { AnimalCurrentStateWithNames } from "@/lib/dal/animal-access";
+import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 
-export type GroupAnimal = { animalId: string; tag: string | null };
+export type GroupAnimal = {
+  animalId: string;
+  tag: string | null;
+  categoryName: string | null;
+  secondaryTag: string | null;
+  sex: "male" | "female" | null;
+  breed: string | null;
+  ownerName: string | null;
+  birthDate: string | null;
+};
 
 export type LivestockByPaddockRow = {
   farmName: string | null;
@@ -15,7 +24,20 @@ export type LivestockByCategoryRow = {
   animals: GroupAnimal[];
 };
 
-export function summarizeLivestockByPaddock(rows: AnimalCurrentStateWithNames[]): LivestockByPaddockRow[] {
+function toGroupAnimal(row: AnimalLookupDetail): GroupAnimal {
+  return {
+    animalId: row.animalId,
+    tag: row.currentTag,
+    categoryName: row.categoryName,
+    secondaryTag: row.secondaryTag,
+    sex: row.sex,
+    breed: row.breed,
+    ownerName: row.ownerName,
+    birthDate: row.birthDate,
+  };
+}
+
+export function summarizeLivestockByPaddock(rows: AnimalLookupDetail[]): LivestockByPaddockRow[] {
   const groups = new Map<string, LivestockByPaddockRow>();
 
   for (const row of rows) {
@@ -23,7 +45,7 @@ export function summarizeLivestockByPaddock(rows: AnimalCurrentStateWithNames[])
 
     const key = `${row.farmName ?? ""} ${row.paddockName ?? ""}`;
     const existing = groups.get(key);
-    const animal = { animalId: row.animalId, tag: row.currentTag };
+    const animal = toGroupAnimal(row);
     if (existing) {
       existing.count += 1;
       existing.animals.push(animal);
@@ -35,7 +57,7 @@ export function summarizeLivestockByPaddock(rows: AnimalCurrentStateWithNames[])
   return Array.from(groups.values());
 }
 
-export function summarizeLivestockByCategory(rows: AnimalCurrentStateWithNames[]): LivestockByCategoryRow[] {
+export function summarizeLivestockByCategory(rows: AnimalLookupDetail[]): LivestockByCategoryRow[] {
   const groups = new Map<string, LivestockByCategoryRow>();
 
   for (const row of rows) {
@@ -43,7 +65,7 @@ export function summarizeLivestockByCategory(rows: AnimalCurrentStateWithNames[]
 
     const key = row.categoryName ?? "";
     const existing = groups.get(key);
-    const animal = { animalId: row.animalId, tag: row.currentTag };
+    const animal = toGroupAnimal(row);
     if (existing) {
       existing.count += 1;
       existing.animals.push(animal);

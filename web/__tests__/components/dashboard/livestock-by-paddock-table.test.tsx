@@ -36,15 +36,33 @@ describe("LivestockByPaddockTable", () => {
     expect(screen.getByText("No hay animales vivos para mostrar por potrero.")).toBeInTheDocument();
   });
 
-  it("expands a group to list its animal tags", async () => {
+  it("expands a group to show a table with each animal's data", async () => {
     const rows: LivestockByPaddockRow[] = [
       {
         farmName: "Campo Norte",
         paddockName: "Potrero 1",
         count: 2,
         animals: [
-          { animalId: "a1", tag: "AR1" },
-          { animalId: "a2", tag: "AR2" },
+          {
+            animalId: "a1",
+            tag: "AR1",
+            categoryName: "Vaca",
+            secondaryTag: "CHIP1",
+            sex: "female",
+            breed: "Hereford",
+            ownerName: "SASG",
+            birthDate: "2021-01-01",
+          },
+          {
+            animalId: "a2",
+            tag: "AR2",
+            categoryName: null,
+            secondaryTag: null,
+            sex: null,
+            breed: null,
+            ownerName: null,
+            birthDate: null,
+          },
         ],
       },
     ];
@@ -52,8 +70,19 @@ describe("LivestockByPaddockTable", () => {
     render(<LivestockByPaddockTable rows={rows} locale="es" />);
     const user = userEvent.setup();
 
-    expect(screen.queryByText("AR1, AR2")).not.toBeInTheDocument();
+    expect(screen.queryByText("AR1")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /expandir/i }));
-    expect(screen.getByText("AR1, AR2")).toBeInTheDocument();
+
+    expect(screen.getByText("AR1")).toBeInTheDocument();
+    expect(screen.getByText("CHIP1")).toBeInTheDocument();
+    expect(screen.getByText("Vaca")).toBeInTheDocument();
+    expect(screen.getByText("Hembra")).toBeInTheDocument();
+    expect(screen.getByText("Hereford")).toBeInTheDocument();
+    expect(screen.getByText("SASG")).toBeInTheDocument();
+    expect(screen.getByText("2021-01-01")).toBeInTheDocument();
+
+    expect(screen.getByText("AR2")).toBeInTheDocument();
+    expect(screen.getByText("Sin categoría")).toBeInTheDocument();
+    expect(screen.getByText("Sin dato")).toBeInTheDocument();
   });
 });

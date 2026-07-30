@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
-import { visibleCurrentStateWithNames } from "@/lib/dal/animal-access";
+import { visibleAnimalDetails } from "@/lib/dal/animal-access";
 import { summarizeLivestockByPaddock, summarizeLivestockByCategory } from "@/lib/dashboard/livestock-summary";
 import { visibleHealthBatchesSince, countDistinctAnimalsTreatedThisMonth } from "@/lib/dashboard/health-batch-summary";
 import { LivestockByPaddockTable } from "@/components/dashboard/livestock-by-paddock-table";
@@ -28,7 +28,7 @@ export default async function DashboardPage() {
 
   const session = await requireSession();
   const [rows, healthBatches, healthEventsThisMonth, staleTags] = await Promise.all([
-    visibleCurrentStateWithNames(session.user.id, session.user.role),
+    visibleAnimalDetails(session.user.id, session.user.role),
     visibleHealthBatchesSince(
       session.user.id,
       session.user.role,

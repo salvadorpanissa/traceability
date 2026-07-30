@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { summarizeLivestockByPaddock, summarizeLivestockByCategory } from "@/lib/dashboard/livestock-summary";
-import type { AnimalCurrentStateWithNames } from "@/lib/dal/animal-access";
+import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 
-function row(overrides: Partial<AnimalCurrentStateWithNames>): AnimalCurrentStateWithNames {
+function row(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail {
   return {
     animalId: "a1",
     currentTag: "AR1",
@@ -13,6 +13,27 @@ function row(overrides: Partial<AnimalCurrentStateWithNames>): AnimalCurrentStat
     currentCategoryId: "c1",
     categoryName: "Vaca",
     status: "alive",
+    sex: null,
+    breed: null,
+    birthDate: null,
+    ownerName: null,
+    secondaryTag: null,
+    ...overrides,
+  };
+}
+
+function groupAnimal(overrides: {
+  animalId: string;
+  tag: string | null;
+  categoryName?: string | null;
+}): ReturnType<typeof summarizeLivestockByPaddock>[number]["animals"][number] {
+  return {
+    categoryName: null,
+    secondaryTag: null,
+    sex: null,
+    breed: null,
+    ownerName: null,
+    birthDate: null,
     ...overrides,
   };
 }
@@ -35,15 +56,63 @@ describe("summarizeLivestockByPaddock", () => {
           paddockName: "Potrero 1",
           count: 2,
           animals: [
-            { animalId: "a1", tag: "AR1" },
-            { animalId: "a2", tag: "AR2" },
+            groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" }),
+            groupAnimal({ animalId: "a2", tag: "AR2", categoryName: "Vaca" }),
           ],
         },
-        { farmName: "Campo Norte", paddockName: "Potrero 2", count: 1, animals: [{ animalId: "a3", tag: "AR3" }] },
-        { farmName: "Campo Sur", paddockName: "Potrero 1", count: 1, animals: [{ animalId: "a4", tag: "AR4" }] },
+        {
+          farmName: "Campo Norte",
+          paddockName: "Potrero 2",
+          count: 1,
+          animals: [groupAnimal({ animalId: "a3", tag: "AR3", categoryName: "Vaca" })],
+        },
+        {
+          farmName: "Campo Sur",
+          paddockName: "Potrero 1",
+          count: 1,
+          animals: [groupAnimal({ animalId: "a4", tag: "AR4", categoryName: "Vaca" })],
+        },
       ])
     );
     expect(summary).toHaveLength(3);
+  });
+
+  it("carries each animal's category, secondary tag, sex, breed, owner, and birth date into its group", () => {
+    const rows = [
+      row({
+        animalId: "a1",
+        currentTag: "AR1",
+        paddockName: "Potrero 1",
+        categoryName: "Vaca",
+        secondaryTag: "CHIP1",
+        sex: "female",
+        breed: "Hereford",
+        ownerName: "SASG",
+        birthDate: "2021-01-01",
+      }),
+    ];
+
+    const summary = summarizeLivestockByPaddock(rows);
+
+    expect(summary).toEqual([
+      {
+        farmName: "Campo Norte",
+        paddockName: "Potrero 1",
+        count: 1,
+        animals: [
+          {
+            animalId: "a1",
+            tag: "AR1",
+            categoryName: "Vaca",
+            secondaryTag: "CHIP1",
+            sex: "female",
+            breed: "Hereford",
+            ownerName: "SASG",
+            birthDate: "2021-01-01",
+          },
+        ],
+      },
+    ]);
   });
 
   it("excludes sold and dead animals from the summary", () => {
@@ -56,7 +125,12 @@ describe("summarizeLivestockByPaddock", () => {
     const summary = summarizeLivestockByPaddock(rows);
 
     expect(summary).toEqual([
-      { farmName: "Campo Norte", paddockName: "Potrero 1", count: 1, animals: [{ animalId: "a1", tag: "AR1" }] },
+      {
+        farmName: "Campo Norte",
+        paddockName: "Potrero 1",
+        count: 1,
+        animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" })],
+      },
     ]);
   });
 
@@ -66,7 +140,12 @@ describe("summarizeLivestockByPaddock", () => {
     const summary = summarizeLivestockByPaddock(rows);
 
     expect(summary).toEqual([
-      { farmName: null, paddockName: null, count: 1, animals: [{ animalId: "a1", tag: "AR1" }] },
+      {
+        farmName: null,
+        paddockName: null,
+        count: 1,
+        animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" })],
+      },
     ]);
   });
 
@@ -91,11 +170,15 @@ describe("summarizeLivestockByCategory", () => {
           categoryName: "Vaca",
           count: 2,
           animals: [
-            { animalId: "a1", tag: "AR1" },
-            { animalId: "a2", tag: "AR2" },
+            groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" }),
+            groupAnimal({ animalId: "a2", tag: "AR2", categoryName: "Vaca" }),
           ],
         },
-        { categoryName: "Novillo", count: 1, animals: [{ animalId: "a3", tag: "AR3" }] },
+        {
+          categoryName: "Novillo",
+          count: 1,
+          animals: [groupAnimal({ animalId: "a3", tag: "AR3", categoryName: "Novillo" })],
+        },
       ])
     );
     expect(summary).toHaveLength(2);
@@ -110,7 +193,9 @@ describe("summarizeLivestockByCategory", () => {
 
     const summary = summarizeLivestockByCategory(rows);
 
-    expect(summary).toEqual([{ categoryName: "Vaca", count: 1, animals: [{ animalId: "a1", tag: "AR1" }] }]);
+    expect(summary).toEqual([
+      { categoryName: "Vaca", count: 1, animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" })] },
+    ]);
   });
 
   it("groups animals with no category under a null bucket", () => {
@@ -118,7 +203,9 @@ describe("summarizeLivestockByCategory", () => {
 
     const summary = summarizeLivestockByCategory(rows);
 
-    expect(summary).toEqual([{ categoryName: null, count: 1, animals: [{ animalId: "a1", tag: "AR1" }] }]);
+    expect(summary).toEqual([
+      { categoryName: null, count: 1, animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: null })] },
+    ]);
   });
 
   it("returns an empty array for no rows", () => {

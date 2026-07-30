@@ -36,7 +36,32 @@ describe("LivestockByCategoryTable", () => {
 
   it("expands a group to list its animal tags", async () => {
     const rows: LivestockByCategoryRow[] = [
-      { categoryName: "Vaca", count: 2, animals: [{ animalId: "a1", tag: "AR1" }, { animalId: "a2", tag: "AR2" }] },
+      {
+        categoryName: "Vaca",
+        count: 2,
+        animals: [
+          {
+            animalId: "a1",
+            tag: "AR1",
+            categoryName: "Vaca",
+            secondaryTag: null,
+            sex: null,
+            breed: null,
+            ownerName: null,
+            birthDate: null,
+          },
+          {
+            animalId: "a2",
+            tag: "AR2",
+            categoryName: "Vaca",
+            secondaryTag: null,
+            sex: null,
+            breed: null,
+            ownerName: null,
+            birthDate: null,
+          },
+        ],
+      },
     ];
 
     render(<LivestockByCategoryTable rows={rows} locale="es" />);
