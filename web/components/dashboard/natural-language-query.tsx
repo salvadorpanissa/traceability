@@ -37,7 +37,7 @@ export function NaturalLanguageQuery({ locale }: { locale: Locale }) {
   return (
     <div className="flex flex-col gap-2">
       <textarea
-        className="min-h-20 w-full rounded-lg border p-2 text-sm"
+        className="min-h-20 w-full resize-none rounded-lg border p-2 text-sm"
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
         onKeyDown={handleKeyDown}

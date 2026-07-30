@@ -59,21 +59,36 @@ export default async function DashboardPage() {
         healthEventsThisMonth={healthEventsThisMonth}
       />
 
-      {/* Two-column: paddock table | stock by category + animal lookup */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
-        <div>
-          <h2 className="mb-3 text-lg font-semibold">{translate(locale, "livestock.byPaddockTitle")}</h2>
-          <LivestockByPaddockTable rows={byPaddock} locale={locale} />
+      {/*
+        Two independent flowing columns (tables 2/3, their data panels 1/3),
+        not three stacked row-grids — a row-grid locks both cells to the
+        tallest one's height, leaving a dead gap under whichever side is
+        shorter. Each column stacks its own items with its own gap, so a
+        short "Preguntale a la IA" box doesn't push "Animales por potrero"
+        down to match the taller "Stock por categoría" chart next to it.
+      */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+        <div className="flex flex-col gap-6 lg:col-span-2">
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.aiQuestionsTitle")}</h2>
+            <NaturalLanguageQuery locale={locale} />
+          </div>
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">{translate(locale, "livestock.byPaddockTitle")}</h2>
+            <LivestockByPaddockTable rows={byPaddock} locale={locale} />
+          </div>
+          <div>
+            <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.recentHealthTitle")}</h2>
+            <p className="mb-3 text-xs text-muted-foreground">{translate(locale, "dashboard.recentHealthLastMonths")}</p>
+            <RecentHealthEvents batches={healthBatches} />
+          </div>
         </div>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:col-span-1">
           <div>
             <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.stockByCategoryTitle")}</h2>
             <div className="rounded-xl border bg-card p-4">
               <StockByCategoryChart rows={byCategory} />
             </div>
-          </div>
-          <div>
-            <AnimalLookup locale={locale} />
           </div>
           <div>
             <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.staleTagsTitle")}</h2>
@@ -83,20 +98,10 @@ export default async function DashboardPage() {
               locale={locale}
             />
           </div>
+          <div>
+            <AnimalLookup locale={locale} />
+          </div>
         </div>
-      </div>
-
-      {/* AI questions full width */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.aiQuestionsTitle")}</h2>
-        <NaturalLanguageQuery locale={locale} />
-      </div>
-
-      {/* Recent health full width */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.recentHealthTitle")}</h2>
-        <p className="mb-3 text-xs text-muted-foreground">{translate(locale, "dashboard.recentHealthLastMonths")}</p>
-        <RecentHealthEvents batches={healthBatches} />
       </div>
     </div>
   );
