@@ -26,6 +26,14 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/*": ["node_modules/@napi-rs/canvas/**/*", "node_modules/@napi-rs/canvas-linux-x64-gnu/**/*"],
   },
+  // Default is 1MB, which leaves no margin for the bulk animal-import
+  // workbook uploaded as FormData through parseImportFileAction (a
+  // ~3750-row .xlsx can run several hundred KB).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
 };
 
 export default nextConfig;
