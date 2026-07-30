@@ -1,5 +1,7 @@
-import { animal, animalTagHistory, event, eventRetag, eventRecategorize } from "@/db/schema";
+import { animal, animalTagHistory, event, eventRetag, eventRecategorize, category } from "@/db/schema";
 import type { CreatableRow } from "@/lib/activities/batch-resolution";
+import { deduceAgeMonthsForCategory } from "@/lib/activities/category-birth-date";
+import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
 import type { db } from "@/db";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -15,9 +17,20 @@ export async function createNewAnimal(
 ): Promise<string> {
   const { userId, operatingFarmId, batchId, row } = input;
 
+  // No birth date on the row, but a category that implies an age bracket
+  // (e.g. "Novillo 2-3 años") — deduce one instead of leaving it unknown,
+  // anchored to this row's own event date rather than "today" so a batch
+  // imported for a past date doesn't get an age computed as of now.
+  let birthDate = row.birthDate;
+  if (!birthDate && row.categoryId) {
+    const categories = await tx.select({ id: category.id, minAgeMonths: category.minAgeMonths }).from(category);
+    const ageMonths = deduceAgeMonthsForCategory(row.categoryId, categories);
+    if (ageMonths !== null) birthDate = estimateBirthDateFromAge(row.eventDate, ageMonths);
+  }
+
   const [createdAnimal] = await tx
     .insert(animal)
-    .values({ sex: row.sex, ownerId: row.ownerId, birthDate: row.birthDate, breed: row.breed ?? null })
+    .values({ sex: row.sex, ownerId: row.ownerId, birthDate, breed: row.breed ?? null })
     .returning();
   await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag, secondaryTag: row.secondaryTag ?? null });
 

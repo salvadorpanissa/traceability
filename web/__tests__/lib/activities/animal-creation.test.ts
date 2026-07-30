@@ -151,6 +151,86 @@ describe("createNewAnimal", () => {
     expect(tagRow.secondaryTag).toBe("CHIP-063");
   });
 
+  it("deduces a birth date from the category's age bracket when the row has none", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    await testDb.insert(category).values({ name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+    const [category23] = await testDb
+      .insert(category)
+      .values({ name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .returning();
+    await testDb.insert(category).values({ name: "Novillo +3 años", sex: "male", minAgeMonths: 36 });
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000065",
+      eventDate: "2026-02-01",
+      notes: null,
+      status: "new",
+      categoryId: category23.id,
+      sex: "male",
+      birthDate: null,
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    // Midpoint between the 24- and 36-month thresholds is 30 months before
+    // the row's event date (2026-02-01), approximated to the 1st.
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.birthDate).toBe("2023-08-01");
+  });
+
+  it("doesn't deduce a birth date when the category has no minAgeMonths", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const [createdCategory] = await testDb.insert(category).values({ name: "Toro" }).returning();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000066",
+      eventDate: "2026-02-01",
+      notes: null,
+      status: "new",
+      categoryId: createdCategory.id,
+      sex: "male",
+      birthDate: null,
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.birthDate).toBeNull();
+  });
+
+  it("keeps the row's own birth date instead of deducing one from the category", async () => {
+    const { seededFarm, user, batch } = await seedFarmAndUser();
+    await testDb.insert(category).values({ name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+    const [category23] = await testDb
+      .insert(category)
+      .values({ name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .returning();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000067",
+      eventDate: "2026-02-01",
+      notes: null,
+      status: "new",
+      categoryId: category23.id,
+      sex: "male",
+      birthDate: "2020-05-15",
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(createdAnimal.birthDate).toBe("2020-05-15");
+  });
+
   it("leaves breed and secondaryTag null when the row doesn't carry them", async () => {
     const { seededFarm, user, batch } = await seedFarmAndUser();
     const row: Extract<ResolvedRow, { status: "new" }> = {
