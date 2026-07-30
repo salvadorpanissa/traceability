@@ -4,11 +4,22 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createCategoryAction, updateCategoryAction } from "@/app/(protected)/settings/categories/actions";
+import {
+  createCategoryAction,
+  updateCategoryAction,
+  archiveCategoryAction,
+} from "@/app/(protected)/settings/categories/actions";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
-export function CategoryCatalogForm({ categories: initialCategories }: { categories: CategoryCatalogEntry[] }) {
+export function CategoryCatalogForm({
+  categories: initialCategories,
+  animalCounts: initialAnimalCounts = {},
+}: {
+  categories: CategoryCatalogEntry[];
+  animalCounts?: Record<string, number>;
+}) {
   const [categories, setCategories] = useState(initialCategories);
+  const [animalCounts, setAnimalCounts] = useState(initialAnimalCounts);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -20,6 +31,14 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
   const [sex, setSex] = useState("");
   const [minAgeMonths, setMinAgeMonths] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archiveTargetId, setArchiveTargetId] = useState("");
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
+
+  const activeCategories = categories.filter((c) => c.active);
+  const archivedCategories = categories.filter((c) => !c.active);
 
   function startEdit(entry: CategoryCatalogEntry) {
     setEditingId(entry.id);
@@ -68,6 +87,42 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
     setCreateError(null);
   }
 
+  function startArchive(id: string) {
+    setArchivingId(id);
+    setArchiveTargetId("");
+    setArchiveError(null);
+  }
+
+  function cancelArchive() {
+    setArchivingId(null);
+    setArchiveError(null);
+  }
+
+  async function confirmArchive(id: string) {
+    const count = animalCounts[id] ?? 0;
+    if (count > 0 && !archiveTargetId) return;
+
+    setArchiving(true);
+    const result = await archiveCategoryAction({
+      categoryId: id,
+      targetCategoryId: count > 0 ? archiveTargetId : null,
+    });
+    setArchiving(false);
+
+    if (!result.ok) {
+      setArchiveError(result.error);
+      return;
+    }
+
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, active: false } : c)));
+    setAnimalCounts((prev) => {
+      const next = { ...prev, [id]: 0 };
+      if (archiveTargetId) next[archiveTargetId] = (next[archiveTargetId] ?? 0) + result.reassigned;
+      return next;
+    });
+    setArchivingId(null);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <table className="w-full text-sm">
@@ -80,7 +135,7 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
           </tr>
         </thead>
         <tbody>
-          {categories.map((entry) =>
+          {activeCategories.map((entry) =>
             editingId === entry.id ? (
               <tr key={entry.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">
@@ -122,9 +177,12 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
                   {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
                 </td>
                 <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
-                <td className="py-1 pr-2">
+                <td className="flex gap-1 py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => startArchive(entry.id)}>
+                    Eliminar
                   </Button>
                 </td>
               </tr>
@@ -133,6 +191,55 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
         </tbody>
       </table>
       {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
+
+      {archivingId
+        ? (() => {
+            const entry = categories.find((c) => c.id === archivingId)!;
+            const count = animalCounts[archivingId] ?? 0;
+            const targetOptions = activeCategories.filter((c) => c.id !== archivingId);
+            return (
+              <div className="flex flex-col gap-2 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
+                {count > 0 ? (
+                  <>
+                    <p>
+                      Hay {count} {count === 1 ? "animal" : "animales"} en “{entry.name}”. Elegí a qué categoría
+                      pasarlos:
+                    </p>
+                    <select
+                      aria-label="Pasar animales a"
+                      value={archiveTargetId}
+                      onChange={(e) => setArchiveTargetId(e.target.value)}
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                    >
+                      <option value="">Elegir categoría</option>
+                      {targetOptions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <p>¿Archivar “{entry.name}”? No tiene animales activos.</p>
+                )}
+                {archiveError ? <p className="text-destructive">{archiveError}</p> : null}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={archiving || (count > 0 && !archiveTargetId)}
+                    onClick={() => confirmArchive(archivingId)}
+                  >
+                    Confirmar
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={cancelArchive}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            );
+          })()
+        : null}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="category-name">Nombre</Label>
@@ -164,6 +271,21 @@ export function CategoryCatalogForm({ categories: initialCategories }: { categor
           Agregar
         </Button>
       </div>
+
+      {archivedCategories.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-muted-foreground">Categorías archivadas</p>
+          <table className="w-full text-sm text-muted-foreground">
+            <tbody>
+              {archivedCategories.map((entry) => (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-1 pr-2">{entry.name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

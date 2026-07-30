@@ -2,27 +2,32 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CategoryCatalogForm } from "@/components/settings/category-catalog-form";
-import { createCategoryAction, updateCategoryAction } from "@/app/(protected)/settings/categories/actions";
+import {
+  createCategoryAction,
+  updateCategoryAction,
+  archiveCategoryAction,
+} from "@/app/(protected)/settings/categories/actions";
 
 afterEach(cleanup);
 
 vi.mock("@/app/(protected)/settings/categories/actions", () => ({
   createCategoryAction: vi.fn(),
   updateCategoryAction: vi.fn(),
+  archiveCategoryAction: vi.fn(),
 }));
 
 describe("CategoryCatalogForm", () => {
   it("lists categories, adds a new one, and edits an existing one", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Toro", sex: null, minAgeMonths: null },
+      entry: { id: "cat-2", name: "Toro", sex: null, minAgeMonths: null, active: true },
     });
     vi.mocked(updateCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-1", name: "Vaca de invernada", sex: null, minAgeMonths: null },
+      entry: { id: "cat-1", name: "Vaca de invernada", sex: null, minAgeMonths: null, active: true },
     });
 
-    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sex: null, minAgeMonths: null }]} />);
+    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sex: null, minAgeMonths: null, active: true }]} />);
 
     expect(screen.getByText("Vaca")).toBeInTheDocument();
 
@@ -63,7 +68,7 @@ describe("CategoryCatalogForm", () => {
   it("creates a category with a sex scope and minimum age", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
+      entry: { id: "cat-2", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
     });
 
     render(<CategoryCatalogForm categories={[]} />);
@@ -82,5 +87,74 @@ describe("CategoryCatalogForm", () => {
       })
     );
     expect(screen.getByText("Novillo +3 años")).toBeInTheDocument();
+  });
+
+  it("archives a category directly, with no target category asked, when it has no animals", async () => {
+    vi.mocked(archiveCategoryAction).mockResolvedValue({ ok: true, reassigned: 0 });
+
+    render(
+      <CategoryCatalogForm
+        categories={[{ id: "cat-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
+        animalCounts={{}}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    expect(screen.getByText(/No tiene animales activos/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() =>
+      expect(archiveCategoryAction).toHaveBeenCalledWith({ categoryId: "cat-1", targetCategoryId: null })
+    );
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Eliminar" })).not.toBeInTheDocument());
+    expect(screen.getByText("Categorías archivadas")).toBeInTheDocument();
+    expect(screen.getByText("Toro")).toBeInTheDocument();
+  });
+
+  it("asks which category to move animals to before archiving, and blocks confirming until one is chosen", async () => {
+    vi.mocked(archiveCategoryAction).mockResolvedValue({ ok: true, reassigned: 492 });
+
+    render(
+      <CategoryCatalogForm
+        categories={[
+          { id: "cat-1", name: "Ternera", sex: "female", minAgeMonths: 0, active: true },
+          { id: "cat-2", name: "Vaquillona", sex: "female", minAgeMonths: null, active: true },
+        ]}
+        animalCounts={{ "cat-1": 492 }}
+      />
+    );
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Eliminar" })[0]);
+    expect(screen.getByText(/Hay 492 animales en “Ternera”/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar" })).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByLabelText("Pasar animales a"), "cat-2");
+    expect(screen.getByRole("button", { name: "Confirmar" })).not.toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() =>
+      expect(archiveCategoryAction).toHaveBeenCalledWith({ categoryId: "cat-1", targetCategoryId: "cat-2" })
+    );
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Eliminar" })).toHaveLength(1));
+    expect(screen.getByText("Categorías archivadas")).toBeInTheDocument();
+  });
+
+  it("shows the server's error inline and keeps the category active when archiving fails", async () => {
+    vi.mocked(archiveCategoryAction).mockResolvedValue({ ok: false, error: "No se pudo archivar la categoría" });
+
+    render(
+      <CategoryCatalogForm
+        categories={[{ id: "cat-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
+        animalCounts={{}}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    await waitFor(() => expect(screen.getByText("No se pudo archivar la categoría")).toBeInTheDocument());
+    expect(screen.getAllByText("Toro")).not.toHaveLength(0);
   });
 });

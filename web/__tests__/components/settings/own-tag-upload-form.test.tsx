@@ -163,6 +163,7 @@ describe("OwnTagUploadForm", () => {
       name: "Vaca",
       sex: null,
       minAgeMonths: null,
+      active: true,
     });
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);

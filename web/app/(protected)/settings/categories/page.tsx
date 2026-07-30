@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryCatalogForm } from "@/components/settings/category-catalog-form";
-import { listCategories } from "@/lib/dal/category-catalog";
+import { listAllCategories, countAliveAnimalsByCategory } from "@/lib/dal/category-catalog";
 import { requireSession } from "@/lib/dal/session";
 
 export default async function CategoriesSettingsPage() {
   await requireSession();
-  const categories = await listCategories();
+  const [categories, animalCounts] = await Promise.all([listAllCategories(), countAliveAnimalsByCategory()]);
 
   return (
     <Card className="mx-auto w-full max-w-2xl">
@@ -13,7 +13,7 @@ export default async function CategoriesSettingsPage() {
         <CardTitle>Categorías</CardTitle>
       </CardHeader>
       <CardContent>
-        <CategoryCatalogForm categories={categories} />
+        <CategoryCatalogForm categories={categories} animalCounts={Object.fromEntries(animalCounts)} />
       </CardContent>
     </Card>
   );

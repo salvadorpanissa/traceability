@@ -41,8 +41,8 @@ describe("RecategorizeForm", () => {
     render(
       <RecategorizeForm
         categories={[
-          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null },
-          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
+          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
         ]}
       />
     );
@@ -101,8 +101,8 @@ describe("RecategorizeForm", () => {
     render(
       <RecategorizeForm
         categories={[
-          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null },
-          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36 },
+          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
         ]}
       />
     );
@@ -139,7 +139,7 @@ describe("RecategorizeForm", () => {
       rows: [{ tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" }],
     });
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null }]} />);
+    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
@@ -171,7 +171,7 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null }]} />);
+    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
@@ -209,7 +209,7 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null }]} />);
+    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
@@ -257,8 +257,8 @@ describe("RecategorizeForm", () => {
     render(
       <RecategorizeForm
         categories={[
-          { id: "cat-vaca", name: "Vaca", sex: null, minAgeMonths: null },
-          { id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null },
+          { id: "cat-vaca", name: "Vaca", sex: null, minAgeMonths: null, active: true },
+          { id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
         ]}
       />
     );
@@ -304,7 +304,7 @@ describe("RecategorizeForm", () => {
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
     render(
-      <RecategorizeForm categories={[{ id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null }]} />
+      <RecategorizeForm categories={[{ id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null, active: true }]} />
     );
 
     const user = userEvent.setup();

@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { category } from "@/db/schema";
 
@@ -7,18 +7,29 @@ export type CategoryCatalogEntry = {
   name: string;
   sex: "male" | "female" | null;
   minAgeMonths: number | null;
+  active: boolean;
 };
 
+const CATEGORY_COLUMNS = {
+  id: category.id,
+  name: category.name,
+  sex: category.sex,
+  minAgeMonths: category.minAgeMonths,
+  active: category.active,
+};
+
+// Active categories only — what every picker that assigns a category going
+// forward (manual recategorize, imports) should offer. An archived category
+// still exists (its historical events still reference it) but shouldn't be
+// chosen for new assignments.
 export async function listCategories(): Promise<CategoryCatalogEntry[]> {
-  return db
-    .select({
-      id: category.id,
-      name: category.name,
-      sex: category.sex,
-      minAgeMonths: category.minAgeMonths,
-    })
-    .from(category)
-    .orderBy(asc(category.name));
+  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.active, true)).orderBy(asc(category.name));
+}
+
+// Every category regardless of active state — only the settings management
+// page needs this, to show archived categories alongside active ones.
+export async function listAllCategories(): Promise<CategoryCatalogEntry[]> {
+  return db.select(CATEGORY_COLUMNS).from(category).orderBy(asc(category.name));
 }
 
 export async function createCategory(input: {
@@ -39,6 +50,7 @@ export async function createCategory(input: {
     name: created.name,
     sex: created.sex,
     minAgeMonths: created.minAgeMonths,
+    active: created.active,
   };
 }
 
@@ -60,5 +72,23 @@ export async function updateCategory(
     name: updated.name,
     sex: updated.sex,
     minAgeMonths: updated.minAgeMonths,
+    active: updated.active,
   };
+}
+
+export async function setCategoryActive(id: string, active: boolean): Promise<void> {
+  await db.update(category).set({ active }).where(eq(category.id, id));
+}
+
+// How many currently-alive animals sit in each category right now — used by
+// the settings page to warn before archiving ("there are N animals in this
+// category") without a separate round trip per category.
+export async function countAliveAnimalsByCategory(): Promise<Map<string, number>> {
+  const result = await db.execute<{ current_category_id: string; count: string }>(sql`
+    select current_category_id, count(*)::int as count
+    from animal_current_state
+    where status = 'alive' and current_category_id is not null
+    group by current_category_id
+  `);
+  return new Map(result.rows.map((row) => [row.current_category_id, Number(row.count)]));
 }

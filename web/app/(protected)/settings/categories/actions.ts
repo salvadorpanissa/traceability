@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
 import { createCategory, updateCategory, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
+import { archiveCategory } from "@/lib/activities/category-archive";
 
 export type CategoryCatalogActionResult = { ok: true; entry: CategoryCatalogEntry } | { ok: false; error: string };
 
@@ -45,5 +46,24 @@ export async function updateCategoryAction(input: {
   } catch (error) {
     if (isUniqueViolationError(error)) return { ok: false, error: "Ya existe una categoría con ese nombre" };
     throw error;
+  }
+}
+
+export type ArchiveCategoryResult = { ok: true; reassigned: number } | { ok: false; error: string };
+
+export async function archiveCategoryAction(input: {
+  categoryId: string;
+  targetCategoryId: string | null;
+}): Promise<ArchiveCategoryResult> {
+  const session = await requireSession();
+  try {
+    const { reassigned } = await archiveCategory({
+      userId: session.user.id,
+      categoryId: input.categoryId,
+      targetCategoryId: input.targetCategoryId,
+    });
+    return { ok: true, reassigned };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "No se pudo archivar la categoría" };
   }
 }

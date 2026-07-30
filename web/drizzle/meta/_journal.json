@@ -225,6 +225,13 @@
       "when": 1785360558274,
       "tag": "0031_vengeful_catseye",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785423069917,
+      "tag": "0032_fast_blue_blade",
+      "breakpoints": true
     }
   ]
 }
