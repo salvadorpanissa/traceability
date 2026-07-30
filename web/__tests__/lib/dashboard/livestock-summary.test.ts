@@ -124,4 +124,17 @@ describe("summarizeLivestockByCategory", () => {
   it("returns an empty array for no rows", () => {
     expect(summarizeLivestockByCategory([])).toEqual([]);
   });
+
+  it("sorts groups alphabetically by category name, with the no-category bucket last", () => {
+    const rows = [
+      row({ animalId: "a1", categoryName: "Vaca de invernada" }),
+      row({ animalId: "a2", categoryName: null }),
+      row({ animalId: "a3", categoryName: "Ternero" }),
+      row({ animalId: "a4", categoryName: "Vaca de cría" }),
+    ];
+
+    const summary = summarizeLivestockByCategory(rows);
+
+    expect(summary.map((r) => r.categoryName)).toEqual(["Ternero", "Vaca de cría", "Vaca de invernada", null]);
+  });
 });

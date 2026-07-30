@@ -52,5 +52,13 @@ export function summarizeLivestockByCategory(rows: AnimalCurrentStateWithNames[]
     }
   }
 
-  return Array.from(groups.values());
+  // Sorted alphabetically by name (locale-aware, so accents sort naturally)
+  // instead of insertion order, which otherwise depended on the order rows
+  // happened to arrive from the DB query. The "sin categoría" bucket has no
+  // name to sort by, so it always sorts last.
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.categoryName === null) return 1;
+    if (b.categoryName === null) return -1;
+    return a.categoryName.localeCompare(b.categoryName, "es");
+  });
 }
