@@ -5,7 +5,10 @@ import { createDbClient } from "./client";
 
 // Deviation from the brief: dotenv loading was added since tsx does not read
 // .env.local into process.env automatically (unlike `next dev`/`next build`).
-config({ path: path.resolve(__dirname, "..", ".env.local"), quiet: true });
+// ENV_FILE picks which env file to load (.env.local for local dev by
+// default, .env.production for prod) — set literally by the npm script, not
+// shell-expanded, same reasoning as MIGRATE_TARGET below.
+config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
 
 async function run() {
   // Deviation from the brief: the "db:migrate:test" npm script originally

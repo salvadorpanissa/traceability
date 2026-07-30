@@ -5,8 +5,9 @@ import { eq } from "drizzle-orm";
 import { createDbClient } from "./client";
 import { role, farm, userAccount } from "./schema";
 
-// Load .env.local before accessing process.env
-config({ path: path.resolve(__dirname, "..", ".env.local"), quiet: true });
+// ENV_FILE picks which env file to load (.env.local for local dev by
+// default, .env.production for prod) — same mechanism as db/migrate.ts.
+config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
 
 async function upsertRole(db: ReturnType<typeof createDbClient>, name: string) {
   const [existing] = await db.select().from(role).where(eq(role.name, name));
@@ -32,8 +33,12 @@ async function run() {
   const adminRole = await upsertRole(db, "admin");
   await upsertRole(db, "manager");
 
-  const [existingFarm] = await db.select().from(farm).where(eq(farm.name, "Campo Norte"));
-  const devFarm = existingFarm ?? (await db.insert(farm).values({ name: "Campo Norte" }).returning())[0];
+  const farmNames = ["San Antonio", "Cuatro Cerros"];
+  const seededFarms = [];
+  for (const name of farmNames) {
+    const [existingFarm] = await db.select().from(farm).where(eq(farm.name, name));
+    seededFarms.push(existingFarm ?? (await db.insert(farm).values({ name }).returning())[0]);
+  }
 
   const [existingAdmin] = await db.select().from(userAccount).where(eq(userAccount.email, adminEmail));
   if (!existingAdmin) {
@@ -46,7 +51,9 @@ async function run() {
     });
   }
 
-  console.log(`Seeded: admin (${adminEmail}), farm "${devFarm.name}"`);
+  console.log(
+    `Seeded: admin (${adminEmail}), farms ${seededFarms.map((f) => `"${f.name}"`).join(", ")}`
+  );
   process.exit(0);
 }
 
