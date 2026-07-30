@@ -117,4 +117,67 @@ describe("ImportForm", () => {
     expect(firstCallArg).toHaveLength(200);
     expect(secondCallArg).toHaveLength(50);
   });
+
+  it("catches a tag duplicated across what would be two different chunks as a file-level duplicate, without sending either row to the server", async () => {
+    const headers = ["IDE (caravana electrónica)", "Estancia"];
+    // 250 rows so a naive per-chunk (200-row) dedup would miss a tag repeated
+    // between row 0 (chunk 1) and row 205 (chunk 2).
+    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    rows[0] = ["DUPTAG", "San Antonio"];
+    rows[205] = ["DUPTAG", "San Antonio"];
+    vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
+    vi.mocked(importChunkAction).mockImplementation(async (chunkRows) => ({
+      createdCount: chunkRows.length,
+      errors: [],
+    }));
+
+    render(<ImportForm />);
+
+    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    await userEvent.upload(input, new File(["x"], "base.xlsx"));
+    fireEvent.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    // 250 rows - 2 file-duplicate rows = 248 sent to the server.
+    await waitFor(() => expect(screen.getByText(/248 filas creadas/)).toBeInTheDocument());
+
+    expect(screen.getAllByText("Caravana duplicada en el archivo")).toHaveLength(2);
+
+    const allSentRows = vi.mocked(importChunkAction).mock.calls.flatMap((args) => args[0]);
+    expect(allSentRows.some((r) => r.tag === "DUPTAG")).toBe(false);
+    expect(allSentRows).toHaveLength(248);
+  });
+
+  it("preserves accumulated progress when a later chunk fails, and lets the admin restart", async () => {
+    const headers = ["IDE (caravana electrónica)", "Estancia"];
+    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
+
+    vi.mocked(importChunkAction).mockImplementationOnce(async (chunkRows) => ({
+      createdCount: chunkRows.length,
+      errors: [],
+    }));
+    vi.mocked(importChunkAction).mockImplementationOnce(async () => {
+      throw new Error("Chip secundario o caravana duplicados");
+    });
+
+    render(<ImportForm />);
+
+    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    await userEvent.upload(input, new File(["x"], "base.xlsx"));
+    fireEvent.click(screen.getByRole("button", { name: "Subir" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(screen.getByText("Chip secundario o caravana duplicados")).toBeInTheDocument());
+    // The first chunk's 200 created rows must still be shown, not discarded.
+    expect(screen.getByText(/200 filas creadas/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Volver a empezar" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Archivo Excel")).toBeInTheDocument());
+  });
 });
