@@ -23,8 +23,12 @@ function sumPieSegments(
     label: row.categoryName ?? "Sin categoría",
     value: row.count,
     color: COLORS[i % COLORS.length],
-    percent: Math.round((row.count / total) * 100),
+    percent: (row.count / total) * 100,
   }));
+}
+
+function formatPercent(percent: number): string {
+  return `${percent.toFixed(2).replace(".", ",")}%`;
 }
 
 function DonutChart({
@@ -125,7 +129,7 @@ export function StockByCategoryChart({
                 style={{ backgroundColor: seg.color }}
               />
               <span className="text-muted-foreground">{seg.label}</span>
-              <span className="font-medium">{seg.percent}%</span>
+              <span className="font-medium">{formatPercent(seg.percent)}</span>
             </div>
           ))}
         </div>
