@@ -30,6 +30,11 @@ describe("AnimalLookup", () => {
       currentCategoryId: "c1",
       categoryName: "Vaca",
       status: "alive",
+      sex: "female",
+      breed: "Hereford",
+      birthDate: "2021-01-01",
+      ownerName: "SASG",
+      secondaryTag: "CHIP1",
     });
 
     render(<AnimalLookup locale="es" />);
@@ -43,6 +48,41 @@ describe("AnimalLookup", () => {
     expect(screen.getByText(/potrero 1/i)).toBeInTheDocument();
     expect(screen.getByText(/vaca/i)).toBeInTheDocument();
     expect(screen.getByText(/viva/i)).toBeInTheDocument();
+    expect(screen.getByText(/sasg/i)).toBeInTheDocument();
+    expect(screen.getByText(/hembra/i)).toBeInTheDocument();
+    expect(screen.getByText(/hereford/i)).toBeInTheDocument();
+    expect(screen.getByText(/2021-01-01/)).toBeInTheDocument();
+    expect(screen.getByText(/chip1/i)).toBeInTheDocument();
+  });
+
+  it("shows fallback text for owner, sex, breed, birth date, and secondary tag when unset", async () => {
+    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
+      animalId: "a1",
+      currentTag: "AR001",
+      currentFarmId: "f1",
+      farmName: "Campo Norte",
+      currentPaddockId: null,
+      paddockName: null,
+      currentCategoryId: null,
+      categoryName: null,
+      status: "alive",
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerName: null,
+      secondaryTag: null,
+    });
+
+    render(<AnimalLookup locale="es" />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    await waitFor(() => expect(screen.getByText(/sin propietario/i)).toBeInTheDocument());
+    expect(screen.getByText(/sin dato/i)).toBeInTheDocument();
+    expect(screen.getByText(/sin raza/i)).toBeInTheDocument();
+    expect(screen.getByText(/sin fecha de nacimiento/i)).toBeInTheDocument();
+    expect(screen.getByText(/sin chip secundario/i)).toBeInTheDocument();
   });
 
   it("mentions the current tag when it differs from what was searched", async () => {
@@ -56,6 +96,11 @@ describe("AnimalLookup", () => {
       currentCategoryId: null,
       categoryName: null,
       status: "alive",
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerName: null,
+      secondaryTag: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -98,6 +143,11 @@ describe("AnimalLookup", () => {
       currentCategoryId: null,
       categoryName: null,
       status: "alive",
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerName: null,
+      secondaryTag: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -120,6 +170,11 @@ describe("AnimalLookup", () => {
       currentCategoryId: null,
       categoryName: null,
       status: "dead",
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerName: null,
+      secondaryTag: null,
     });
 
     render(<AnimalLookup locale="es" />);

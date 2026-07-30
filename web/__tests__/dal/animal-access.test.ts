@@ -16,12 +16,18 @@ import {
   category,
   eventRetag,
   eventRecategorize,
+  owner,
 } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { requireTransferAuthorization, visibleCurrentState, visibleCurrentStateWithNames, findAnimalLocationByTag } =
-  await import("@/lib/dal/animal-access");
+const {
+  requireTransferAuthorization,
+  visibleCurrentState,
+  visibleCurrentStateWithNames,
+  findAnimalLocationByTag,
+  findAnimalDetailByTag,
+} = await import("@/lib/dal/animal-access");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -459,5 +465,125 @@ describe("findAnimalLocationByTag", () => {
 
     const result = await findAnimalLocationByTag(manager.id, "manager", "AR000000000053");
     expect(result?.farmName).toBe("Campo Norte");
+  });
+});
+
+describe("findAnimalDetailByTag", () => {
+  async function seedDetailedAnimalAtFarm(
+    farmId: string,
+    adminId: string,
+    tag: string,
+    details: { sex?: "male" | "female"; breed?: string; birthDate?: string; ownerId?: string; secondaryTag?: string } = {}
+  ) {
+    const [createdAnimal] = await testDb
+      .insert(animal)
+      .values({ sex: details.sex, breed: details.breed, birthDate: details.birthDate, ownerId: details.ownerId })
+      .returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, secondaryTag: details.secondaryTag });
+
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId, animalCount: 1, createdBy: adminId })
+      .returning();
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        farmId,
+        batchOperationId: batch.id,
+        createdBy: adminId,
+      })
+      .returning();
+    await testDb.insert(eventTransfer).values({ eventId: transferEvent.id, originFarmId: farmId, destinationFarmId: farmId });
+
+    const [retagBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "retag", farmId, animalCount: 1, createdBy: adminId })
+      .returning();
+    const [retagEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "retag",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        farmId,
+        batchOperationId: retagBatch.id,
+        createdBy: adminId,
+      })
+      .returning();
+    await testDb.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: tag, newTag: tag });
+
+    await refreshDerivedState();
+    return createdAnimal;
+  }
+
+  it("resolves owner, sex, breed, birth date, and secondary tag alongside farm/paddock/category", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededOwner] = await testDb.insert(owner).values({ name: "SASG" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    const createdAnimal = await seedDetailedAnimalAtFarm(seededFarm.id, admin.id, "AR000000000060", {
+      sex: "female",
+      breed: "Hereford",
+      birthDate: "2021-01-01",
+      ownerId: seededOwner.id,
+      secondaryTag: "CHIP1",
+    });
+
+    const result = await findAnimalDetailByTag(admin.id, "admin", "AR000000000060");
+
+    expect(result).toMatchObject({
+      animalId: createdAnimal.id,
+      farmName: "Campo Norte",
+      sex: "female",
+      breed: "Hereford",
+      birthDate: "2021-01-01",
+      ownerName: "SASG",
+      secondaryTag: "CHIP1",
+    });
+  });
+
+  it("leaves owner, sex, breed, birth date, and secondary tag null when unset", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    await seedDetailedAnimalAtFarm(seededFarm.id, admin.id, "AR000000000061");
+
+    const result = await findAnimalDetailByTag(admin.id, "admin", "AR000000000061");
+
+    expect(result).toMatchObject({
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerName: null,
+      secondaryTag: null,
+    });
+  });
+
+  it("returns null for a manager searching a tag outside their assigned farms", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [farmNorte] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [farmSur] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmNorte.id });
+    await seedDetailedAnimalAtFarm(farmSur.id, admin.id, "AR000000000062");
+
+    expect(await findAnimalDetailByTag(manager.id, "manager", "AR000000000062")).toBeNull();
   });
 });

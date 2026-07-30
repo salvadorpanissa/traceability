@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { translate, type Locale, type TranslationKey } from "@/lib/i18n/dictionaries";
 import { lookupAnimalByTagAction } from "@/app/(protected)/dashboard/animal-lookup-actions";
-import type { AnimalCurrentStateWithNames } from "@/lib/dal/animal-access";
+import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 
 const STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
   alive: "animalLookup.statusAlive",
@@ -20,9 +20,19 @@ function statusLabel(status: string, locale: Locale): string {
   return key ? translate(locale, key) : status;
 }
 
+const SEX_LABEL_KEYS: Record<string, TranslationKey> = {
+  male: "animalLookup.sexMale",
+  female: "animalLookup.sexFemale",
+};
+
+function sexLabel(sex: string | null, locale: Locale): string {
+  const key = sex ? SEX_LABEL_KEYS[sex] : undefined;
+  return key ? translate(locale, key) : translate(locale, "animalLookup.noSex");
+}
+
 export function AnimalLookup({ locale }: { locale: Locale }) {
   const [tag, setTag] = useState("");
-  const [result, setResult] = useState<{ tag: string; state: AnimalCurrentStateWithNames | null } | null>(null);
+  const [result, setResult] = useState<{ tag: string; state: AnimalLookupDetail | null } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit() {
@@ -79,6 +89,23 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
             </p>
             <p>
               {translate(locale, "animalLookup.status")}: {statusLabel(result.state.status, locale)}
+            </p>
+            <p>
+              {translate(locale, "animalLookup.owner")}: {result.state.ownerName ?? translate(locale, "animalLookup.noOwner")}
+            </p>
+            <p>
+              {translate(locale, "animalLookup.sex")}: {sexLabel(result.state.sex, locale)}
+            </p>
+            <p>
+              {translate(locale, "animalLookup.breed")}: {result.state.breed ?? translate(locale, "animalLookup.noBreed")}
+            </p>
+            <p>
+              {translate(locale, "animalLookup.birthDate")}:{" "}
+              {result.state.birthDate ?? translate(locale, "animalLookup.noBirthDate")}
+            </p>
+            <p>
+              {translate(locale, "animalLookup.secondaryTag")}:{" "}
+              {result.state.secondaryTag ?? translate(locale, "animalLookup.noSecondaryTag")}
             </p>
             {result.state.status === "alive" ? (
               <Link href={`/activities/death?tag=${encodeURIComponent(result.tag)}`} className="text-sm underline">

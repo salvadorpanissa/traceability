@@ -188,3 +188,91 @@ export async function findAnimalLocationByTag(
   );
   return result.rows[0] ? toAnimalCurrentStateWithNames(result.rows[0]) : null;
 }
+
+export type AnimalLookupDetail = AnimalCurrentStateWithNames & {
+  sex: "male" | "female" | null;
+  breed: string | null;
+  birthDate: string | null;
+  ownerName: string | null;
+  secondaryTag: string | null;
+};
+
+type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
+  sex: "male" | "female" | null;
+  breed: string | null;
+  birth_date: string | null;
+  owner_name: string | null;
+  secondary_tag: string | null;
+};
+
+function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
+  return {
+    ...toAnimalCurrentStateWithNames(row),
+    sex: row.sex,
+    breed: row.breed,
+    birthDate: row.birth_date,
+    ownerName: row.owner_name,
+    secondaryTag: row.secondary_tag,
+  };
+}
+
+// Same tag resolution and farm scoping as findAnimalLocationByTag, plus the
+// animal-level fields (owner/sex/breed/birth date/secondary tag) that live
+// on `animal`/`animal_tag_history` rather than the derived-state view — kept
+// as its own query instead of widening findAnimalLocationByTag's shared
+// return shape, since that one is also used by the death activity, which
+// has no use for these extra fields.
+export async function findAnimalDetailByTag(
+  userId: string,
+  role: string | undefined,
+  tag: string
+): Promise<AnimalLookupDetail | null> {
+  const base = sql`
+    select
+      acs.animal_id,
+      acs.current_tag,
+      acs.current_farm_id,
+      f.name as farm_name,
+      acs.current_paddock_id,
+      p.name as paddock_name,
+      acs.current_category_id,
+      c.name as category_name,
+      acs.status,
+      a.sex,
+      a.breed,
+      a.birth_date,
+      o.name as owner_name,
+      (
+        select ath2.secondary_tag
+        from animal_tag_history ath2
+        where ath2.animal_id = acs.animal_id
+        order by ath2.valid_from desc
+        limit 1
+      ) as secondary_tag
+    from animal_tag_history ath
+    join animal_current_state acs on acs.animal_id = ath.animal_id
+    left join farm f on f.id = acs.current_farm_id
+    left join paddock p on p.id = acs.current_paddock_id
+    left join category c on c.id = acs.current_category_id
+    left join animal a on a.id = acs.animal_id
+    left join owner o on o.id = a.owner_id
+    where ath.tag = ${tag}
+  `;
+
+  if (isAdmin(role)) {
+    const result = await db.execute<AnimalLookupDetailRow>(sql`${base} limit 1`);
+    return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
+  }
+
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.length === 0) return null;
+
+  const farmIdList = sql.join(
+    farmIds.map((farmId) => sql`${farmId}`),
+    sql`, `
+  );
+  const result = await db.execute<AnimalLookupDetailRow>(
+    sql`${base} and acs.current_farm_id in (${farmIdList}) limit 1`
+  );
+  return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
+}
