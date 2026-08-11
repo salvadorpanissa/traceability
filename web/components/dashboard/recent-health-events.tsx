@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Syringe } from "lucide-react";
 import type { HealthBatchRow, HealthBatchDetail } from "@/lib/dashboard/health-batch-summary";
 import { voidHealthBatchAction, getHealthBatchDetailAction } from "@/app/(protected)/activities/health/actions";
-import { formatLongDate } from "@/lib/utils";
+import { formatLongDate, formatShortDate } from "@/lib/utils";
 
 export function RecentHealthEvents({
   batches,
@@ -24,6 +24,10 @@ export function RecentHealthEvents({
   const [detailBatchId, setDetailBatchId] = useState<string | null>(null);
   const [detail, setDetail] = useState<HealthBatchDetail | null>(null);
   const [detailError, setDetailError] = useState(false);
+  // Most batches share one event date across every animal (the header
+  // already shows it) — only worth its own column when an import gave
+  // individual rows their own dates.
+  const animalDatesVaryFromHeader = detail ? detail.animals.some((a) => a.eventDate !== detail.eventDate) : false;
 
   async function handleVoid(batchId: string) {
     if (!window.confirm(t("dashboard.recentHealthVoidConfirm"))) return;
@@ -112,7 +116,7 @@ export function RecentHealthEvents({
       ))}
 
       <Dialog open={detailBatchId !== null} onOpenChange={(open) => !open && setDetailBatchId(null)}>
-        <DialogContent className="flex max-h-[85vh] flex-col overflow-y-auto sm:max-w-lg">
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-x-hidden overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("dashboard.recentHealthDetailTitle")}</DialogTitle>
           </DialogHeader>
@@ -136,58 +140,66 @@ export function RecentHealthEvents({
                 <p className="mb-1 text-xs font-medium text-muted-foreground">
                   {t("dashboard.recentHealthDetailProducts")}
                 </p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailProductName")}</th>
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailDose")}</th>
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailRoute")}</th>
-                      <th className="py-1 font-medium">{t("dashboard.recentHealthDetailWithdrawal")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.products.map((product, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="py-1 pr-2">{product.name}</td>
-                        <td className="py-1 pr-2 whitespace-nowrap">
-                          {product.dose} {product.doseUnit}
-                        </td>
-                        <td className="py-1 pr-2">{product.route}</td>
-                        <td className="py-1 whitespace-nowrap">
-                          {product.withdrawalDays !== null ? `${product.withdrawalDays} días` : "—"}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailProductName")}</th>
+                        <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailDose")}</th>
+                        <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailRoute")}</th>
+                        <th className="py-1 font-medium">{t("dashboard.recentHealthDetailWithdrawal")}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {detail.products.map((product, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-1 pr-2 whitespace-nowrap">{product.name}</td>
+                          <td className="py-1 pr-2 whitespace-nowrap">
+                            {product.dose} {product.doseUnit}
+                          </td>
+                          <td className="py-1 pr-2 whitespace-nowrap">{product.route}</td>
+                          <td className="py-1 whitespace-nowrap">
+                            {product.withdrawalDays !== null ? `${product.withdrawalDays} días` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div>
                 <p className="mb-1 text-xs font-medium text-muted-foreground">
                   {t("dashboard.recentHealthDetailAnimals")} ({detail.animals.length})
                 </p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailTag")}</th>
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailDate")}</th>
-                      <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailWithdrawalUntil")}</th>
-                      <th className="py-1 font-medium">{t("dashboard.recentHealthDetailNotes")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.animals.map((a) => (
-                      <tr key={a.tag} className="border-b last:border-0">
-                        <td className="py-1 pr-2 whitespace-nowrap">{a.tag}</td>
-                        <td className="py-1 pr-2 whitespace-nowrap">{formatLongDate(a.eventDate)}</td>
-                        <td className="py-1 pr-2 whitespace-nowrap">
-                          {a.withdrawalUntil ? formatLongDate(a.withdrawalUntil) : "—"}
-                        </td>
-                        <td className="py-1 text-muted-foreground">{a.notes ?? "—"}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailTag")}</th>
+                        {animalDatesVaryFromHeader ? (
+                          <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailDate")}</th>
+                        ) : null}
+                        <th className="py-1 pr-2 font-medium">{t("dashboard.recentHealthDetailWithdrawalUntil")}</th>
+                        <th className="py-1 font-medium">{t("dashboard.recentHealthDetailNotes")}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {detail.animals.map((a) => (
+                        <tr key={a.tag} className="border-b last:border-0">
+                          <td className="py-1 pr-2 whitespace-nowrap">{a.tag}</td>
+                          {animalDatesVaryFromHeader ? (
+                            <td className="py-1 pr-2 whitespace-nowrap">{formatShortDate(a.eventDate)}</td>
+                          ) : null}
+                          <td className="py-1 pr-2 whitespace-nowrap">
+                            {a.withdrawalUntil ? formatShortDate(a.withdrawalUntil) : "—"}
+                          </td>
+                          <td className="py-1 text-muted-foreground">{a.notes ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

@@ -77,7 +77,7 @@ describe("RecentHealthEvents", () => {
     expect(screen.getByText("FLOK")).toBeInTheDocument();
   });
 
-  it("opens a detail modal with each animal's tag, date, withdrawal, and notes, plus product and paddock", async () => {
+  it("opens a detail modal with each animal's tag, withdrawal, and notes, plus product and paddock", async () => {
     const detail: HealthBatchDetail = {
       batchId: "batch-1",
       eventDate: "2026-08-11",
@@ -101,13 +101,41 @@ describe("RecentHealthEvents", () => {
 
     await waitFor(() => expect(getHealthBatchDetailAction).toHaveBeenCalledWith("batch-1"));
     await waitFor(() => expect(screen.getByText("San Antonio, Arerunguá")).toBeInTheDocument());
-    expect(screen.getAllByText("11 de agosto de 2026")).toHaveLength(3);
+    // Header shows the full date once; per-animal rows omit the redundant
+    // date column since every animal shares it, so it doesn't repeat.
+    expect(screen.getAllByText("11 de agosto de 2026")).toHaveLength(1);
     expect(screen.getByText("001")).toBeInTheDocument();
     expect(screen.getByText("Cojera pata trasera")).toBeInTheDocument();
     expect(screen.getByText("002")).toBeInTheDocument();
-    expect(screen.getAllByText("1 de setiembre de 2026")).toHaveLength(2);
+    expect(screen.getAllByText("1 set. 2026")).toHaveLength(2);
     expect(screen.getByText("2 ml")).toBeInTheDocument();
     expect(screen.getByText("subcutánea")).toBeInTheDocument();
+  });
+
+  it("shows a per-animal date column when an animal's event date differs from the batch header date", async () => {
+    const detail: HealthBatchDetail = {
+      batchId: "batch-1",
+      eventDate: "2026-08-11",
+      establishmentName: "San Antonio",
+      paddockName: "Arerunguá",
+      products: [{ name: "FLOK", dose: "2", doseUnit: "ml", route: "subcutánea", withdrawalDays: 21 }],
+      animals: [
+        { tag: "001", eventDate: "2026-08-10", notes: null, withdrawalUntil: null },
+        { tag: "002", eventDate: "2026-08-11", notes: null, withdrawalUntil: null },
+      ],
+    };
+    vi.mocked(getHealthBatchDetailAction).mockResolvedValue(detail);
+    render(
+      <LocaleProvider initialLocale="es">
+        <RecentHealthEvents batches={batches} />
+      </LocaleProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByText("FLOK"));
+
+    await waitFor(() => expect(screen.getByText("10 ago. 2026")).toBeInTheDocument());
+    expect(screen.getByText("11 ago. 2026")).toBeInTheDocument();
   });
 
   it("does not open the detail modal when clicking the void button", async () => {
