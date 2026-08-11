@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LivestockByPaddockTable } from "@/components/dashboard/livestock-by-paddock-table";
 import type { LivestockByPaddockRow } from "@/lib/dashboard/livestock-summary";
@@ -52,6 +52,7 @@ describe("LivestockByPaddockTable", () => {
             breed: "Hereford",
             ownerName: "SASG",
             birthDate: "2021-01-01",
+            notes: "Cojera leve",
           },
           {
             animalId: "a2",
@@ -62,6 +63,7 @@ describe("LivestockByPaddockTable", () => {
             breed: null,
             ownerName: null,
             birthDate: null,
+            notes: null,
           },
         ],
       },
@@ -84,5 +86,58 @@ describe("LivestockByPaddockTable", () => {
     expect(screen.getByText("AR2")).toBeInTheDocument();
     expect(screen.getByText("Sin categoría")).toBeInTheDocument();
     expect(screen.getByText("Sin dato")).toBeInTheDocument();
+  });
+
+  it("includes every animal's notes in a second Excel sheet, regardless of what's expanded", async () => {
+    let capturedBuffer: ArrayBuffer | null = null;
+    const OriginalBlob = globalThis.Blob;
+    class SpyBlob extends OriginalBlob {
+      constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        capturedBuffer = parts[0] as ArrayBuffer;
+      }
+    }
+    vi.stubGlobal("Blob", SpyBlob);
+    const createObjectURL = vi.fn(() => "blob:mock-url");
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL: vi.fn() });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    const rows: LivestockByPaddockRow[] = [
+      {
+        establishmentName: "Campo Norte",
+        paddockName: "Potrero 1",
+        count: 1,
+        animals: [
+          {
+            animalId: "a1",
+            tag: "AR1",
+            categoryName: "Vaca",
+            secondaryTag: null,
+            sex: "female",
+            breed: null,
+            ownerName: null,
+            birthDate: null,
+            notes: "Cojera leve | Tratada con antibiótico",
+          },
+        ],
+      },
+    ];
+
+    render(<LivestockByPaddockTable rows={rows} locale="es" />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /descargar excel/i }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(capturedBuffer!);
+    const animalSheet = workbook.getWorksheet("Caravanas")!;
+    const headerRow = animalSheet.getRow(1).values as unknown[];
+    const notesColumn = headerRow.indexOf("Notas");
+    expect(notesColumn).toBeGreaterThan(0);
+    expect(animalSheet.getRow(2).getCell(notesColumn).value).toBe("Cojera leve | Tratada con antibiótico");
+
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

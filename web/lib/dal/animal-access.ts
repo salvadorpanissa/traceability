@@ -195,6 +195,7 @@ export type AnimalLookupDetail = AnimalCurrentStateWithNames & {
   birthDate: string | null;
   ownerName: string | null;
   secondaryTag: string | null;
+  notes: string | null;
 };
 
 type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
@@ -203,6 +204,7 @@ type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
   birth_date: string | null;
   owner_name: string | null;
   secondary_tag: string | null;
+  notes: string | null;
 };
 
 function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
@@ -213,8 +215,20 @@ function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
     birthDate: row.birth_date,
     ownerName: row.owner_name,
     secondaryTag: row.secondary_tag,
+    notes: row.notes,
   };
 }
+
+// Every event note the animal has ever accumulated (transfer, health,
+// recategorize, ...), oldest first — used where a single cell needs the
+// animal's whole note history, e.g. the potrero Excel export.
+const NOTES_SUBQUERY = sql`
+  (
+    select string_agg(ev.notes, ' | ' order by ev.event_date, ev.created_at)
+    from event ev
+    where ev.animal_id = acs.animal_id and ev.notes is not null
+  ) as notes
+`;
 
 const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
   select
@@ -237,7 +251,8 @@ const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
       where ath2.animal_id = acs.animal_id
       order by ath2.valid_from desc
       limit 1
-    ) as secondary_tag
+    ) as secondary_tag,
+    ${NOTES_SUBQUERY}
   from animal_current_state acs
   left join establishment e on e.id = acs.current_establishment_id
   left join paddock p on p.id = acs.current_paddock_id
@@ -301,7 +316,8 @@ export async function findAnimalDetailByTag(
         where ath2.animal_id = acs.animal_id
         order by ath2.valid_from desc
         limit 1
-      ) as secondary_tag
+      ) as secondary_tag,
+      ${NOTES_SUBQUERY}
     from animal_tag_history ath
     join animal_current_state acs on acs.animal_id = ath.animal_id
     left join establishment e on e.id = acs.current_establishment_id

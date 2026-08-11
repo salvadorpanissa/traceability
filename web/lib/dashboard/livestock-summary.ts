@@ -9,6 +9,7 @@ export type GroupAnimal = {
   breed: string | null;
   ownerName: string | null;
   birthDate: string | null;
+  notes: string | null;
 };
 
 export type LivestockByPaddockRow = {
@@ -34,6 +35,7 @@ function toGroupAnimal(row: AnimalLookupDetail): GroupAnimal {
     breed: row.breed,
     ownerName: row.ownerName,
     birthDate: row.birthDate,
+    notes: row.notes,
   };
 }
 

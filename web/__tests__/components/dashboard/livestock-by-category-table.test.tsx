@@ -49,6 +49,7 @@ describe("LivestockByCategoryTable", () => {
             breed: null,
             ownerName: null,
             birthDate: null,
+            notes: null,
           },
           {
             animalId: "a2",
@@ -59,6 +60,7 @@ describe("LivestockByCategoryTable", () => {
             breed: null,
             ownerName: null,
             birthDate: null,
+            notes: null,
           },
         ],
       },

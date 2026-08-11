@@ -35,6 +35,7 @@ describe("AnimalLookup", () => {
       birthDate: "2021-01-01",
       ownerName: "SASG",
       secondaryTag: "CHIP1",
+      notes: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -71,6 +72,7 @@ describe("AnimalLookup", () => {
       birthDate: null,
       ownerName: null,
       secondaryTag: null,
+      notes: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -101,6 +103,7 @@ describe("AnimalLookup", () => {
       birthDate: null,
       ownerName: null,
       secondaryTag: null,
+      notes: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -148,6 +151,7 @@ describe("AnimalLookup", () => {
       birthDate: null,
       ownerName: null,
       secondaryTag: null,
+      notes: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -175,6 +179,7 @@ describe("AnimalLookup", () => {
       birthDate: null,
       ownerName: null,
       secondaryTag: null,
+      notes: null,
     });
 
     render(<AnimalLookup locale="es" />);

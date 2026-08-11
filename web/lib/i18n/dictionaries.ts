@@ -72,6 +72,7 @@ const dictionaries = {
     "livestock.byCategoryTitle": "Animales por categoría",
     "livestock.byCategoryEmpty": "No hay animales vivos para mostrar por categoría.",
     "livestock.tag": "Caravana",
+    "livestock.notes": "Notas",
     "nlQuery.placeholder": "Preguntá algo sobre tus animales, ej: ¿cuál fue la última sanidad en Cuatro Cerros?",
     "nlQuery.submit": "Consultar",
     "nlQuery.submitPending": "Consultando...",

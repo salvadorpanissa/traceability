@@ -18,6 +18,7 @@ function row(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail {
     birthDate: null,
     ownerName: null,
     secondaryTag: null,
+    notes: null,
     ...overrides,
   };
 }
@@ -34,6 +35,7 @@ function groupAnimal(overrides: {
     breed: null,
     ownerName: null,
     birthDate: null,
+    notes: null,
     ...overrides,
   };
 }
@@ -109,6 +111,7 @@ describe("summarizeLivestockByPaddock", () => {
             breed: "Hereford",
             ownerName: "SASG",
             birthDate: "2021-01-01",
+            notes: null,
           },
         ],
       },

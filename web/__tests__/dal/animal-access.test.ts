@@ -883,6 +883,8 @@ describe("findAnimalDetailByTag", () => {
       birthDate?: string;
       ownerId?: string;
       secondaryTag?: string;
+      transferNotes?: string;
+      retagNotes?: string;
     } = {},
   ) {
     const [createdAnimal] = await testDb
@@ -920,6 +922,7 @@ describe("findAnimalDetailByTag", () => {
         establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
+        notes: details.transferNotes,
       })
       .returning();
     await testDb
@@ -943,11 +946,12 @@ describe("findAnimalDetailByTag", () => {
       .insert(event)
       .values({
         eventType: "retag",
-        eventDate: "2026-01-01",
+        eventDate: "2026-01-02",
         animalId: createdAnimal.id,
         establishmentId,
         batchOperationId: retagBatch.id,
         createdBy: adminId,
+        notes: details.retagNotes,
       })
       .returning();
     await testDb
@@ -1012,6 +1016,38 @@ describe("findAnimalDetailByTag", () => {
       ownerName: "SASG",
       secondaryTag: "CHIP1",
     });
+  });
+
+  it("aggregates notes from every event the animal has, oldest first", async () => {
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
+      .returning();
+    await seedDetailedAnimalAtFarm(seededFarm.id, admin.id, "AR000000000063", {
+      transferNotes: "Cojera leve",
+      retagNotes: "Tratada con antibiótico",
+    });
+
+    const result = await findAnimalDetailByTag(admin.id, "admin", "AR000000000063");
+
+    expect(result?.notes).toBe("Cojera leve | Tratada con antibiótico");
   });
 
   it("leaves owner, sex, breed, birth date, and secondary tag null when unset", async () => {

@@ -74,6 +74,7 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
       translate(locale, "animalLookup.breed"),
       translate(locale, "animalLookup.owner"),
       translate(locale, "animalLookup.birthDate"),
+      translate(locale, "livestock.notes"),
     ],
     rows: rows.flatMap((row) =>
       row.animals.map((animal) => [
@@ -86,6 +87,7 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
         animal.breed,
         animal.ownerName,
         animal.birthDate,
+        animal.notes,
       ])
     ),
   };
