@@ -96,7 +96,8 @@ export async function confirmHealthBatch(input: {
         // Sanidad doesn't relocate animals, but a brand-new one still needs a
         // transfer event to be visible in animal_current_state (which only
         // derives current_establishment_id from event_transfer) — this places
-        // it at the establecimiento it was loaded from, origin = destination.
+        // it at the establecimiento it was loaded from, origin = destination,
+        // and at the potrero the sanidad was performed in, if one was chosen.
         const [placementEvent] = await tx
           .insert(event)
           .values({
@@ -113,7 +114,7 @@ export async function confirmHealthBatch(input: {
           originEstablishmentId: operatingEstablishmentId,
           destinationEstablishmentId: operatingEstablishmentId,
           originPaddockId: null,
-          destinationPaddockId: null,
+          destinationPaddockId: paddockId,
         });
       }
 
@@ -178,6 +179,47 @@ export async function confirmHealthBatch(input: {
 
     // See the equivalent comment in transfer.ts: this replaces N per-row
     // AFTER INSERT refreshes with a single refresh after the whole batch.
+    await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
+  });
+}
+
+// Undoes a whole health batch (e.g. one confirmed twice by mistake) without
+// deleting anything — inserts a 'void' event per row, which every derived
+// view (animal_current_state, withdrawal, stale-tag) already knows to skip.
+export async function voidHealthBatch(input: {
+  userId: string;
+  role: string | undefined;
+  batchOperationId: string;
+}): Promise<void> {
+  const { userId, role, batchOperationId } = input;
+
+  const [batch] = await db.select().from(batchOperation).where(eq(batchOperation.id, batchOperationId));
+  if (!batch || batch.eventType !== "health") {
+    throw new Error("El lote no existe o no es una sanidad");
+  }
+  await requireEstablishmentAccess(userId, role, batch.establishmentId);
+
+  const batchEvents = await db.select().from(event).where(eq(event.batchOperationId, batchOperationId));
+  const liveEvents = batchEvents.filter((e) => e.eventType !== "void");
+  if (liveEvents.length === 0) return;
+  const alreadyVoidedIds = new Set(
+    batchEvents.filter((e) => e.eventType === "void").map((e) => e.voidsEventId)
+  );
+  const eventsToVoid = liveEvents.filter((e) => !alreadyVoidedIds.has(e.id));
+  if (eventsToVoid.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    await tx.insert(event).values(
+      eventsToVoid.map((e) => ({
+        eventType: "void" as const,
+        eventDate: e.eventDate,
+        animalId: e.animalId,
+        establishmentId: e.establishmentId,
+        batchOperationId: e.batchOperationId,
+        createdBy: userId,
+        voidsEventId: e.id,
+      }))
+    );
     await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
   });
 }

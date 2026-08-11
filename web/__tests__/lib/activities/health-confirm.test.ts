@@ -22,7 +22,7 @@ import type { HealthProduct } from "@/lib/activities/health";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { confirmHealthBatch } = await import("@/lib/activities/health");
+const { confirmHealthBatch, voidHealthBatch } = await import("@/lib/activities/health");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -155,6 +155,68 @@ describe("confirmHealthBatch", () => {
     expect(healthRows.map((r) => r.productId).sort()).toEqual(
       [productA.id, productB.id].sort(),
     );
+  });
+
+  it("places a newly-created or claimed-as-mine animal in the potrero the sanidad was performed in", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const [potreroA] = await testDb
+      .insert(paddock)
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
+      .returning();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000079",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+      {
+        tag: "AR000000000080",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "foreign",
+        forced: true,
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      {
+        productId: productA.id,
+        dose: "10",
+        doseUnit: "ml",
+        route: "subcutánea",
+        withdrawalDays: null,
+        notes: null,
+      },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: potreroA.id,
+    });
+
+    for (const tag of ["AR000000000079", "AR000000000080"]) {
+      const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, tag));
+      expect(await currentPaddockIdFor(tagRow.animalId)).toBe(potreroA.id);
+    }
   });
 
   it("does not create a placement transfer for an existing animal", async () => {
@@ -885,5 +947,149 @@ describe("confirmHealthBatch", () => {
       .where(eq(event.animalId, createdAnimal.id));
     expect(animalEvents).toHaveLength(1);
     expect(animalEvents[0].eventType).toBe("health");
+  });
+});
+
+describe("voidHealthBatch", () => {
+  it("voids every event in the batch, including the placement transfer for a newly-created animal", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const [potreroA] = await testDb
+      .insert(paddock)
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
+      .returning();
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000081",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: potreroA.id,
+    });
+
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000081"));
+    expect(await currentPaddockIdFor(tagRow.animalId)).toBe(potreroA.id);
+
+    const [batch] = await testDb.select().from(batchOperation).where(eq(batchOperation.establishmentId, seededFarm.id));
+    await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
+
+    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
+    const liveEvents = animalEvents.filter((e) => e.eventType !== "void");
+    const voidEvents = animalEvents.filter((e) => e.eventType === "void");
+    expect(voidEvents.map((e) => e.voidsEventId).sort()).toEqual(liveEvents.map((e) => e.id).sort());
+
+    // The placement transfer got voided along with the health event, so the
+    // animal is no longer considered to be in the sanidad's potrero.
+    expect(await currentPaddockIdFor(tagRow.animalId)).toBeNull();
+  });
+
+  it("is idempotent — voiding an already-voided batch does nothing on the second call", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000082",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: null,
+    });
+
+    const [batch] = await testDb.select().from(batchOperation).where(eq(batchOperation.establishmentId, seededFarm.id));
+    await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
+    const afterFirstVoid = await testDb.select().from(event).where(eq(event.batchOperationId, batch.id));
+
+    await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
+    const afterSecondVoid = await testDb.select().from(event).where(eq(event.batchOperationId, batch.id));
+
+    expect(afterSecondVoid).toHaveLength(afterFirstVoid.length);
+  });
+
+  it("rejects a manager without access to the batch's establishment", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000083",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "new",
+        categoryId: null,
+        sex: null,
+        birthDate: null,
+        ownerId: null,
+        pendingOwnerName: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: null,
+    });
+    const [batch] = await testDb.select().from(batchOperation).where(eq(batchOperation.establishmentId, seededFarm.id));
+
+    const [otherManager] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Other Manager",
+        email: "other-manager@example.com",
+        passwordHash: "hashed",
+        roleId: manager.roleId,
+      })
+      .returning();
+
+    await expect(
+      voidHealthBatch({ userId: otherManager.id, role: "manager", batchOperationId: batch.id })
+    ).rejects.toThrow();
   });
 });

@@ -61,6 +61,7 @@ export async function visibleHealthBatchesSince(
     left join paddock p on p.id = eh.paddock_id
     where bo.event_type = 'health'
       and e.event_date >= ${sinceDate}
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = e.id)
       ${establishmentScope}
     order by bo.id, e.event_date desc
   `);
@@ -87,6 +88,7 @@ export async function countDistinctAnimalsTreatedSince(
     from event e
     where e.event_type = 'health'
       and e.event_date >= ${sinceDate}
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = e.id)
       ${establishmentScope}
   `);
 
