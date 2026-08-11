@@ -16,10 +16,10 @@ export function FarmSettingsButton({ onNavigate }: { onNavigate?: () => void }) 
       onClick={onNavigate}
       className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-2")}
     >
-      <span className="relative inline-flex size-3.5 shrink-0">
-        <Warehouse className="size-3.5" />
+      <span className="relative inline-flex size-4 shrink-0">
+        <Warehouse className="size-4" />
         <span className="absolute -right-1 -bottom-1 flex size-2 items-center justify-center rounded-full bg-background">
-          <Cog className="size-1.5 stroke-3" />
+          <Cog className="size-3 stroke-2" />
         </span>
       </span>
     </Link>
