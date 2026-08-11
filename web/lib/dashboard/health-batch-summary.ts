@@ -68,18 +68,15 @@ export async function visibleHealthBatchesSince(
 }
 
 /**
- * Counts distinct animals that had at least one health event in the current
- * calendar month — no double-counting when the same animal was treated
- * multiple times or in multiple batches.
+ * Counts distinct animals that had at least one health event since the given
+ * date — no double-counting when the same animal was treated multiple times
+ * or in multiple batches.
  */
-export async function countDistinctAnimalsTreatedThisMonth(
+export async function countDistinctAnimalsTreatedSince(
   userId: string,
-  role: string | undefined
+  role: string | undefined,
+  sinceDate: string
 ): Promise<number> {
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const sinceDate = firstOfMonth.toISOString().slice(0, 10);
-
   const farmScope = isAdmin(role)
     ? sql.empty()
     : sql`and e.farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;

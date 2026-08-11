@@ -3,7 +3,7 @@ import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
 import { visibleAnimalDetails } from "@/lib/dal/animal-access";
 import { summarizeLivestockByPaddock, summarizeLivestockByCategory } from "@/lib/dashboard/livestock-summary";
-import { visibleHealthBatchesSince, countDistinctAnimalsTreatedThisMonth } from "@/lib/dashboard/health-batch-summary";
+import { visibleHealthBatchesSince, countDistinctAnimalsTreatedSince } from "@/lib/dashboard/health-batch-summary";
 import { LivestockByPaddockTable } from "@/components/dashboard/livestock-by-paddock-table";
 import { StockByCategoryChart } from "@/components/dashboard/stock-by-category-chart";
 import { StatCards } from "@/components/dashboard/stat-cards";
@@ -27,14 +27,11 @@ export default async function DashboardPage() {
   const locale = parseLocaleCookie(cookieStore.get("locale")?.value);
 
   const session = await requireSession();
-  const [rows, healthBatches, healthEventsThisMonth, staleTags] = await Promise.all([
+  const recentHealthSinceDate = monthsAgoISODate(RECENT_HEALTH_MONTHS);
+  const [rows, healthBatches, healthEventsLastMonths, staleTags] = await Promise.all([
     visibleAnimalDetails(session.user.id, session.user.role),
-    visibleHealthBatchesSince(
-      session.user.id,
-      session.user.role,
-      monthsAgoISODate(RECENT_HEALTH_MONTHS)
-    ),
-    countDistinctAnimalsTreatedThisMonth(session.user.id, session.user.role),
+    visibleHealthBatchesSince(session.user.id, session.user.role, recentHealthSinceDate),
+    countDistinctAnimalsTreatedSince(session.user.id, session.user.role, recentHealthSinceDate),
     findStaleTags(session.user.id, session.user.role, DEFAULT_STALE_TAG_THRESHOLD_DAYS),
   ]);
 
@@ -56,7 +53,7 @@ export default async function DashboardPage() {
         totalLivestock={totalLivestock}
         animalChange={0}
         activePaddocks={activePaddocks}
-        healthEventsThisMonth={healthEventsThisMonth}
+        healthEventsLastMonths={healthEventsLastMonths}
       />
 
       {/*

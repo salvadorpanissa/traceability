@@ -17,12 +17,12 @@ export function StatCards({
   totalLivestock,
   animalChange,
   activePaddocks,
-  healthEventsThisMonth,
+  healthEventsLastMonths,
 }: {
   totalLivestock: number;
   animalChange: number;
   activePaddocks: number;
-  healthEventsThisMonth: number;
+  healthEventsLastMonths: number;
 }) {
   const { t } = useLocale();
 
@@ -42,8 +42,8 @@ export function StatCards({
       iconBg: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400",
     },
     {
-      label: t("dashboard.statHealthThisMonth"),
-      value: String(healthEventsThisMonth),
+      label: t("dashboard.statHealthLast3Months"),
+      value: String(healthEventsLastMonths),
       subtitle: t("dashboard.statHealthThisMonthSub"),
       icon: <Syringe className="size-5" />,
       iconBg: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
