@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnMapper } from "@/components/activities/column-mapper";
@@ -220,12 +221,7 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <Input
-          id="file"
-          type="file"
-          disabled={!establishmentId}
-          onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-        />
+        <FileInput id="file" disabled={!establishmentId} file={file} onChange={handleFileChange} />
       </div>
       <Button type="button" disabled={!establishmentId || !targetCategoryId || !file} onClick={() => runPreview()}>
         Subir

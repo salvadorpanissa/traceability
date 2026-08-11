@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 import {
   previewSaleSettlement,
@@ -69,12 +69,12 @@ export function SaleSettlementForm() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <Input
+        <FileInput
           id="file"
-          type="file"
           accept="application/pdf"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
+          file={file}
+          onChange={(selected) => {
+            setFile(selected);
             setPreview(null);
             setError(null);
           }}
