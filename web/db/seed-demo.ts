@@ -140,8 +140,20 @@ async function run() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not set");
 
-  const managerEmail = process.env.SEED_MANAGER_EMAIL ?? "manager@campodemo.com";
-  const managerPassword = process.env.SEED_MANAGER_PASSWORD ?? "Campo2026!";
+  // This writes fictional demo data (fake manager, fake animals) into
+  // whatever database ENV_FILE points at — an explicit, separate opt-in on
+  // top of picking the right ENV_FILE, same reasoning as WIPE_CONFIRM in
+  // db/wipe.ts, so a bare `npm run db:seed-demo:prod` can't dump showcase
+  // fixtures into a real farm's database.
+  if (process.env.SEED_DEMO_CONFIRM !== "yes") {
+    throw new Error("Refusing to seed demo data: set SEED_DEMO_CONFIRM=yes explicitly to confirm you mean it");
+  }
+
+  const managerEmail = process.env.SEED_MANAGER_EMAIL;
+  const managerPassword = process.env.SEED_MANAGER_PASSWORD;
+  if (!managerEmail || !managerPassword) {
+    throw new Error("SEED_MANAGER_EMAIL and SEED_MANAGER_PASSWORD must be set");
+  }
 
   const db = createDbClient(connectionString);
 
