@@ -1,13 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 import { translate, type Locale, type TranslationKey } from "./dictionaries";
-
-const LOCALE_COOKIE = "locale";
 
 type LocaleContextValue = {
   locale: Locale;
-  setLocale: (locale: Locale) => void;
   t: (key: TranslationKey) => string;
 };
 
@@ -20,16 +17,9 @@ export function LocaleProvider({
   initialLocale: Locale;
   children: React.ReactNode;
 }) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const t = useCallback((key: TranslationKey) => translate(initialLocale, key), [initialLocale]);
 
-  const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
-    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
-  }, []);
-
-  const t = useCallback((key: TranslationKey) => translate(locale, key), [locale]);
-
-  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+  const value = useMemo(() => ({ locale: initialLocale, t }), [initialLocale, t]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

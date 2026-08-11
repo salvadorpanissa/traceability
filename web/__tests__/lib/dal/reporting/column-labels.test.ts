@@ -8,11 +8,6 @@ describe("friendlyColumnLabel", () => {
     expect(friendlyColumnLabel("event_date", "es")).toBe("Fecha");
   });
 
-  it("translates a known column to English", () => {
-    expect(friendlyColumnLabel("animal_tag", "en")).toBe("Tag");
-    expect(friendlyColumnLabel("farm_name", "en")).toBe("Farm");
-  });
-
   it("distinguishes origin/destination variants", () => {
     expect(friendlyColumnLabel("origin_farm_name", "es")).toBe("Campo origen");
     expect(friendlyColumnLabel("destination_farm_name", "es")).toBe("Campo destino");

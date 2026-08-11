@@ -21,11 +21,6 @@ describe("QueryResultTable", () => {
     expect(screen.getByText("3")).toBeInTheDocument();
   });
 
-  it("labels a known column in English when the locale is en", () => {
-    render(<QueryResultTable columns={["current_tag"]} rows={[{ current_tag: "AR001" }]} locale="en" />);
-    expect(screen.getByText("Tag")).toBeInTheDocument();
-  });
-
   it("humanizes an unknown column (e.g. an LLM-chosen alias) instead of showing it raw", () => {
     render(<QueryResultTable columns={["cantidad_total"]} rows={[{ cantidad_total: 5 }]} locale="es" />);
     expect(screen.getByText("Cantidad Total")).toBeInTheDocument();
