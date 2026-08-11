@@ -4,7 +4,7 @@ export const defaultLocale: Locale = "es";
 
 const dictionaries = {
   es: {
-    "app.title": "Trazabilidad de ganado",
+    "app.title": "Tracker",
     "appShell.logout": "Cerrar sesión",
     "appShell.navigation": "Navegación principal",
     "appShell.openNavigation": "Abrir navegación",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
+import { AppLogo } from "@/components/app-logo";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { parseLocaleCookie } from "@/lib/i18n/dictionaries";
@@ -38,6 +39,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <LocaleProvider initialLocale={locale}>
+            <AppLogo className="pointer-events-none fixed inset-0 -z-10 m-auto size-[110vmin] opacity-5" />
             <div className="flex-1">{children}</div>
           </LocaleProvider>
         </ThemeProvider>
