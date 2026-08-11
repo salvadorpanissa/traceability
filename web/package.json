@@ -13,6 +13,7 @@
     "db:migrate:prod": "ENV_FILE=.env.production tsx db/migrate.ts",
     "db:seed:local": "ENV_FILE=.env.local tsx db/seed.ts",
     "db:seed:prod": "ENV_FILE=.env.production tsx db/seed.ts",
+    "db:seed-demo:local": "ENV_FILE=.env.local tsx db/seed-demo.ts",
     "db:wipe:local": "ENV_FILE=.env.local tsx db/wipe.ts",
     "db:wipe:prod": "ENV_FILE=.env.production tsx db/wipe.ts",
     "db:setup-reporting-role": "tsx db/setup-reporting-role.ts",
