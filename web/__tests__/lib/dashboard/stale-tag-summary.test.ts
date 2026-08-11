@@ -30,9 +30,15 @@ function daysAgoISODate(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-async function seedAnimalWithLastEvent(tag: string, farmId: string, createdBy: string, eventDate: string) {
+async function seedAnimalWithLastEvent(
+  tag: string,
+  farmId: string,
+  createdBy: string,
+  eventDate: string,
+  validFrom: string = eventDate
+) {
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-  await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+  await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, validFrom: new Date(validFrom) });
 
   // Create self-retag event to make the tag appear in animal_current_state.current_tag
   const [batch] = await testDb
@@ -93,6 +99,17 @@ describe("findStaleTags", () => {
     expect(rows[0].lastEventType).toBe("transfer");
   });
 
+  it("excludes an animal whose tag-history row is younger than the threshold, even with an old backdated event", async () => {
+    const { manager, seededFarm } = await seedManagerAndFarm();
+    // e.g. a historical bulk import done today, backdating the event but not
+    // animal_tag_history.valid_from — the row is new to the system, so its
+    // old event date shouldn't read as an unreported death.
+    await seedAnimalWithLastEvent("AR000000000928", seededFarm.id, manager.id, daysAgoISODate(150), daysAgoISODate(5));
+
+    const rows = await findStaleTags(manager.id, "manager", 100);
+    expect(rows.map((r) => r.currentTag)).not.toContain("AR000000000928");
+  });
+
   it("excludes an animal whose last event is within the threshold", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     await seedAnimalWithLastEvent("AR000000000921", seededFarm.id, manager.id, daysAgoISODate(10));
@@ -123,7 +140,7 @@ describe("findStaleTags", () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     const tag = "AR000000000926";
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, validFrom: new Date(daysAgoISODate(150)) });
 
     // An old transfer establishes the animal on the farm well past the threshold.
     const [oldBatch] = await testDb
@@ -201,7 +218,7 @@ describe("findStaleTags", () => {
     // Create an animal with only tag history and a transfer event (no retag event)
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     const tag = "AR000000000925";
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, validFrom: new Date(daysAgoISODate(150)) });
 
     // Only create a transfer event, not a retag event
     const [transferBatch] = await testDb

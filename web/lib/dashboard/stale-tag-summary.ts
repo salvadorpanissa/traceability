@@ -43,6 +43,11 @@ const RESULT_LIMIT = 10;
  * `animal_tag_history` when it has no events at all yet — that row is
  * written in the same transaction as the animal itself (see
  * `createNewAnimal`), so it's the earliest system timestamp we have for it.
+ *
+ * Also excludes animals whose `animal_tag_history` row is itself younger
+ * than `thresholdDays` — a caravana entered into the system recently but
+ * whose only event carries an old, backdated `event_date` (e.g. historical
+ * import data) isn't an unreported death, it's just new to us.
  */
 export async function findStaleTags(
   userId: string,
@@ -61,7 +66,8 @@ export async function findStaleTags(
         f.name as farm_name,
         p.name as paddock_name,
         le.event_type as last_event_type,
-        coalesce(le.event_date, earliest_tag.valid_from::date) as last_event_date
+        coalesce(le.event_date, earliest_tag.valid_from::date) as last_event_date,
+        earliest_tag.valid_from::date as created_date
       from animal_current_state acs
       left join farm f on f.id = acs.current_farm_id
       left join paddock p on p.id = acs.current_paddock_id
@@ -101,6 +107,7 @@ export async function findStaleTags(
       (current_date - last_event_date) as days_since_last_event
     from candidate
     where (current_date - last_event_date) >= ${thresholdDays}
+      and (current_date - created_date) >= ${thresholdDays}
     order by days_since_last_event desc
     limit ${RESULT_LIMIT}
   `);

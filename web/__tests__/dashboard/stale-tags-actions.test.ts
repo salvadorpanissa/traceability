@@ -34,7 +34,7 @@ describe("getStaleTagsAction", () => {
 
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     const tag = "AR000000000930";
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag, validFrom: new Date(daysAgoISODate(150)) });
 
     // Create self-retag event to populate animal_current_state.current_tag
     const [retagBatch] = await testDb
