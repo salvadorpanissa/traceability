@@ -15,6 +15,7 @@ import {
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { confirmHealthBatch, voidHealthBatch, type HealthProduct } from "@/lib/activities/health";
+import { healthBatchDetail, type HealthBatchDetail } from "@/lib/dashboard/health-batch-summary";
 import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
@@ -155,4 +156,9 @@ export async function listPaddocksAction(establishmentId: string): Promise<Paddo
 export async function voidHealthBatchAction(batchId: string): Promise<void> {
   const session = await requireSession();
   await voidHealthBatch({ userId: session.user.id, role: session.user.role, batchOperationId: batchId });
+}
+
+export async function getHealthBatchDetailAction(batchId: string): Promise<HealthBatchDetail | null> {
+  const session = await requireSession();
+  return healthBatchDetail(batchId, session.user.id, session.user.role);
 }
