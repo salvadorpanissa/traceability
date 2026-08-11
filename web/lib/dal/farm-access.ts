@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { establishment, userFarm } from "@/db/schema";
+import { establishment, farm, userFarm } from "@/db/schema";
 
 export function isAdmin(role: string | undefined): boolean {
   return role === "admin";
@@ -20,6 +20,18 @@ export async function userEstablishmentIds(userId: string): Promise<string[]> {
   if (farmIds.length === 0) return [];
   const rows = await db.select({ id: establishment.id }).from(establishment).where(inArray(establishment.farmId, farmIds));
   return rows.map((row) => row.id);
+}
+
+// Every farm (operación) an admin can operate on; for a manager, every farm
+// they're directly assigned to.
+export async function listSelectableFarms(userId: string, role: string | undefined): Promise<{ id: string; name: string }[]> {
+  if (isAdmin(role)) {
+    return db.select({ id: farm.id, name: farm.name }).from(farm);
+  }
+
+  const farmIds = await userFarmIds(userId);
+  if (farmIds.length === 0) return [];
+  return db.select({ id: farm.id, name: farm.name }).from(farm).where(inArray(farm.id, farmIds));
 }
 
 export type SelectableEstablishment = { id: string; name: string; farmId: string };

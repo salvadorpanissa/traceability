@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trazabilidad de ganado",
+  title: "Tracker",
   description: "Sistema de trazabilidad de ganado",
 };
 
