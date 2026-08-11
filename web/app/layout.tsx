@@ -39,7 +39,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <LocaleProvider initialLocale={locale}>
-            <AppLogo className="pointer-events-none fixed inset-0 -z-10 m-auto size-[110vmin] opacity-5" />
+            <AppLogo className="pointer-events-none fixed inset-0 -z-10 m-auto size-[110vmin] opacity-5 dark:opacity-10" />
             <div className="flex-1">{children}</div>
           </LocaleProvider>
         </ThemeProvider>
