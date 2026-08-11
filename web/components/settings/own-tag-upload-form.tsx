@@ -96,7 +96,7 @@ export function OwnTagUploadForm({
             <th className="py-1 pr-2">Dueño</th>
             <th className="py-1 pr-2">Campo</th>
             <th className="py-1 pr-2">DICOSE</th>
-            <th className="py-1 pr-2">Caravanas cargadas</th>
+            <th className="py-1 pr-2">Caravanas</th>
             <th className="py-1 pr-2">Última carga</th>
           </tr>
         </thead>
@@ -116,7 +116,7 @@ export function OwnTagUploadForm({
       </table>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="own-tag-dicose">Registro DICOSE</Label>
+        <Label htmlFor="own-tag-dicose">DICOSE</Label>
         <select
           id="own-tag-dicose"
           value={dicoseRegistrationId}

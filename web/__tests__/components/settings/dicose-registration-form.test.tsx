@@ -45,7 +45,7 @@ describe("DicoseRegistrationForm", () => {
 
     await userEvent.selectOptions(screen.getByLabelText("Dueño"), "owner-2");
     await userEvent.selectOptions(screen.getByLabelText("Campo"), "farm-1");
-    await userEvent.type(screen.getByLabelText("Código DICOSE"), "151422799");
+    await userEvent.type(screen.getByLabelText("DICOSE"), "151422799");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("151422799")).toBeInTheDocument());

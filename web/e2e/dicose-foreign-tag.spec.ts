@@ -25,14 +25,14 @@ test("registers a DICOSE, loads its own tags, then flags a foreign tag during a 
   await page.goto("/settings/dicose");
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("151999888");
+  await page.getByLabel("DICOSE").fill("151999888");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("151999888")).toBeVisible();
 
   await page.goto("/settings/own-tags");
   const ownTagsPath = path.join(os.tmpdir(), "own-tags-e2e.xlsx");
   await writeSingleColumnExcel(ownTagsPath, "Caravana", ["500000000500"]);
-  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (151999888)" });
+  await page.getByLabel("DICOSE").selectOption({ label: "Pérez — Campo Norte (151999888)" });
   await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
   await page.getByRole("button", { name: "Subir" }).click();
   await expect(page.getByText(/1 caravanas nuevas cargadas/)).toBeVisible();

@@ -57,7 +57,7 @@ describe("OwnTagUploadForm", () => {
 
     expect(screen.getByText("10")).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText("Registro DICOSE"), "reg-1");
+    await userEvent.selectOptions(screen.getByLabelText("DICOSE"), "reg-1");
     const file = new File(["tag\n100\n200"], "tags.xlsx");
     await userEvent.upload(screen.getByLabelText("Archivo"), file);
     await userEvent.click(screen.getByRole("button", { name: "Subir" }));
@@ -99,7 +99,7 @@ describe("OwnTagUploadForm", () => {
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("Registro DICOSE"), "reg-1");
+    await userEvent.selectOptions(screen.getByLabelText("DICOSE"), "reg-1");
     const file = new File(["Caravana,Potrero\n300,Potrero 1"], "tags.xlsx");
     await userEvent.upload(screen.getByLabelText("Archivo"), file);
     await userEvent.click(screen.getByRole("button", { name: "Subir" }));
@@ -130,7 +130,7 @@ describe("OwnTagUploadForm", () => {
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("Registro DICOSE"), "reg-1");
+    await userEvent.selectOptions(screen.getByLabelText("DICOSE"), "reg-1");
     const file = new File(["Caravana,Potrero\n400,Potrero Nuevo"], "tags.xlsx");
     await userEvent.upload(screen.getByLabelText("Archivo"), file);
     await userEvent.click(screen.getByRole("button", { name: "Subir" }));
@@ -168,7 +168,7 @@ describe("OwnTagUploadForm", () => {
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("Registro DICOSE"), "reg-1");
+    await userEvent.selectOptions(screen.getByLabelText("DICOSE"), "reg-1");
     const file = new File(["Caravana,Categoria\n500,Vaca"], "tags.xlsx");
     await userEvent.upload(screen.getByLabelText("Archivo"), file);
     await userEvent.click(screen.getByRole("button", { name: "Subir" }));
@@ -193,7 +193,7 @@ describe("OwnTagUploadForm", () => {
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("Registro DICOSE"), "reg-1");
+    await userEvent.selectOptions(screen.getByLabelText("DICOSE"), "reg-1");
     const file = new File(["Caravana,Sexo\n100,HEMBRA"], "tags.xlsx");
     await userEvent.upload(screen.getByLabelText("Archivo"), file);
     await userEvent.click(screen.getByRole("button", { name: "Subir" }));

@@ -81,7 +81,7 @@ export function DicoseRegistrationForm({
           ))}
         </select>
 
-        <Label htmlFor="dicose-code">Código DICOSE</Label>
+        <Label htmlFor="dicose-code">DICOSE</Label>
         <Input id="dicose-code" value={dicoseCode} onChange={(e) => setDicoseCode(e.target.value)} />
 
         <Button type="button" disabled={!ownerId || !farmId || !dicoseCode} onClick={handleSubmit}>

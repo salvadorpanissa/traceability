@@ -67,14 +67,14 @@ test("uploads a file of tags and confirms a manual recategorization", async ({ p
   await page.goto("/settings/dicose");
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("160099911");
+  await page.getByLabel("DICOSE").fill("160099911");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("160099911")).toBeVisible();
 
   await page.goto("/settings/own-tags");
   const ownTagsPath = path.join(os.tmpdir(), "recategorize-e2e-own-tags.xlsx");
   await writeExcel(ownTagsPath, ["Caravana"], [[OWN_TAG]]);
-  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (160099911)" });
+  await page.getByLabel("DICOSE").selectOption({ label: "Pérez — Campo Norte (160099911)" });
   await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
   await page.getByRole("button", { name: "Subir" }).click();
 
@@ -190,14 +190,14 @@ test("recategorizes an animal with no category using its age, with no farm selec
   await page.goto("/settings/dicose");
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("160099912");
+  await page.getByLabel("DICOSE").fill("160099912");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("160099912")).toBeVisible();
 
   await page.goto("/settings/own-tags");
   const ownTagsPath = path.join(os.tmpdir(), "recategorize-e2e-age-own-tags.xlsx");
   await writeExcel(ownTagsPath, ["Caravana", "Sexo", "FechaNacimiento"], [[OWN_TAG_AGE, "macho", "2023-01-01"]]);
-  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (160099912)" });
+  await page.getByLabel("DICOSE").selectOption({ label: "Pérez — Campo Norte (160099912)" });
   await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
   await page.getByRole("button", { name: "Subir" }).click();
 
@@ -271,7 +271,7 @@ test("assigns the target category to an animal whose age can't be computed", asy
   await page.goto("/settings/dicose");
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("160099913");
+  await page.getByLabel("DICOSE").fill("160099913");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("160099913")).toBeVisible();
 
@@ -281,7 +281,7 @@ test("assigns the target category to an animal whose age can't be computed", asy
   await page.goto("/settings/own-tags");
   const ownTagsPath = path.join(os.tmpdir(), "recategorize-e2e-noage-own-tags.xlsx");
   await writeExcel(ownTagsPath, ["Caravana", "Sexo"], [[OWN_TAG_NO_AGE, "hembra"]]);
-  await page.getByLabel("Registro DICOSE").selectOption({ label: "Pérez — Campo Norte (160099913)" });
+  await page.getByLabel("DICOSE").selectOption({ label: "Pérez — Campo Norte (160099913)" });
   await page.getByLabel("Archivo").setInputFiles(ownTagsPath);
   await page.getByRole("button", { name: "Subir" }).click();
 

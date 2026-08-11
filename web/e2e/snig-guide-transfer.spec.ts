@@ -24,13 +24,13 @@ test("uploads a SNIG guide PDF and confirms a transfer between two DICOSE-regist
   await page.goto("/settings/dicose");
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("151400442");
+  await page.getByLabel("DICOSE").fill("151400442");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("151400442")).toBeVisible();
 
   await page.getByLabel("Dueño").selectOption({ label: "Pérez" });
   await page.getByLabel("Campo", { exact: true }).selectOption({ label: "Campo Norte" });
-  await page.getByLabel("Código DICOSE").fill("151518192");
+  await page.getByLabel("DICOSE").fill("151518192");
   await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByText("151518192")).toBeVisible();
 
