@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -32,8 +32,8 @@ export function SettingsSidebar() {
         aria-controls="settings-navigation"
         onClick={() => setIsOpen((previous) => !previous)}
       >
-        {isOpen ? <X /> : <Menu />}
         Configuración del campo
+        {isOpen ? <ChevronUp /> : <ChevronDown />}
       </Button>
 
       <nav
