@@ -54,7 +54,9 @@ export function ProductListEditor({
     const current = products[index];
     updateRow(index, {
       productId: value,
+      dose: current.dose || catalogEntry?.defaultDose || "",
       doseUnit: current.doseUnit || catalogEntry?.defaultDoseUnit || "",
+      route: current.route || catalogEntry?.defaultRoute || "",
       withdrawalDays: current.withdrawalDays ?? catalogEntry?.defaultWithdrawalDays ?? null,
     });
   }
@@ -69,7 +71,9 @@ export function ProductListEditor({
       const current = products[index];
       updateRow(index, {
         productId: created.id,
+        dose: current.dose || created.defaultDose || "",
         doseUnit: current.doseUnit || created.defaultDoseUnit || "",
+        route: current.route || created.defaultRoute || "",
         withdrawalDays: current.withdrawalDays ?? created.defaultWithdrawalDays ?? null,
       });
       setCreatingRow(null);

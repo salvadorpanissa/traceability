@@ -9,7 +9,14 @@ import type { HealthProduct } from "@/lib/activities/health";
 afterEach(cleanup);
 
 const catalog: ProductCatalogEntry[] = [
-  { id: "p1", name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
+  {
+    id: "p1",
+    name: "Ivermectina 1%",
+    defaultDose: "10",
+    defaultDoseUnit: "ml",
+    defaultRoute: "subcutánea",
+    defaultWithdrawalDays: 21,
+  },
 ];
 
 describe("ProductListEditor", () => {
@@ -19,7 +26,9 @@ describe("ProductListEditor", () => {
     const onCreateProduct = vi.fn(async (name: string) => ({
       id: "p2",
       name,
+      defaultDose: null,
       defaultDoseUnit: null,
+      defaultRoute: null,
       defaultWithdrawalDays: null,
     }));
 
@@ -49,6 +58,25 @@ describe("ProductListEditor", () => {
 
     await waitFor(() => expect(onCreateProduct).toHaveBeenCalledWith("Aftosa"));
     await waitFor(() => expect(screen.getByLabelText(/producto/i)).toHaveValue("p2"));
+  });
+
+  it("pre-fills dose, unit, route, and withdrawal days when picking an existing catalog product", async () => {
+    function Wrapper() {
+      const [rows, setRows] = useState<HealthProduct[]>([emptyProduct()]);
+      return (
+        <ProductListEditor catalog={catalog} products={rows} onChange={setRows} onCreateProduct={vi.fn()} />
+      );
+    }
+
+    render(<Wrapper />);
+    const user = userEvent.setup();
+
+    await user.selectOptions(screen.getByLabelText(/producto/i), "p1");
+
+    expect(screen.getByLabelText("Dosis")).toHaveValue("10");
+    expect(screen.getByLabelText(/unidad/i)).toHaveValue("ml");
+    expect(screen.getByLabelText(/vía/i)).toHaveValue("subcutánea");
+    expect(screen.getByLabelText(/carencia/i)).toHaveValue(21);
   });
 
   it("shows an error message if creation fails, without losing the typed name", async () => {

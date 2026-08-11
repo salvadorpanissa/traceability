@@ -15,16 +15,32 @@ describe("ProductCatalogForm", () => {
   it("lists products, adds a new one, and edits an existing one", async () => {
     vi.mocked(createProductAction).mockResolvedValue({
       ok: true,
-      entry: { id: "prod-2", name: "Aftosa", defaultDoseUnit: null, defaultWithdrawalDays: null },
+      entry: { id: "prod-2", name: "Aftosa", defaultDose: null, defaultDoseUnit: null, defaultRoute: null, defaultWithdrawalDays: null },
     });
     vi.mocked(updateProductAction).mockResolvedValue({
       ok: true,
-      entry: { id: "prod-1", name: "Ivermectina 1% inyectable", defaultDoseUnit: "cc", defaultWithdrawalDays: 21 },
+      entry: {
+        id: "prod-1",
+        name: "Ivermectina 1% inyectable",
+        defaultDose: "10",
+        defaultDoseUnit: "cc",
+        defaultRoute: "subcutánea",
+        defaultWithdrawalDays: 21,
+      },
     });
 
     render(
       <ProductCatalogForm
-        products={[{ id: "prod-1", name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 }]}
+        products={[
+          {
+            id: "prod-1",
+            name: "Ivermectina 1%",
+            defaultDose: "10",
+            defaultDoseUnit: "ml",
+            defaultRoute: "subcutánea",
+            defaultWithdrawalDays: 21,
+          },
+        ]}
       />
     );
 
@@ -36,7 +52,9 @@ describe("ProductCatalogForm", () => {
     await waitFor(() => expect(screen.getByText("Aftosa")).toBeInTheDocument());
     expect(createProductAction).toHaveBeenCalledWith({
       name: "Aftosa",
+      defaultDose: null,
       defaultDoseUnit: null,
+      defaultRoute: null,
       defaultWithdrawalDays: null,
     });
 
@@ -53,7 +71,9 @@ describe("ProductCatalogForm", () => {
       expect(updateProductAction).toHaveBeenCalledWith({
         id: "prod-1",
         name: "Ivermectina 1% inyectable",
+        defaultDose: "10",
         defaultDoseUnit: "cc",
+        defaultRoute: "subcutánea",
         defaultWithdrawalDays: 21,
       })
     );

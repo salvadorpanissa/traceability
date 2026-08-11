@@ -38,9 +38,9 @@ function buildInitialProducts(
     const matched = s.matchedProductId ? catalog.find((c) => c.id === s.matchedProductId) : undefined;
     return {
       productId: s.matchedProductId ?? "",
-      dose: "",
+      dose: matched?.defaultDose ?? "",
       doseUnit: matched?.defaultDoseUnit ?? "",
-      route: "",
+      route: matched?.defaultRoute ?? "",
       withdrawalDays: matched?.defaultWithdrawalDays ?? null,
       notes: null,
     };
@@ -282,7 +282,9 @@ export function HealthForm({
               onDecide={setTransferMismatched}
             />
           ) : null}
-          <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-border">
+            <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+          </div>
           <Button
             type="button"
             disabled={

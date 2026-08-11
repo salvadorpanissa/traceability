@@ -36,11 +36,24 @@ describe("createProductAction", () => {
   it("creates a product and returns it", async () => {
     await seedManagerSession();
 
-    const result = await createProductAction({ name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 });
+    const result = await createProductAction({
+      name: "Ivermectina 1%",
+      defaultDose: "10",
+      defaultDoseUnit: "ml",
+      defaultRoute: "subcutánea",
+      defaultWithdrawalDays: 21,
+    });
 
     expect(result).toEqual({
       ok: true,
-      entry: { id: expect.any(String), name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
+      entry: {
+        id: expect.any(String),
+        name: "Ivermectina 1%",
+        defaultDose: "10",
+        defaultDoseUnit: "ml",
+        defaultRoute: "subcutánea",
+        defaultWithdrawalDays: 21,
+      },
     });
     const [stored] = await testDb.select().from(product).where(eq(product.name, "Ivermectina 1%"));
     expect(stored).toBeDefined();
@@ -48,9 +61,21 @@ describe("createProductAction", () => {
 
   it("rejects a duplicate name with a friendly error instead of throwing", async () => {
     await seedManagerSession();
-    await createProductAction({ name: "Aftosa", defaultDoseUnit: null, defaultWithdrawalDays: null });
+    await createProductAction({
+      name: "Aftosa",
+      defaultDose: null,
+      defaultDoseUnit: null,
+      defaultRoute: null,
+      defaultWithdrawalDays: null,
+    });
 
-    const result = await createProductAction({ name: "Aftosa", defaultDoseUnit: null, defaultWithdrawalDays: null });
+    const result = await createProductAction({
+      name: "Aftosa",
+      defaultDose: null,
+      defaultDoseUnit: null,
+      defaultRoute: null,
+      defaultWithdrawalDays: null,
+    });
 
     expect(result).toEqual({ ok: false, error: "Ya existe un producto con ese nombre" });
   });
@@ -59,14 +84,28 @@ describe("createProductAction", () => {
 describe("updateProductAction", () => {
   it("rejects renaming into a name that already exists with a friendly error instead of throwing", async () => {
     await seedManagerSession();
-    await createProductAction({ name: "Aftosa", defaultDoseUnit: null, defaultWithdrawalDays: null });
-    const created = await createProductAction({ name: "Ivermectina 1%", defaultDoseUnit: null, defaultWithdrawalDays: null });
+    await createProductAction({
+      name: "Aftosa",
+      defaultDose: null,
+      defaultDoseUnit: null,
+      defaultRoute: null,
+      defaultWithdrawalDays: null,
+    });
+    const created = await createProductAction({
+      name: "Ivermectina 1%",
+      defaultDose: null,
+      defaultDoseUnit: null,
+      defaultRoute: null,
+      defaultWithdrawalDays: null,
+    });
     if (!created.ok) throw new Error("setup failed");
 
     const result = await updateProductAction({
       id: created.entry.id,
       name: "Aftosa",
+      defaultDose: null,
       defaultDoseUnit: null,
+      defaultRoute: null,
       defaultWithdrawalDays: null,
     });
 

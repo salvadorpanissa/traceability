@@ -12,19 +12,25 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDose, setEditDose] = useState("");
   const [editDoseUnit, setEditDoseUnit] = useState("");
+  const [editRoute, setEditRoute] = useState("");
   const [editWithdrawalDays, setEditWithdrawalDays] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [dose, setDose] = useState("");
   const [doseUnit, setDoseUnit] = useState("");
+  const [route, setRoute] = useState("");
   const [withdrawalDays, setWithdrawalDays] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
   function startEdit(entry: ProductCatalogEntry) {
     setEditingId(entry.id);
     setEditName(entry.name);
+    setEditDose(entry.defaultDose ?? "");
     setEditDoseUnit(entry.defaultDoseUnit ?? "");
+    setEditRoute(entry.defaultRoute ?? "");
     setEditWithdrawalDays(entry.defaultWithdrawalDays?.toString() ?? "");
     setEditError(null);
   }
@@ -39,7 +45,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
     const result = await updateProductAction({
       id,
       name: editName,
+      defaultDose: editDose || null,
       defaultDoseUnit: editDoseUnit || null,
+      defaultRoute: editRoute || null,
       defaultWithdrawalDays: editWithdrawalDays ? Number(editWithdrawalDays) : null,
     });
     if (!result.ok) {
@@ -54,7 +62,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
     if (!name) return;
     const result = await createProductAction({
       name,
+      defaultDose: dose || null,
       defaultDoseUnit: doseUnit || null,
+      defaultRoute: route || null,
       defaultWithdrawalDays: withdrawalDays ? Number(withdrawalDays) : null,
     });
     if (!result.ok) {
@@ -63,7 +73,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
     }
     setProducts((prev) => [...prev, result.entry]);
     setName("");
+    setDose("");
     setDoseUnit("");
+    setRoute("");
     setWithdrawalDays("");
     setCreateError(null);
   }
@@ -74,7 +86,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
         <thead>
           <tr className="border-b text-left">
             <th className="py-1 pr-2">Nombre</th>
+            <th className="py-1 pr-2">Dosis</th>
             <th className="py-1 pr-2">Unidad de dosis</th>
+            <th className="py-1 pr-2">Vía</th>
             <th className="py-1 pr-2">Días de retiro</th>
             <th className="py-1 pr-2" />
           </tr>
@@ -87,11 +101,17 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
                   <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </td>
                 <td className="py-1 pr-2">
+                  <Input aria-label="Editar dosis" value={editDose} onChange={(e) => setEditDose(e.target.value)} />
+                </td>
+                <td className="py-1 pr-2">
                   <Input
                     aria-label="Editar unidad de dosis"
                     value={editDoseUnit}
                     onChange={(e) => setEditDoseUnit(e.target.value)}
                   />
+                </td>
+                <td className="py-1 pr-2">
+                  <Input aria-label="Editar vía" value={editRoute} onChange={(e) => setEditRoute(e.target.value)} />
                 </td>
                 <td className="py-1 pr-2">
                   <Input
@@ -113,7 +133,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
             ) : (
               <tr key={entry.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">{entry.name}</td>
+                <td className="py-1 pr-2">{entry.defaultDose ?? "—"}</td>
                 <td className="py-1 pr-2">{entry.defaultDoseUnit ?? "—"}</td>
+                <td className="py-1 pr-2">{entry.defaultRoute ?? "—"}</td>
                 <td className="py-1 pr-2">{entry.defaultWithdrawalDays ?? "—"}</td>
                 <td className="py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
@@ -131,8 +153,14 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
         <Label htmlFor="product-name">Nombre</Label>
         <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
 
+        <Label htmlFor="product-dose">Dosis</Label>
+        <Input id="product-dose" value={dose} onChange={(e) => setDose(e.target.value)} />
+
         <Label htmlFor="product-dose-unit">Unidad de dosis</Label>
         <Input id="product-dose-unit" value={doseUnit} onChange={(e) => setDoseUnit(e.target.value)} />
+
+        <Label htmlFor="product-route">Vía</Label>
+        <Input id="product-route" value={route} onChange={(e) => setRoute(e.target.value)} />
 
         <Label htmlFor="product-withdrawal-days">Días de retiro</Label>
         <Input

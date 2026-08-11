@@ -45,7 +45,14 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
 }));
 
 const catalog: ProductCatalogEntry[] = [
-  { id: "p1", name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
+  {
+    id: "p1",
+    name: "Ivermectina 1%",
+    defaultDose: "10",
+    defaultDoseUnit: "ml",
+    defaultRoute: "subcutánea",
+    defaultWithdrawalDays: 21,
+  },
 ];
 const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
 const farms = [{ id: "farm-1", name: "Campo Norte" }];
@@ -103,11 +110,13 @@ describe("HealthForm", () => {
 
     await user.selectOptions(screen.getByLabelText(/producto/i), "p1");
 
+    expect(screen.getByLabelText("Dosis")).toHaveValue("10");
     expect(screen.getByLabelText(/unidad/i)).toHaveValue("ml");
+    expect(screen.getByLabelText(/vía/i)).toHaveValue("subcutánea");
     expect(screen.getByLabelText(/carencia/i)).toHaveValue(21);
   });
 
-  it("pre-fills a product row from a matched suggestion, and creates a missing one inline", async () => {
+  it("pre-fills a product row from a matched suggestion, including its dose and route, and creates a missing one inline", async () => {
     render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
@@ -116,8 +125,11 @@ describe("HealthForm", () => {
 
     // The suggestion matched "Aftosa" (id p1, not in the initial catalog prop) —
     // HealthForm's mocked previewHealthBatch return above stands in for a real
-    // catalog lookup, so the row should show it pre-selected.
+    // catalog lookup, so the row should show it pre-selected along with the
+    // matched product's dose/route defaults, not just its dose unit.
     expect(screen.getByLabelText(/producto/i)).toHaveValue("p1");
+    expect(screen.getByLabelText("Dosis")).toHaveValue("10");
+    expect(screen.getByLabelText(/vía/i)).toHaveValue("subcutánea");
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
@@ -128,13 +140,10 @@ describe("HealthForm", () => {
 
     await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
 
-    // Fill in the rest of the (auto-matched) product row so the only thing
-    // gating Confirmar in this test is the pending owner, not an incomplete
-    // product — the row already has productId "p1" and doseUnit "ml" from
-    // the matched suggestion's defaults, but dose/route still need values.
-    await user.type(screen.getByLabelText("Dosis"), "10");
-    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
-
+    // The auto-matched product row already has all its fields (productId,
+    // dose, doseUnit, route) filled from the matched suggestion's catalog
+    // defaults, so the only thing gating Confirmar in this test is the
+    // pending owner.
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /^crear$/i }));
@@ -194,8 +203,6 @@ describe("HealthForm", () => {
     await selectPaddockAndUploadFile(user);
     await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
 
-    await user.type(screen.getByLabelText("Dosis"), "10");
-    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
     await user.selectOptions(screen.getByLabelText("Usar un propietario existente"), "existing-owner");
@@ -268,8 +275,6 @@ describe("HealthForm", () => {
 
     expect(screen.getByText(/actualmente en Potrero 2/)).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Dosis"), "10");
-    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /no, dej/i }));
@@ -314,9 +319,6 @@ describe("HealthForm", () => {
 
     await selectPaddockAndUploadFile(user);
     await waitFor(() => expect(screen.getByText("AR000000000092")).toBeInTheDocument());
-
-    await user.type(screen.getByLabelText("Dosis"), "10");
-    await user.type(screen.getByLabelText(/vía/i), "subcutánea");
 
     await user.click(screen.getByRole("button", { name: /sí, trasladarlas/i }));
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();

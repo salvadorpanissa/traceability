@@ -25,7 +25,7 @@ export function TransferPreviewTable({
 }) {
   return (
     <table className="w-full text-sm">
-      <thead>
+      <thead className="sticky top-0 bg-background">
         <tr className="border-b text-left">
           <th className="py-1 pr-2">Caravana</th>
           <th className="py-1 pr-2">Estado</th>

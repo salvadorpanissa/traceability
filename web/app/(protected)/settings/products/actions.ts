@@ -9,13 +9,17 @@ export type ProductCatalogActionResult = { ok: true; entry: ProductCatalogEntry 
 
 const productInputSchema = z.object({
   name: z.string().trim().min(1),
+  defaultDose: z.string().trim().min(1).nullable(),
   defaultDoseUnit: z.string().trim().min(1).nullable(),
+  defaultRoute: z.string().trim().min(1).nullable(),
   defaultWithdrawalDays: z.number().int().min(0).nullable(),
 });
 
 export async function createProductAction(input: {
   name: string;
+  defaultDose: string | null;
   defaultDoseUnit: string | null;
+  defaultRoute: string | null;
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   await requireSession();
@@ -23,7 +27,9 @@ export async function createProductAction(input: {
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
     const entry = await createProduct(parsed.data.name, {
+      defaultDose: parsed.data.defaultDose,
       defaultDoseUnit: parsed.data.defaultDoseUnit,
+      defaultRoute: parsed.data.defaultRoute,
       defaultWithdrawalDays: parsed.data.defaultWithdrawalDays,
     });
     return { ok: true, entry };
@@ -36,7 +42,9 @@ export async function createProductAction(input: {
 export async function updateProductAction(input: {
   id: string;
   name: string;
+  defaultDose: string | null;
   defaultDoseUnit: string | null;
+  defaultRoute: string | null;
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   await requireSession();
