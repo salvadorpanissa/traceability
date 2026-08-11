@@ -4,16 +4,35 @@ import bcrypt from "bcryptjs";
 import { and, eq, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { createDbClient } from "./client";
-import { role, farm, userAccount, userFarm, owner, category, product, animal, animalTagHistory, event, eventRetag, eventRecategorize, eventTransfer, batchOperation, paddock } from "./schema";
+import {
+  role,
+  farm,
+  establishment,
+  userAccount,
+  userFarm,
+  owner,
+  category,
+  product,
+  animal,
+  animalTagHistory,
+  event,
+  eventRetag,
+  eventRecategorize,
+  eventTransfer,
+  batchOperation,
+  paddock,
+} from "./schema";
 import { estimateBirthDateFromAge } from "../lib/activities/date-normalization";
 
-// Demo/showcase data: a manager with two campos, 20 animals each (spread
-// across ages so a monthly age-based recategorization replay produces real
-// category-change history), a couple of health products, and one "lote"
-// Excel per campo ready to upload from Actividades > Sanidad.
+// Demo/showcase data: a manager assigned to one farm (operación) with two
+// campos (establecimientos), 20 animals each (spread across ages so a
+// monthly age-based recategorization replay produces real category-change
+// history), a couple of health products, and one "lote" Excel per campo
+// ready to upload from Actividades > Sanidad.
 config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
 
-const FARM_NAMES = ["Campo 1", "Campo 2"];
+const FARM_NAME = "Operación Demo";
+const ESTABLISHMENT_NAMES = ["Campo 1", "Campo 2"];
 
 const PADDOCK_NAMES = ["Potrero Norte", "Potrero Sur"];
 
@@ -40,8 +59,8 @@ const PRODUCTS = [
 const BREEDS = ["Hereford", "Angus", "Braford"];
 
 // 20 ages spread from 2 to 38 months so, replayed month by month, animals
-// cross the 12- and 24-month brackets above at different points in time
-// instead of all moving on the same day.
+// cross the category brackets above at different points in time instead of
+// all moving on the same day.
 const AGE_MONTHS = [2, 4, 6, 8, 10, 12, 13, 15, 17, 19, 21, 23, 25, 26, 28, 30, 32, 34, 36, 38];
 
 async function upsertRole(db: ReturnType<typeof createDbClient>, name: string) {
@@ -58,27 +77,43 @@ async function upsertFarm(db: ReturnType<typeof createDbClient>, name: string) {
   return created;
 }
 
-async function upsertCategory(db: ReturnType<typeof createDbClient>, def: (typeof CATEGORIES)[number]) {
-  const [existing] = await db.select().from(category).where(eq(category.name, def.name));
+async function upsertEstablishment(db: ReturnType<typeof createDbClient>, farmId: string, name: string) {
+  const [existing] = await db
+    .select()
+    .from(establishment)
+    .where(and(eq(establishment.farmId, farmId), eq(establishment.name, name)));
   if (existing) return existing;
-  const [created] = await db.insert(category).values(def).returning();
+  const [created] = await db.insert(establishment).values({ farmId, name }).returning();
   return created;
 }
 
-async function upsertProduct(db: ReturnType<typeof createDbClient>, def: (typeof PRODUCTS)[number]) {
-  const [existing] = await db.select().from(product).where(eq(product.name, def.name));
+async function upsertCategory(db: ReturnType<typeof createDbClient>, farmId: string, def: (typeof CATEGORIES)[number]) {
+  const [existing] = await db
+    .select()
+    .from(category)
+    .where(and(eq(category.farmId, farmId), eq(category.name, def.name)));
   if (existing) return existing;
-  const [created] = await db.insert(product).values(def).returning();
+  const [created] = await db.insert(category).values({ ...def, farmId }).returning();
   return created;
 }
 
-async function upsertPaddock(db: ReturnType<typeof createDbClient>, farmId: string, name: string) {
+async function upsertProduct(db: ReturnType<typeof createDbClient>, farmId: string, def: (typeof PRODUCTS)[number]) {
+  const [existing] = await db
+    .select()
+    .from(product)
+    .where(and(eq(product.farmId, farmId), eq(product.name, def.name)));
+  if (existing) return existing;
+  const [created] = await db.insert(product).values({ ...def, farmId }).returning();
+  return created;
+}
+
+async function upsertPaddock(db: ReturnType<typeof createDbClient>, establishmentId: string, name: string) {
   const [existing] = await db
     .select()
     .from(paddock)
-    .where(and(eq(paddock.farmId, farmId), eq(paddock.name, name)));
+    .where(and(eq(paddock.establishmentId, establishmentId), eq(paddock.name, name)));
   if (existing) return existing;
-  const [created] = await db.insert(paddock).values({ farmId, name }).returning();
+  const [created] = await db.insert(paddock).values({ establishmentId, name }).returning();
   return created;
 }
 
@@ -91,12 +126,12 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-async function writeHealthLoteFile(farmName: string, tags: string[]) {
+async function writeHealthLoteFile(establishmentName: string, tags: string[]) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sanidad");
   sheet.addRow(["IDE (caravana electrónica)"]);
   for (const tag of tags) sheet.addRow([tag]);
-  const filePath = path.resolve(__dirname, "demo-fixtures", `sanidad-${slugify(farmName)}.xlsx`);
+  const filePath = path.resolve(__dirname, "demo-fixtures", `sanidad-${slugify(establishmentName)}.xlsx`);
   await workbook.xlsx.writeFile(filePath);
   return filePath;
 }
@@ -119,13 +154,15 @@ async function run() {
   await upsertRole(db, "admin");
   const managerRole = await upsertRole(db, "manager");
 
-  const farms = [];
-  for (const name of FARM_NAMES) farms.push(await upsertFarm(db, name));
+  const demoFarm = await upsertFarm(db, FARM_NAME);
+
+  const establishments = [];
+  for (const name of ESTABLISHMENT_NAMES) establishments.push(await upsertEstablishment(db, demoFarm.id, name));
 
   const categoriesByName = new Map<string, { id: string }>();
-  for (const def of CATEGORIES) categoriesByName.set(def.name, await upsertCategory(db, def));
+  for (const def of CATEGORIES) categoriesByName.set(def.name, await upsertCategory(db, demoFarm.id, def));
 
-  for (const def of PRODUCTS) await upsertProduct(db, def);
+  for (const def of PRODUCTS) await upsertProduct(db, demoFarm.id, def);
 
   const passwordHash = await bcrypt.hash(managerPassword, 10);
   const [manager] = await db
@@ -135,18 +172,20 @@ async function run() {
 
   const [demoOwner] = await db.insert(owner).values({ name: "Juan Pérez" }).returning();
 
-  await db.insert(userFarm).values(farms.map((f) => ({ userId: manager.id, farmId: f.id })));
+  // Assigned at the farm level (not per establecimiento) — a manager on a
+  // farm operates every establecimiento it contains.
+  await db.insert(userFarm).values({ userId: manager.id, farmId: demoFarm.id });
 
   const todayIso = new Date().toISOString().slice(0, 10);
-  const fixtures: { farmName: string; tags: string[] }[] = [];
+  const fixtures: { establishmentName: string; tags: string[] }[] = [];
 
-  for (const [farmIndex, f] of farms.entries()) {
+  for (const [establishmentIndex, est] of establishments.entries()) {
     const paddocks = [];
-    for (const name of PADDOCK_NAMES) paddocks.push(await upsertPaddock(db, f.id, name));
+    for (const name of PADDOCK_NAMES) paddocks.push(await upsertPaddock(db, est.id, name));
 
     const [batch] = await db
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: f.id, animalCount: AGE_MONTHS.length, createdBy: manager.id })
+      .values({ eventType: "transfer", establishmentId: est.id, animalCount: AGE_MONTHS.length, createdBy: manager.id })
       .returning();
 
     const tags: string[] = [];
@@ -154,9 +193,9 @@ async function run() {
       const sex = i % 2 === 0 ? ("male" as const) : ("female" as const);
       const birthDate = estimateBirthDateFromAge(todayIso, AGE_MONTHS[i]);
       // 15-digit electronic tag, ISO 11784-style: 858 = Uruguay country
-      // code, then a fixed manufacturer block, then farm + sequence so
+      // code, then a fixed manufacturer block, then campo + sequence so
       // tags stay unique and sortable per campo.
-      const tag = `858032${farmIndex + 1}${String(i).padStart(8, "0")}`;
+      const tag = `858032${establishmentIndex + 1}${String(i).padStart(8, "0")}`;
       const initialCategory = categoriesByName.get(sex === "male" ? "Ternero" : "Ternera")!;
 
       const [createdAnimal] = await db
@@ -171,7 +210,7 @@ async function run() {
           eventType: "retag",
           eventDate: birthDate,
           animalId: createdAnimal.id,
-          farmId: f.id,
+          establishmentId: est.id,
           batchOperationId: batch.id,
           createdBy: manager.id,
         })
@@ -184,7 +223,7 @@ async function run() {
           eventType: "recategorize",
           eventDate: birthDate,
           animalId: createdAnimal.id,
-          farmId: f.id,
+          establishmentId: est.id,
           batchOperationId: batch.id,
           createdBy: manager.id,
         })
@@ -202,21 +241,21 @@ async function run() {
           eventType: "transfer",
           eventDate: birthDate,
           animalId: createdAnimal.id,
-          farmId: f.id,
+          establishmentId: est.id,
           batchOperationId: batch.id,
           createdBy: manager.id,
         })
         .returning();
       await db.insert(eventTransfer).values({
         eventId: transferEvent.id,
-        originFarmId: f.id,
-        destinationFarmId: f.id,
+        originEstablishmentId: est.id,
+        destinationEstablishmentId: est.id,
         destinationPaddockId: paddocks[i % paddocks.length].id,
       });
 
       tags.push(tag);
     }
-    fixtures.push({ farmName: f.name, tags });
+    fixtures.push({ establishmentName: est.name, tags });
   }
 
   await db.execute(sql`refresh materialized view concurrently animal_current_state`);
@@ -232,10 +271,12 @@ async function run() {
   }
 
   const filePaths: string[] = [];
-  for (const fixture of fixtures) filePaths.push(await writeHealthLoteFile(fixture.farmName, fixture.tags));
+  for (const fixture of fixtures) filePaths.push(await writeHealthLoteFile(fixture.establishmentName, fixture.tags));
 
   console.log(`Seeded demo manager: ${managerEmail} / ${managerPassword}`);
-  console.log(`Campos: ${farms.map((f) => f.name).join(", ")} (20 animales c/u, potreros: ${PADDOCK_NAMES.join(", ")})`);
+  console.log(
+    `Campos: ${establishments.map((e) => e.name).join(", ")} (20 animales c/u, potreros: ${PADDOCK_NAMES.join(", ")})`
+  );
   console.log(`Productos: ${PRODUCTS.map((p) => p.name).join(", ")}`);
   console.log(`Archivos para cargar sanidad:\n${filePaths.map((p) => `  - ${p}`).join("\n")}`);
   process.exit(0);
