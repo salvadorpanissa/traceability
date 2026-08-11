@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { farm, role, establishment, userAccount, userFarm, product } from "@/db/schema";
+import { farm, role, userAccount, userFarm, product } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -27,10 +27,6 @@ async function seedManagerSession() {
     .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
-  const [seededFarm] = await testDb
-    .insert(establishment)
-    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
-    .returning();
   const [manager] = await testDb
     .insert(userAccount)
     .values({
@@ -46,15 +42,15 @@ async function seedManagerSession() {
     user: { id: manager.id, role: "manager" },
   } as never);
 
-  return { manager, seededFarm, seededFarmGroup };
+  return { manager, seededFarmGroup };
 }
 
 describe("createProductAction", () => {
   it("creates a product and returns it", async () => {
-    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const { seededFarmGroup } = await seedManagerSession();
 
     const result = await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Ivermectina 1%",
       defaultDose: "10",
       defaultDoseUnit: "ml",
@@ -84,24 +80,23 @@ describe("createProductAction", () => {
   it("rejects a product for a campo the manager doesn't have access to", async () => {
     await seedManagerSession();
     const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
-    const [otherFarm] = await testDb.insert(establishment).values({ farmId: otherGroup.id, name: "Campo Ajeno" }).returning();
 
     await expect(
       createProductAction({
-        establishmentId: otherFarm.id,
+        farmId: otherGroup.id,
         name: "Aftosa",
         defaultDose: null,
         defaultDoseUnit: null,
         defaultRoute: null,
         defaultWithdrawalDays: null,
       })
-    ).rejects.toThrow("No tenés acceso a este campo");
+    ).rejects.toThrow("No tenés acceso a este grupo de campos");
   });
 
   it("rejects a duplicate name with a friendly error instead of throwing", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarmGroup } = await seedManagerSession();
     await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Aftosa",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -110,7 +105,7 @@ describe("createProductAction", () => {
     });
 
     const result = await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Aftosa",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -127,9 +122,9 @@ describe("createProductAction", () => {
 
 describe("updateProductAction", () => {
   it("rejects renaming into a name that already exists with a friendly error instead of throwing", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarmGroup } = await seedManagerSession();
     await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Aftosa",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -137,7 +132,7 @@ describe("updateProductAction", () => {
       defaultWithdrawalDays: null,
     });
     const created = await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Ivermectina 1%",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -162,9 +157,9 @@ describe("updateProductAction", () => {
   });
 
   it("rejects updating a product outside the caller's grupo", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarmGroup } = await seedManagerSession();
     const created = await createProductAction({
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       name: "Ivermectina 1%",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -175,7 +170,6 @@ describe("updateProductAction", () => {
 
     const [otherRole] = await testDb.select().from(role).where(eq(role.name, "manager"));
     const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
-    const [otherFarm] = await testDb.insert(establishment).values({ farmId: otherGroup.id, name: "Campo Ajeno" }).returning();
     const [otherManager] = await testDb
       .insert(userAccount)
       .values({ name: "Otro manager", email: "otro@example.com", passwordHash: "hashed", roleId: otherRole.id })

@@ -8,16 +8,13 @@ import { Label } from "@/components/ui/label";
 import { createProductAction, updateProductAction } from "@/app/(protected)/settings/products/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
-type Establishment = { id: string; name: string; farmId: string };
 type Farm = { id: string; name: string };
 
 export function ProductCatalogForm({
   products: initialProducts,
-  establishments,
   farms,
 }: {
   products: ProductCatalogEntry[];
-  establishments: Establishment[];
   farms: Farm[];
 }) {
   const [products, setProducts] = useState(initialProducts);
@@ -33,7 +30,7 @@ export function ProductCatalogForm({
   const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [establishmentId, setEstablishmentId] = useState(establishments.length === 1 ? establishments[0].id : "");
+  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [name, setName] = useState("");
   const [dose, setDose] = useState("");
   const [doseUnit, setDoseUnit] = useState("");
@@ -75,9 +72,9 @@ export function ProductCatalogForm({
   }
 
   async function handleCreate() {
-    if (!establishmentId || !name) return;
+    if (!farmId || !name) return;
     const result = await createProductAction({
-      establishmentId,
+      farmId,
       name,
       defaultDose: dose || null,
       defaultDoseUnit: doseUnit || null,
@@ -108,20 +105,24 @@ export function ProductCatalogForm({
               <DialogTitle>Nuevo producto</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="product-establishment">Campo</Label>
-              <select
-                id="product-establishment"
-                value={establishmentId}
-                onChange={(e) => setEstablishmentId(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-              >
-                <option value="">Elegir...</option>
-                {establishments.map((establishment) => (
-                  <option key={establishment.id} value={establishment.id}>
-                    {establishment.name}
-                  </option>
-                ))}
-              </select>
+              {farms.length > 1 ? (
+                <>
+                  <Label htmlFor="product-farm">Campo</Label>
+                  <select
+                    id="product-farm"
+                    value={farmId}
+                    onChange={(e) => setFarmId(e.target.value)}
+                    className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                  >
+                    <option value="">Elegir...</option>
+                    {farms.map((farm) => (
+                      <option key={farm.id} value={farm.id}>
+                        {farm.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
 
               <Label htmlFor="product-name">Nombre</Label>
               <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -145,7 +146,7 @@ export function ProductCatalogForm({
 
               {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
 
-              <Button type="button" disabled={!establishmentId || !name} onClick={handleCreate}>
+              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
                 Agregar
               </Button>
             </div>

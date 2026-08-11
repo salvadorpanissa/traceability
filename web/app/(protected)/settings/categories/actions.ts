@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess, requireFarmAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { createCategory, updateCategory, getCategoryFarmId, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 import { archiveCategory } from "@/lib/activities/category-archive";
@@ -16,20 +16,18 @@ const categoryInputSchema = z.object({
 });
 
 export async function createCategoryAction(input: {
-  establishmentId: string;
+  farmId: string;
   name: string;
   sex?: "male" | "female" | null;
   minAgeMonths?: number | null;
 }): Promise<CategoryCatalogActionResult> {
   const session = await requireSession();
-  await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
-  const farmId = await getEstablishmentFarmId(input.establishmentId);
-  if (!farmId) return { ok: false, error: "Campo no encontrado" };
+  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
 
   const parsed = categoryInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createCategory(farmId, parsed.data);
+    const entry = await createCategory(input.farmId, parsed.data);
     return { ok: true, entry };
   } catch (error) {
     if (isUniqueViolationError(error)) return { ok: false, error: "Ya existe una categoría con ese nombre" };

@@ -11,7 +11,6 @@ vi.mock("@/app/(protected)/settings/products/actions", () => ({
   updateProductAction: vi.fn(),
 }));
 
-const establishments = [{ id: "establishment-1", name: "Campo Norte", farmId: "group-1" }];
 const farms = [{ id: "group-1", name: "Campo Norte" }];
 
 describe("ProductCatalogForm", () => {
@@ -54,7 +53,6 @@ describe("ProductCatalogForm", () => {
             defaultWithdrawalDays: 21,
           },
         ]}
-        establishments={establishments}
         farms={farms}
       />
     );
@@ -67,7 +65,7 @@ describe("ProductCatalogForm", () => {
 
     await waitFor(() => expect(screen.getByText("Aftosa")).toBeInTheDocument());
     expect(createProductAction).toHaveBeenCalledWith({
-      establishmentId: "establishment-1",
+      farmId: "group-1",
       name: "Aftosa",
       defaultDose: null,
       defaultDoseUnit: null,
@@ -100,7 +98,7 @@ describe("ProductCatalogForm", () => {
   it("shows an inline error and keeps the form when the name is a duplicate", async () => {
     vi.mocked(createProductAction).mockResolvedValue({ ok: false, error: "Ya existe un producto con ese nombre" });
 
-    render(<ProductCatalogForm products={[]} establishments={establishments} farms={farms} />);
+    render(<ProductCatalogForm products={[]} farms={farms} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Aftosa");

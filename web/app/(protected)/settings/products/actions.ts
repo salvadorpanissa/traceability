@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess, requireFarmAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { createProduct, updateProduct, getProductFarmId, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 
@@ -17,7 +17,7 @@ const productInputSchema = z.object({
 });
 
 export async function createProductAction(input: {
-  establishmentId: string;
+  farmId: string;
   name: string;
   defaultDose: string | null;
   defaultDoseUnit: string | null;
@@ -25,14 +25,12 @@ export async function createProductAction(input: {
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   const session = await requireSession();
-  await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
-  const farmId = await getEstablishmentFarmId(input.establishmentId);
-  if (!farmId) return { ok: false, error: "Campo no encontrado" };
+  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
 
   const parsed = productInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createProduct(farmId, parsed.data.name, {
+    const entry = await createProduct(input.farmId, parsed.data.name, {
       defaultDose: parsed.data.defaultDose,
       defaultDoseUnit: parsed.data.defaultDoseUnit,
       defaultRoute: parsed.data.defaultRoute,

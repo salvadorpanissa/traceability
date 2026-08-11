@@ -12,18 +12,15 @@ import {
 } from "@/app/(protected)/settings/categories/actions";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
-type Establishment = { id: string; name: string; farmId: string };
 type Farm = { id: string; name: string };
 
 export function CategoryCatalogForm({
   categories: initialCategories,
   animalCounts: initialAnimalCounts = {},
-  establishments,
   farms,
 }: {
   categories: CategoryCatalogEntry[];
   animalCounts?: Record<string, number>;
-  establishments: Establishment[];
   farms: Farm[];
 }) {
   const [categories, setCategories] = useState(initialCategories);
@@ -38,7 +35,7 @@ export function CategoryCatalogForm({
   const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [establishmentId, setEstablishmentId] = useState(establishments.length === 1 ? establishments[0].id : "");
+  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [name, setName] = useState("");
   const [sex, setSex] = useState("");
   const [minAgeMonths, setMinAgeMonths] = useState("");
@@ -82,9 +79,9 @@ export function CategoryCatalogForm({
   }
 
   async function handleCreate() {
-    if (!establishmentId || !name) return;
+    if (!farmId || !name) return;
     const result = await createCategoryAction({
-      establishmentId,
+      farmId,
       name,
       sex: sex === "" ? null : (sex as "male" | "female"),
       minAgeMonths: minAgeMonths === "" ? null : Number(minAgeMonths),
@@ -147,20 +144,24 @@ export function CategoryCatalogForm({
               <DialogTitle>Nueva categoría</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="category-establishment">Campo</Label>
-              <select
-                id="category-establishment"
-                value={establishmentId}
-                onChange={(e) => setEstablishmentId(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-              >
-                <option value="">Elegir...</option>
-                {establishments.map((establishment) => (
-                  <option key={establishment.id} value={establishment.id}>
-                    {establishment.name}
-                  </option>
-                ))}
-              </select>
+              {farms.length > 1 ? (
+                <>
+                  <Label htmlFor="category-farm">Campo</Label>
+                  <select
+                    id="category-farm"
+                    value={farmId}
+                    onChange={(e) => setFarmId(e.target.value)}
+                    className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                  >
+                    <option value="">Elegir...</option>
+                    {farms.map((farm) => (
+                      <option key={farm.id} value={farm.id}>
+                        {farm.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
 
               <Label htmlFor="category-name">Nombre</Label>
               <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -187,7 +188,7 @@ export function CategoryCatalogForm({
 
               {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
 
-              <Button type="button" disabled={!establishmentId || !name} onClick={handleCreate}>
+              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
                 Agregar
               </Button>
             </div>
