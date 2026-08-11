@@ -66,9 +66,18 @@ function formatPercent(percent: number): string {
   return `${percent.toFixed(2).replace(".", ",")}%`;
 }
 
+// Math.sin/cos can differ in their last bit between the server's V8 build
+// and the browser's, which flips a trailing digit of the path string and
+// trips React's hydration mismatch check. Rounding collapses that epsilon
+// (invisible at this stroke width) so server and client render byte-identical
+// "d" attributes.
+function round(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number): { x: number; y: number } {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  return { x: round(cx + r * Math.cos(rad)), y: round(cy + r * Math.sin(rad)) };
 }
 
 function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
