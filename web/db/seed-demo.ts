@@ -1,10 +1,10 @@
 import { config } from "dotenv";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { createDbClient } from "./client";
-import { role, farm, userAccount, userFarm, owner, category, product, animal, animalTagHistory, event, eventRetag, eventRecategorize, eventTransfer, batchOperation } from "./schema";
+import { role, farm, userAccount, userFarm, owner, category, product, animal, animalTagHistory, event, eventRetag, eventRecategorize, eventTransfer, batchOperation, paddock } from "./schema";
 import { estimateBirthDateFromAge } from "../lib/activities/date-normalization";
 
 // Demo/showcase data: a manager with two campos, 20 animals each (spread
@@ -13,11 +13,23 @@ import { estimateBirthDateFromAge } from "../lib/activities/date-normalization";
 // Excel per campo ready to upload from Actividades > Sanidad.
 config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
 
-const FARM_NAMES = ["San Antonio", "Cuatro Cerros"];
+const FARM_NAMES = ["Campo 1", "Campo 2"];
 
+const PADDOCK_NAMES = ["Potrero Norte", "Potrero Sur"];
+
+// Sex-neutral "Recría" brackets every 2 months right after Ternero/a make
+// the age-based recategorization replay below visibly change categories
+// often instead of just twice (at 12 and 24 months) — one bracket ladder
+// shared by both sexes, then the usual sex-specific categories take over
+// from 12 months on.
 const CATEGORIES = [
   { name: "Ternero", sex: "male" as const, minAgeMonths: 0 },
   { name: "Ternera", sex: "female" as const, minAgeMonths: 0 },
+  { name: "Recría 2 meses", sex: null, minAgeMonths: 2 },
+  { name: "Recría 4 meses", sex: null, minAgeMonths: 4 },
+  { name: "Recría 6 meses", sex: null, minAgeMonths: 6 },
+  { name: "Recría 8 meses", sex: null, minAgeMonths: 8 },
+  { name: "Recría 10 meses", sex: null, minAgeMonths: 10 },
   { name: "Novillo", sex: "male" as const, minAgeMonths: 12 },
   { name: "Vaquillona", sex: "female" as const, minAgeMonths: 12 },
   { name: "Novillo 2-3 años", sex: "male" as const, minAgeMonths: 24 },
@@ -62,6 +74,16 @@ async function upsertProduct(db: ReturnType<typeof createDbClient>, def: (typeof
   const [existing] = await db.select().from(product).where(eq(product.name, def.name));
   if (existing) return existing;
   const [created] = await db.insert(product).values(def).returning();
+  return created;
+}
+
+async function upsertPaddock(db: ReturnType<typeof createDbClient>, farmId: string, name: string) {
+  const [existing] = await db
+    .select()
+    .from(paddock)
+    .where(and(eq(paddock.farmId, farmId), eq(paddock.name, name)));
+  if (existing) return existing;
+  const [created] = await db.insert(paddock).values({ farmId, name }).returning();
   return created;
 }
 
@@ -124,6 +146,9 @@ async function run() {
   const fixtures: { farmName: string; tags: string[] }[] = [];
 
   for (const [farmIndex, f] of farms.entries()) {
+    const paddocks = [];
+    for (const name of PADDOCK_NAMES) paddocks.push(await upsertPaddock(db, f.id, name));
+
     const [batch] = await db
       .insert(batchOperation)
       .values({ eventType: "transfer", farmId: f.id, animalCount: AGE_MONTHS.length, createdBy: manager.id })
@@ -191,6 +216,7 @@ async function run() {
         eventId: transferEvent.id,
         originFarmId: f.id,
         destinationFarmId: f.id,
+        destinationPaddockId: paddocks[i % paddocks.length].id,
       });
 
       tags.push(tag);
@@ -214,7 +240,7 @@ async function run() {
   for (const fixture of fixtures) filePaths.push(await writeHealthLoteFile(fixture.farmName, fixture.tags));
 
   console.log(`Seeded demo manager: ${managerEmail} / ${managerPassword}`);
-  console.log(`Campos: ${farms.map((f) => f.name).join(", ")} (20 animales c/u)`);
+  console.log(`Campos: ${farms.map((f) => f.name).join(", ")} (20 animales c/u, potreros: ${PADDOCK_NAMES.join(", ")})`);
   console.log(`Productos: ${PRODUCTS.map((p) => p.name).join(", ")}`);
   console.log(`Archivos para cargar sanidad:\n${filePaths.map((p) => `  - ${p}`).join("\n")}`);
   process.exit(0);
