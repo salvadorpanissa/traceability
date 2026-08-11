@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFarmAccess, getFarmGroupId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
@@ -91,7 +91,7 @@ export async function previewOwnTagUpload(dicoseRegistrationId: string, formData
   let pendingCategoryNames: string[] = [];
   if (mapping.some((m) => m.meaning === "category")) {
     const categoryNames = mappedRows.map((r) => r.category).filter((n): n is string => !!n);
-    pendingCategoryNames = await findMissingCategoryNames(categoryNames);
+    pendingCategoryNames = await findMissingCategoryNames(dicoseRegistrationId, categoryNames);
   }
 
   return { mappingNeeded: false, headerSignature, mapping, rows: mappedRows, pendingPaddockNames, pendingCategoryNames };
@@ -103,9 +103,12 @@ export async function createOwnTagPaddockAction(farmId: string, name: string): P
   return createPaddock(farmId, name);
 }
 
-export async function createOwnTagCategoryAction(name: string): Promise<CategoryCatalogEntry> {
-  await requireSession();
-  return createCategory({ name });
+export async function createOwnTagCategoryAction(farmId: string, name: string): Promise<CategoryCatalogEntry> {
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  const groupId = await getFarmGroupId(farmId);
+  if (!groupId) throw new Error("Campo no encontrado");
+  return createCategory(groupId, { name });
 }
 
 export async function confirmOwnTagUpload(

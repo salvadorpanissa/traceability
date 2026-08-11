@@ -147,14 +147,16 @@ async function resolveOwnerId(
 
 async function resolveCategoryId(
   tx: Transaction,
-  categoryIdByName: Map<string, string>,
+  categoryIdByGroupAndName: Map<string, string>,
+  groupId: string,
   name: string | null
 ): Promise<string | null> {
   if (!name) return null;
-  const existing = categoryIdByName.get(name);
+  const key = `${groupId}:${name.trim().toLowerCase()}`;
+  const existing = categoryIdByGroupAndName.get(key);
   if (existing) return existing;
-  const [created] = await tx.insert(category).values({ name }).returning();
-  categoryIdByName.set(name, created.id);
+  const [created] = await tx.insert(category).values({ groupId, name }).returning();
+  categoryIdByGroupAndName.set(key, created.id);
   return created.id;
 }
 
@@ -187,13 +189,20 @@ export async function confirmImportChunk(input: {
       const existingOwners = await tx.select({ id: owner.id, name: owner.name }).from(owner);
       for (const o of existingOwners) ownerIdByName.set(o.name.trim().toLowerCase(), o.id);
 
-      const categoryIdByName = new Map<string, string>();
-      const existingCategories = await tx.select({ id: category.id, name: category.name }).from(category);
-      for (const c of existingCategories) categoryIdByName.set(c.name, c.id);
+      const categoryIdByGroupAndName = new Map<string, string>();
+      const existingCategories = await tx.select({ id: category.id, name: category.name, groupId: category.groupId }).from(category);
+      for (const c of existingCategories) categoryIdByGroupAndName.set(`${c.groupId}:${c.name.trim().toLowerCase()}`, c.id);
 
       const paddockIdByFarmAndName = new Map<string, string>();
       const existingPaddocks = await tx.select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId }).from(paddock);
       for (const p of existingPaddocks) paddockIdByFarmAndName.set(`${p.farmId}:${p.name.trim().toLowerCase()}`, p.id);
+
+      const groupIdByFarmId = new Map<string, string>();
+      const involvedFarms = await tx
+        .select({ id: farm.id, groupId: farm.groupId })
+        .from(farm)
+        .where(inArray(farm.id, [...new Set(rows.map((r) => r.farmId))]));
+      for (const f of involvedFarms) groupIdByFarmId.set(f.id, f.groupId);
 
       const rowsByFarm = new Map<string, typeof rows>();
       for (const row of rows) {
@@ -204,6 +213,8 @@ export async function confirmImportChunk(input: {
 
       let createdCount = 0;
       for (const [farmId, farmRows] of rowsByFarm) {
+        const groupId = groupIdByFarmId.get(farmId);
+        if (!groupId) throw new Error("Campo no encontrado");
         const [batch] = await tx
           .insert(batchOperation)
           .values({
@@ -216,7 +227,7 @@ export async function confirmImportChunk(input: {
 
         for (const row of farmRows) {
           const ownerId = await resolveOwnerId(tx, ownerIdByName, row.ownerName);
-          const categoryId = await resolveCategoryId(tx, categoryIdByName, row.categoryName);
+          const categoryId = await resolveCategoryId(tx, categoryIdByGroupAndName, groupId, row.categoryName);
           const paddockId = await resolvePaddockId(tx, paddockIdByFarmAndName, farmId, row.paddockName);
 
           const [createdAnimal] = await tx

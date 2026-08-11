@@ -1,9 +1,10 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { category } from "@/db/schema";
 
 export type CategoryCatalogEntry = {
   id: string;
+  groupId: string;
   name: string;
   sex: "male" | "female" | null;
   minAgeMonths: number | null;
@@ -12,6 +13,7 @@ export type CategoryCatalogEntry = {
 
 const CATEGORY_COLUMNS = {
   id: category.id,
+  groupId: category.groupId,
   name: category.name,
   sex: category.sex,
   minAgeMonths: category.minAgeMonths,
@@ -22,24 +24,44 @@ const CATEGORY_COLUMNS = {
 // forward (manual recategorize, imports) should offer. An archived category
 // still exists (its historical events still reference it) but shouldn't be
 // chosen for new assignments.
-export async function listCategories(): Promise<CategoryCatalogEntry[]> {
-  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.active, true)).orderBy(asc(category.name));
+export async function listCategoriesByGroup(groupId: string): Promise<CategoryCatalogEntry[]> {
+  return db
+    .select(CATEGORY_COLUMNS)
+    .from(category)
+    .where(sql`${category.groupId} = ${groupId} and ${category.active} = true`)
+    .orderBy(asc(category.name));
 }
 
 // Every category regardless of active state — only the settings management
 // page needs this, to show archived categories alongside active ones.
-export async function listAllCategories(): Promise<CategoryCatalogEntry[]> {
-  return db.select(CATEGORY_COLUMNS).from(category).orderBy(asc(category.name));
+export async function listAllCategoriesByGroup(groupId: string): Promise<CategoryCatalogEntry[]> {
+  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.groupId, groupId)).orderBy(asc(category.name));
 }
 
-export async function createCategory(input: {
-  name: string;
-  sex?: "male" | "female" | null;
-  minAgeMonths?: number | null;
-}): Promise<CategoryCatalogEntry> {
+// Every category (any active state) across a set of grupos — an admin can
+// reach more than one grupo, so the settings page lists them all together.
+export async function listAllCategoriesForGroups(groupIds: string[]): Promise<CategoryCatalogEntry[]> {
+  if (groupIds.length === 0) return [];
+  return db.select(CATEGORY_COLUMNS).from(category).where(inArray(category.groupId, groupIds)).orderBy(asc(category.name));
+}
+
+export async function getCategoryGroupId(id: string): Promise<string | null> {
+  const [row] = await db.select({ groupId: category.groupId }).from(category).where(eq(category.id, id));
+  return row?.groupId ?? null;
+}
+
+export async function createCategory(
+  groupId: string,
+  input: {
+    name: string;
+    sex?: "male" | "female" | null;
+    minAgeMonths?: number | null;
+  }
+): Promise<CategoryCatalogEntry> {
   const [created] = await db
     .insert(category)
     .values({
+      groupId,
       name: input.name,
       sex: input.sex ?? null,
       minAgeMonths: input.minAgeMonths ?? null,
@@ -47,6 +69,7 @@ export async function createCategory(input: {
     .returning();
   return {
     id: created.id,
+    groupId: created.groupId,
     name: created.name,
     sex: created.sex,
     minAgeMonths: created.minAgeMonths,
@@ -69,6 +92,7 @@ export async function updateCategory(
     .returning();
   return {
     id: updated.id,
+    groupId: updated.groupId,
     name: updated.name,
     sex: updated.sex,
     minAgeMonths: updated.minAgeMonths,

@@ -1,18 +1,41 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, animal, batchOperation, event } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  animal,
+  batchOperation,
+  event,
+} from "@/db/schema";
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
 async function seedFarmAndUser() {
-  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [adminRole] = await testDb
+    .insert(role)
+    .values({ name: "admin" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [user] = await testDb
     .insert(userAccount)
-    .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+    .values({
+      name: "Admin",
+      email: "admin@example.com",
+      passwordHash: "hashed",
+      roleId: adminRole.id,
+    })
     .returning();
   return { seededFarm, user };
 }
@@ -22,7 +45,12 @@ describe("batch_operation table", () => {
     const { seededFarm, user } = await seedFarmAndUser();
     const [created] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+      .values({
+        eventType: "transfer",
+        farmId: seededFarm.id,
+        animalCount: 1,
+        createdBy: user.id,
+      })
       .returning();
     expect(created.animalCount).toBe(1);
     expect(created.selectionCriteria).toEqual({});
@@ -35,7 +63,12 @@ describe("event table", () => {
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     const [batch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+      .values({
+        eventType: "transfer",
+        farmId: seededFarm.id,
+        animalCount: 1,
+        createdBy: user.id,
+      })
       .returning();
 
     const [created] = await testDb
@@ -60,7 +93,7 @@ describe("event table", () => {
         farmId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -69,7 +102,12 @@ describe("event table", () => {
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     const [batch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+      .values({
+        eventType: "transfer",
+        farmId: seededFarm.id,
+        animalCount: 1,
+        createdBy: user.id,
+      })
       .returning();
 
     // event_type = 'void' without voidsEventId must fail
@@ -81,7 +119,7 @@ describe("event table", () => {
         farmId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
-      })
+      }),
     ).rejects.toThrow();
 
     // event_type <> 'void' with voidsEventId set must fail
@@ -106,7 +144,7 @@ describe("event table", () => {
         batchOperationId: batch.id,
         createdBy: user.id,
         voidsEventId: firstEvent.id,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

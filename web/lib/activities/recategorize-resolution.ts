@@ -1,8 +1,9 @@
-import { inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { animalTagHistory, category } from "@/db/schema";
 import { normalizeDate } from "@/lib/activities/date-normalization";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
+import { getFarmGroupId } from "@/lib/dal/farm-access";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 
 export type UnresolvableDecision = "skip" | "assignTarget";
@@ -73,7 +74,8 @@ type CurrentStateRow = {
 
 export async function resolveRecategorizeBatchRows(
   rows: MappedRow[],
-  formEventDate: string | null
+  formEventDate: string | null,
+  farmId: string
 ): Promise<RecategorizeResolvedRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
@@ -109,10 +111,13 @@ export async function resolveRecategorizeBatchRows(
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const ageManagedCategories = await db
-    .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
-    .from(category)
-    .where(isNotNull(category.minAgeMonths));
+  const groupId = await getFarmGroupId(farmId);
+  const ageManagedCategories = groupId
+    ? await db
+        .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
+        .from(category)
+        .where(and(isNotNull(category.minAgeMonths), eq(category.groupId, groupId)))
+    : [];
   const ageManagedCategoryNameById = new Map(ageManagedCategories.map((c) => [c.id, c.name]));
 
   const result: RecategorizeResolvedRow[] = [];
@@ -186,6 +191,10 @@ export async function resolveRecategorizeBatchRows(
     }
     if (!state.current_farm_id) {
       result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
+      continue;
+    }
+    if (state.current_farm_id !== farmId) {
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no pertenece al campo elegido" });
       continue;
     }
 

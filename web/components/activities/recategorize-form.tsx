@@ -9,13 +9,17 @@ import { RecategorizePreviewTable } from "@/components/activities/recategorize-p
 import {
   previewRecategorizeBatch,
   confirmRecategorizeBatchAction,
+  listCategoriesAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/recategorize/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
-export function RecategorizeForm({ categories }: { categories: CategoryCatalogEntry[] }) {
+export function RecategorizeForm({ farms }: { farms: { id: string; name: string }[] }) {
+  const [farmId, setFarmId] = useState("");
+  const [categories, setCategories] = useState<CategoryCatalogEntry[]>([]);
+  const [categoryLoadError, setCategoryLoadError] = useState("");
   const [targetCategoryId, setTargetCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
@@ -28,6 +32,23 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
   const [globalSexMismatchDefault, setGlobalSexMismatchDefault] = useState<UnresolvableDecision>("skip");
   const [sexMismatchOverrides, setSexMismatchOverrides] = useState<Record<string, UnresolvableDecision>>({});
 
+  async function handleFarmChange(selectedFarmId: string) {
+    setFarmId(selectedFarmId);
+    setTargetCategoryId("");
+    setCategoryLoadError("");
+    handleFileChange(null);
+    if (!selectedFarmId) {
+      setCategories([]);
+      return;
+    }
+    try {
+      setCategories(await listCategoriesAction(selectedFarmId));
+    } catch (err) {
+      setCategories([]);
+      setCategoryLoadError(err instanceof Error ? err.message : "No se pudieron cargar las categorías");
+    }
+  }
+
   function handleFileChange(selected: File | null) {
     setFile(selected);
     setEventDate("");
@@ -38,10 +59,11 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file) return;
+    if (!file || !farmId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
+    formData.set("farmId", farmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewRecategorizeBatch(formData);
     setPreview(result);
@@ -123,6 +145,7 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
       await confirmRecategorizeBatchAction({
         headerSignature: preview.headerSignature,
         mapping: preview.mapping,
+        farmId,
         targetCategoryId,
         rows,
         unresolvableDecisions,
@@ -159,11 +182,31 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
+        <Label htmlFor="farm">Campo</Label>
+        <select
+          id="farm"
+          aria-label="Campo"
+          value={farmId}
+          onChange={(e) => handleFarmChange(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+        >
+          <option value="">Elegir campo</option>
+          {farms.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {categoryLoadError ? <p className="text-sm text-destructive">{categoryLoadError}</p> : null}
+
+      <div className="flex flex-col gap-2">
         <Label htmlFor="targetCategoryId">Categoría destino</Label>
         <select
           id="targetCategoryId"
           value={targetCategoryId}
           onChange={(e) => setTargetCategoryId(e.target.value)}
+          disabled={!farmId}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir categoría</option>
@@ -177,9 +220,14 @@ export function RecategorizeForm({ categories }: { categories: CategoryCatalogEn
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
+        <Input
+          id="file"
+          type="file"
+          disabled={!farmId}
+          onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+        />
       </div>
-      <Button type="button" disabled={!targetCategoryId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!farmId || !targetCategoryId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 

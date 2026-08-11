@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { farm, paddock } from "@/db/schema";
+import { farmGroup, farm, paddock } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listPaddocksByFarm, listPaddocksForFarms, createPaddock, updatePaddock } = await import(
-  "@/lib/dal/paddock-catalog"
-);
+const {
+  listPaddocksByFarm,
+  listPaddocksForFarms,
+  createPaddock,
+  updatePaddock,
+} = await import("@/lib/dal/paddock-catalog");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -15,8 +18,22 @@ beforeEach(async () => {
 
 describe("listPaddocksByFarm", () => {
   it("lists only the paddocks belonging to the given farm, ordered by name", async () => {
-    const [farmA] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [farmB] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [farmAGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [farmA] = await testDb
+      .insert(farm)
+      .values({ groupId: farmAGroup.id, name: "Campo Norte" })
+      .returning();
+    const [farmBGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [farmB] = await testDb
+      .insert(farm)
+      .values({ groupId: farmBGroup.id, name: "Campo Sur" })
+      .returning();
     await testDb.insert(paddock).values([
       { farmId: farmA.id, name: "Potrero 2" },
       { farmId: farmA.id, name: "Potrero 1" },
@@ -34,9 +51,30 @@ describe("listPaddocksByFarm", () => {
 
 describe("listPaddocksForFarms", () => {
   it("lists paddocks across multiple farms, ordered by name", async () => {
-    const [farmA] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [farmB] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
-    const [farmC] = await testDb.insert(farm).values({ name: "Campo Este" }).returning();
+    const [farmAGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [farmA] = await testDb
+      .insert(farm)
+      .values({ groupId: farmAGroup.id, name: "Campo Norte" })
+      .returning();
+    const [farmBGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [farmB] = await testDb
+      .insert(farm)
+      .values({ groupId: farmBGroup.id, name: "Campo Sur" })
+      .returning();
+    const [farmCGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Este" })
+      .returning();
+    const [farmC] = await testDb
+      .insert(farm)
+      .values({ groupId: farmCGroup.id, name: "Campo Este" })
+      .returning();
     await testDb.insert(paddock).values([
       { farmId: farmA.id, name: "Potrero 2" },
       { farmId: farmB.id, name: "Potrero 1" },
@@ -58,15 +96,33 @@ describe("listPaddocksForFarms", () => {
 
 describe("createPaddock", () => {
   it("creates a paddock under the given farm", async () => {
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
 
     const created = await createPaddock(seededFarm.id, "Potrero 3");
 
-    expect(created).toEqual({ id: expect.any(String), name: "Potrero 3", farmId: seededFarm.id });
+    expect(created).toEqual({
+      id: expect.any(String),
+      name: "Potrero 3",
+      farmId: seededFarm.id,
+    });
   });
 
   it("rejects a duplicate name within the same farm", async () => {
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
     await createPaddock(seededFarm.id, "Potrero 1");
     await expect(createPaddock(seededFarm.id, "Potrero 1")).rejects.toThrow();
   });
@@ -74,16 +130,34 @@ describe("createPaddock", () => {
 
 describe("updatePaddock", () => {
   it("renames a paddock", async () => {
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
     const created = await createPaddock(seededFarm.id, "Potrero 1");
 
     const updated = await updatePaddock(created.id, "Potrero 1 (bajo)");
 
-    expect(updated).toEqual({ id: created.id, name: "Potrero 1 (bajo)", farmId: seededFarm.id });
+    expect(updated).toEqual({
+      id: created.id,
+      name: "Potrero 1 (bajo)",
+      farmId: seededFarm.id,
+    });
   });
 
   it("rejects renaming into a name that already exists within the same farm", async () => {
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
     await createPaddock(seededFarm.id, "Potrero 1");
     const created = await createPaddock(seededFarm.id, "Potrero 2");
 

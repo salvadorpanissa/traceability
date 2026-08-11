@@ -33,6 +33,7 @@ describe("PaddockCatalogForm", () => {
     expect(within(table).getByText("Potrero 1")).toBeInTheDocument();
     expect(within(table).getByText("Campo Norte")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.selectOptions(screen.getByLabelText("Campo"), "farm-1");
     await userEvent.type(screen.getByLabelText("Nombre"), "Potrero 2");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
@@ -53,6 +54,7 @@ describe("PaddockCatalogForm", () => {
   it("preselects the farm and disables the add button when the user has none", async () => {
     render(<PaddockCatalogForm paddocks={[]} farms={[]} />);
 
+    await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     expect(screen.getByText("No tenés campos asociados")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Agregar" })).toBeDisabled();
   });
@@ -65,6 +67,7 @@ describe("PaddockCatalogForm", () => {
 
     render(<PaddockCatalogForm paddocks={[]} farms={[{ id: "farm-1", name: "Campo Norte" }]} />);
 
+    await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Potrero 1");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 

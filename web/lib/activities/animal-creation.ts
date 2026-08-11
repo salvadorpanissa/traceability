@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { animal, animalTagHistory, event, eventRetag, eventRecategorize, category } from "@/db/schema";
 import type { CreatableRow } from "@/lib/activities/batch-resolution";
 import { deduceAgeMonthsForCategory } from "@/lib/activities/category-birth-date";
@@ -23,7 +24,13 @@ export async function createNewAnimal(
   // imported for a past date doesn't get an age computed as of now.
   let birthDate = row.birthDate;
   if (!birthDate && row.categoryId) {
-    const categories = await tx.select({ id: category.id, minAgeMonths: category.minAgeMonths }).from(category);
+    const [ownCategory] = await tx.select({ groupId: category.groupId }).from(category).where(eq(category.id, row.categoryId));
+    const categories = ownCategory
+      ? await tx
+          .select({ id: category.id, minAgeMonths: category.minAgeMonths })
+          .from(category)
+          .where(eq(category.groupId, ownCategory.groupId))
+      : [];
     const ageMonths = deduceAgeMonthsForCategory(row.categoryId, categories);
     if (ageMonths !== null) birthDate = estimateBirthDateFromAge(row.eventDate, ageMonths);
   }

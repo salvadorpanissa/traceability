@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, userFarm } from "@/db/schema";
+import { farmGroup, role, farm, userAccount, userFarm } from "@/db/schema";
 
 beforeEach(async () => {
   await resetTestDb();
@@ -9,9 +9,26 @@ beforeEach(async () => {
 
 describe("user_account and user_farm", () => {
   it("links a manager to their farms and enforces unique email", async () => {
-    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-    const [farmNorte] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [farmSur] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [managerRole] = await testDb
+      .insert(role)
+      .values({ name: "manager" })
+      .returning();
+    const [farmNorteGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [farmNorte] = await testDb
+      .insert(farm)
+      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .returning();
+    const [farmSurGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [farmSur] = await testDb
+      .insert(farm)
+      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .returning();
 
     const [user] = await testDb
       .insert(userAccount)
@@ -37,11 +54,11 @@ describe("user_account and user_farm", () => {
         email: "encargado@example.com",
         passwordHash: "hashed",
         roleId: managerRole.id,
-      })
+      }),
     ).rejects.toThrow();
 
     await expect(
-      testDb.insert(userFarm).values({ userId: user.id, farmId: farmNorte.id })
+      testDb.insert(userFarm).values({ userId: user.id, farmId: farmNorte.id }),
     ).rejects.toThrow();
   });
 });

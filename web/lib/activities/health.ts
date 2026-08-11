@@ -1,7 +1,7 @@
-import { eq, sql } from "drizzle-orm";
-import { batchOperation, event, eventTransfer, eventHealth, paddock } from "@/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { batchOperation, event, eventTransfer, eventHealth, paddock, product } from "@/db/schema";
 import { db } from "@/db";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFarmAccess, getFarmGroupId } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
@@ -60,6 +60,18 @@ export async function confirmHealthBatch(input: {
     if (!paddockRow || paddockRow.farmId !== operatingFarmId) {
       throw new Error("El potrero no pertenece al campo activo");
     }
+  }
+
+  const groupId = await getFarmGroupId(operatingFarmId);
+  const productIds = [...new Set(products.map((p) => p.productId))];
+  const validProductRows = groupId
+    ? await db
+        .select({ id: product.id })
+        .from(product)
+        .where(and(inArray(product.id, productIds), eq(product.groupId, groupId)))
+    : [];
+  if (validProductRows.length !== productIds.length) {
+    throw new Error("Uno de los productos no pertenece al grupo del campo activo");
   }
 
   await db.transaction(async (tx) => {

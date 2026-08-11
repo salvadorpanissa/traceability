@@ -3,7 +3,7 @@ import path from "node:path";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { createDbClient } from "./client";
-import { role, farm, userAccount } from "./schema";
+import { role, farm, farmGroup, userAccount } from "./schema";
 
 // ENV_FILE picks which env file to load (.env.local for local dev by
 // default, .env.production for prod) — same mechanism as db/migrate.ts.
@@ -33,11 +33,15 @@ async function run() {
   const adminRole = await upsertRole(db, "admin");
   await upsertRole(db, "manager");
 
+  const groupName = "Campos";
+  const [existingGroup] = await db.select().from(farmGroup).where(eq(farmGroup.name, groupName));
+  const group = existingGroup ?? (await db.insert(farmGroup).values({ name: groupName }).returning())[0];
+
   const farmNames = ["San Antonio", "Cuatro Cerros"];
   const seededFarms = [];
   for (const name of farmNames) {
     const [existingFarm] = await db.select().from(farm).where(eq(farm.name, name));
-    seededFarms.push(existingFarm ?? (await db.insert(farm).values({ name }).returning())[0]);
+    seededFarms.push(existingFarm ?? (await db.insert(farm).values({ name, groupId: group.id }).returning())[0]);
   }
 
   const [existingAdmin] = await db.select().from(userAccount).where(eq(userAccount.email, adminEmail));

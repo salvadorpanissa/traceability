@@ -3,7 +3,16 @@ import { sql } from "drizzle-orm";
 import { testDb } from "../test/db";
 import { resetTestDb } from "../test/reset-db";
 import { refreshDerivedState } from "../test/refresh-derived-state";
-import { role, farm, userAccount, animal, batchOperation, event, eventTransfer } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  animal,
+  batchOperation,
+  event,
+  eventTransfer,
+} from "@/db/schema";
 
 beforeEach(async () => {
   await resetTestDb();
@@ -11,25 +20,52 @@ beforeEach(async () => {
 
 async function currentFarmIdFor(animalId: string): Promise<string | null> {
   const result = await testDb.execute<{ current_farm_id: string | null }>(
-    sql`select current_farm_id from animal_current_state where animal_id = ${animalId}`
+    sql`select current_farm_id from animal_current_state where animal_id = ${animalId}`,
   );
   return result.rows[0]?.current_farm_id ?? null;
 }
 
 describe("animal_current_state", () => {
   it("reflects the transfer destination farm after insert, and excludes voided transfers", async () => {
-    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-    const [farmNorte] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [farmSur] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [farmNorteGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [farmNorte] = await testDb
+      .insert(farm)
+      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .returning();
+    const [farmSurGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [farmSur] = await testDb
+      .insert(farm)
+      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .returning();
     const [user] = await testDb
       .insert(userAccount)
-      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
 
     const [batch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: farmNorte.id, animalCount: 1, createdBy: user.id })
+      .values({
+        eventType: "transfer",
+        farmId: farmNorte.id,
+        animalCount: 1,
+        createdBy: user.id,
+      })
       .returning();
     const [transferEvent] = await testDb
       .insert(event)
@@ -44,7 +80,11 @@ describe("animal_current_state", () => {
       .returning();
     await testDb
       .insert(eventTransfer)
-      .values({ eventId: transferEvent.id, originFarmId: farmNorte.id, destinationFarmId: farmSur.id });
+      .values({
+        eventId: transferEvent.id,
+        originFarmId: farmNorte.id,
+        destinationFarmId: farmSur.id,
+      });
     await refreshDerivedState();
 
     expect(await currentFarmIdFor(createdAnimal.id)).toBe(farmSur.id);
@@ -52,7 +92,12 @@ describe("animal_current_state", () => {
     // Void the transfer and confirm the animal falls back to "no current farm".
     const [voidBatch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "void", farmId: farmNorte.id, animalCount: 1, createdBy: user.id })
+      .values({
+        eventType: "void",
+        farmId: farmNorte.id,
+        animalCount: 1,
+        createdBy: user.id,
+      })
       .returning();
     await testDb.insert(event).values({
       eventType: "void",
@@ -68,7 +113,7 @@ describe("animal_current_state", () => {
     expect(await currentFarmIdFor(createdAnimal.id)).toBeNull();
 
     const remainingTransferEvents = await testDb.execute(
-      sql`select count(*) as count from event where event_type = 'transfer'`
+      sql`select count(*) as count from event where event_type = 'transfer'`,
     );
     expect(Number(remainingTransferEvents.rows[0].count)).toBe(1);
   });

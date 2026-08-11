@@ -58,6 +58,12 @@ export function OwnTagUploadForm({
     return createOwnTagPaddockAction(farmId, name);
   }
 
+  async function handleCreateCategory(name: string) {
+    const farmId = registrations.find((r) => r.id === dicoseRegistrationId)?.farmId;
+    if (!farmId) throw new Error("Elegí un registro DICOSE primero");
+    return createOwnTagCategoryAction(farmId, name);
+  }
+
   async function handleConfirm() {
     if (!dicoseRegistrationId || !preview || preview.mappingNeeded) return;
     const importResult = await confirmOwnTagUpload(
@@ -173,7 +179,7 @@ export function OwnTagUploadForm({
                 buttonLabel="Crear categoría"
                 defaultErrorMessage="No se pudo crear la categoría"
                 pendingNames={remainingCategoryNames}
-                onCreate={createOwnTagCategoryAction}
+                onCreate={handleCreateCategory}
                 onResolved={(name) => setResolvedCategoryNames((prev) => [...prev, name])}
               />
             ) : null}

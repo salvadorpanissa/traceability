@@ -1,5 +1,6 @@
 export * from "./custom-types";
 export * from "./role";
+export * from "./farm-group";
 export * from "./farm";
 export * from "./user";
 export * from "./category";

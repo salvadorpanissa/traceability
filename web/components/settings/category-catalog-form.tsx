@@ -12,15 +12,29 @@ import {
 } from "@/app/(protected)/settings/categories/actions";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
+type Farm = { id: string; name: string; groupId: string };
+
+function groupLabelsById(farms: Farm[]): Map<string, string> {
+  const namesByGroup = new Map<string, string[]>();
+  for (const f of farms) {
+    namesByGroup.set(f.groupId, [...(namesByGroup.get(f.groupId) ?? []), f.name]);
+  }
+  return new Map([...namesByGroup].map(([groupId, names]) => [groupId, names.join(" + ")]));
+}
+
 export function CategoryCatalogForm({
   categories: initialCategories,
   animalCounts: initialAnimalCounts = {},
+  farms,
 }: {
   categories: CategoryCatalogEntry[];
   animalCounts?: Record<string, number>;
+  farms: Farm[];
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [animalCounts, setAnimalCounts] = useState(initialAnimalCounts);
+  const groupLabels = groupLabelsById(farms);
+  const showGroupColumn = groupLabels.size > 1;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -29,6 +43,7 @@ export function CategoryCatalogForm({
   const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [name, setName] = useState("");
   const [sex, setSex] = useState("");
   const [minAgeMonths, setMinAgeMonths] = useState("");
@@ -72,8 +87,9 @@ export function CategoryCatalogForm({
   }
 
   async function handleCreate() {
-    if (!name) return;
+    if (!farmId || !name) return;
     const result = await createCategoryAction({
+      farmId,
       name,
       sex: sex === "" ? null : (sex as "male" | "female"),
       minAgeMonths: minAgeMonths === "" ? null : Number(minAgeMonths),
@@ -136,6 +152,21 @@ export function CategoryCatalogForm({
               <DialogTitle>Nueva categoría</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2">
+              <Label htmlFor="category-farm">Campo</Label>
+              <select
+                id="category-farm"
+                value={farmId}
+                onChange={(e) => setFarmId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Elegir...</option>
+                {farms.map((farm) => (
+                  <option key={farm.id} value={farm.id}>
+                    {farm.name}
+                  </option>
+                ))}
+              </select>
+
               <Label htmlFor="category-name">Nombre</Label>
               <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -161,7 +192,7 @@ export function CategoryCatalogForm({
 
               {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
 
-              <Button type="button" disabled={!name} onClick={handleCreate}>
+              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
                 Agregar
               </Button>
             </div>
@@ -175,6 +206,7 @@ export function CategoryCatalogForm({
             <th className="py-1 pr-2">Nombre</th>
             <th className="py-1 pr-2">Sexo</th>
             <th className="py-1 pr-2">Edad mín. (meses)</th>
+            {showGroupColumn ? <th className="py-1 pr-2">Grupo</th> : null}
             <th className="py-1 pr-2" />
           </tr>
         </thead>
@@ -205,6 +237,7 @@ export function CategoryCatalogForm({
                     onChange={(e) => setEditMinAgeMonths(e.target.value)}
                   />
                 </td>
+                {showGroupColumn ? <td className="py-1 pr-2">{groupLabels.get(entry.groupId) ?? ""}</td> : null}
                 <td className="flex gap-1 py-1 pr-2">
                   <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
                     Guardar
@@ -221,6 +254,7 @@ export function CategoryCatalogForm({
                   {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
                 </td>
                 <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
+                {showGroupColumn ? <td className="py-1 pr-2">{groupLabels.get(entry.groupId) ?? ""}</td> : null}
                 <td className="flex gap-1 py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
@@ -240,7 +274,9 @@ export function CategoryCatalogForm({
         ? (() => {
             const entry = categories.find((c) => c.id === archivingId)!;
             const count = animalCounts[archivingId] ?? 0;
-            const targetOptions = activeCategories.filter((c) => c.id !== archivingId);
+            const targetOptions = activeCategories.filter(
+              (c) => c.id !== archivingId && c.groupId === entry.groupId
+            );
             return (
               <div className="flex flex-col gap-2 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
                 {count > 0 ? (

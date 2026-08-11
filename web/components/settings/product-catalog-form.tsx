@@ -8,8 +8,20 @@ import { Label } from "@/components/ui/label";
 import { createProductAction, updateProductAction } from "@/app/(protected)/settings/products/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
-export function ProductCatalogForm({ products: initialProducts }: { products: ProductCatalogEntry[] }) {
+type Farm = { id: string; name: string; groupId: string };
+
+function groupLabelsById(farms: Farm[]): Map<string, string> {
+  const namesByGroup = new Map<string, string[]>();
+  for (const f of farms) {
+    namesByGroup.set(f.groupId, [...(namesByGroup.get(f.groupId) ?? []), f.name]);
+  }
+  return new Map([...namesByGroup].map(([groupId, names]) => [groupId, names.join(" + ")]));
+}
+
+export function ProductCatalogForm({ products: initialProducts, farms }: { products: ProductCatalogEntry[]; farms: Farm[] }) {
   const [products, setProducts] = useState(initialProducts);
+  const groupLabels = groupLabelsById(farms);
+  const showGroupColumn = groupLabels.size > 1;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -20,6 +32,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
   const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [name, setName] = useState("");
   const [dose, setDose] = useState("");
   const [doseUnit, setDoseUnit] = useState("");
@@ -61,8 +74,9 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
   }
 
   async function handleCreate() {
-    if (!name) return;
+    if (!farmId || !name) return;
     const result = await createProductAction({
+      farmId,
       name,
       defaultDose: dose || null,
       defaultDoseUnit: doseUnit || null,
@@ -93,6 +107,21 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
               <DialogTitle>Nuevo producto</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2">
+              <Label htmlFor="product-farm">Campo</Label>
+              <select
+                id="product-farm"
+                value={farmId}
+                onChange={(e) => setFarmId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Elegir...</option>
+                {farms.map((farm) => (
+                  <option key={farm.id} value={farm.id}>
+                    {farm.name}
+                  </option>
+                ))}
+              </select>
+
               <Label htmlFor="product-name">Nombre</Label>
               <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -115,7 +144,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
 
               {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
 
-              <Button type="button" disabled={!name} onClick={handleCreate}>
+              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
                 Agregar
               </Button>
             </div>
@@ -131,6 +160,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
             <th className="py-1 pr-2">Unidad de dosis</th>
             <th className="py-1 pr-2">Vía</th>
             <th className="py-1 pr-2">Días de retiro</th>
+            {showGroupColumn ? <th className="py-1 pr-2">Grupo</th> : null}
             <th className="py-1 pr-2" />
           </tr>
         </thead>
@@ -162,6 +192,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
                     onChange={(e) => setEditWithdrawalDays(e.target.value)}
                   />
                 </td>
+                {showGroupColumn ? <td className="py-1 pr-2">{groupLabels.get(entry.groupId) ?? ""}</td> : null}
                 <td className="flex gap-1 py-1 pr-2">
                   <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
                     Guardar
@@ -178,6 +209,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
                 <td className="py-1 pr-2">{entry.defaultDoseUnit ?? "—"}</td>
                 <td className="py-1 pr-2">{entry.defaultRoute ?? "—"}</td>
                 <td className="py-1 pr-2">{entry.defaultWithdrawalDays ?? "—"}</td>
+                {showGroupColumn ? <td className="py-1 pr-2">{groupLabels.get(entry.groupId) ?? ""}</td> : null}
                 <td className="py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar

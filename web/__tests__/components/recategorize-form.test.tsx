@@ -2,21 +2,44 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecategorizeForm } from "@/components/activities/recategorize-form";
-import { previewRecategorizeBatch, confirmRecategorizeBatchAction } from "@/app/(protected)/activities/recategorize/actions";
+import {
+  previewRecategorizeBatch,
+  confirmRecategorizeBatchAction,
+  listCategoriesAction,
+} from "@/app/(protected)/activities/recategorize/actions";
 
 afterEach(cleanup);
 
 vi.mock("@/app/(protected)/activities/recategorize/actions", () => ({
   previewRecategorizeBatch: vi.fn(),
   confirmRecategorizeBatchAction: vi.fn(),
+  listCategoriesAction: vi.fn(),
 }));
+
+const farms = [{ id: "farm-1", name: "Campo Norte" }];
 
 function sampleFile(): File {
   return new File(["Caravana,Fecha\nAR1,2026-03-01"], "lote.csv", { type: "text/csv" });
 }
 
+async function pickFarm(user: ReturnType<typeof userEvent.setup>) {
+  await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+  await waitFor(() => expect(screen.getByLabelText("Categoría destino")).not.toBeDisabled());
+}
+
 describe("RecategorizeForm", () => {
-  it("uploads a file without asking for a farm, previews resolved rows, and confirms", async () => {
+  it("asks for a campo, loads that campo's categories, previews resolved rows, and confirms", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      {
+        id: "cat-novillo-plus3",
+        groupId: "group-1",
+        name: "Novillo +3 años",
+        sex: "male",
+        minAgeMonths: 36,
+        active: true,
+      },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -38,18 +61,12 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(
-      <RecategorizeForm
-        categories={[
-          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true },
-          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
-        ]}
-      />
-    );
-
-    expect(screen.queryByLabelText("Campo")).not.toBeInTheDocument();
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    expect(screen.getByLabelText("Categoría destino")).toBeDisabled();
+    await pickFarm(user);
+
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-plus3");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -65,6 +82,7 @@ describe("RecategorizeForm", () => {
       expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith({
         headerSignature: "sig",
         mapping: [],
+        farmId: "farm-1",
         targetCategoryId: "cat-novillo-plus3",
         rows: expect.any(Array),
         unresolvableDecisions: {},
@@ -75,6 +93,17 @@ describe("RecategorizeForm", () => {
   });
 
   it("shows the server's error message when confirming fails", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      {
+        id: "cat-novillo-plus3",
+        groupId: "group-1",
+        name: "Novillo +3 años",
+        sex: "male",
+        minAgeMonths: 36,
+        active: true,
+      },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -98,16 +127,10 @@ describe("RecategorizeForm", () => {
       new Error("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.")
     );
 
-    render(
-      <RecategorizeForm
-        categories={[
-          { id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true },
-          { id: "cat-novillo-plus3", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
-        ]}
-      />
-    );
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-plus3");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -131,6 +154,9 @@ describe("RecategorizeForm", () => {
   });
 
   it("disables Confirmar when a row has an error", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -139,9 +165,10 @@ describe("RecategorizeForm", () => {
       rows: [{ tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" }],
     });
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -151,6 +178,9 @@ describe("RecategorizeForm", () => {
   });
 
   it("shows an age-resolved row as confirmable without needing the target category", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -171,9 +201,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -190,6 +221,9 @@ describe("RecategorizeForm", () => {
   });
 
   it("lets the user override the global decision for an individual age-unresolvable row", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -209,9 +243,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm categories={[{ id: "cat-novillo", name: "Novillo", sex: null, minAgeMonths: null, active: true }]} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -233,6 +268,10 @@ describe("RecategorizeForm", () => {
   });
 
   it("excludes a sex-mismatched existing row by default, and includes it when overridden to assignTarget", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-vaca", groupId: "group-1", name: "Vaca", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo-macho", groupId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -254,16 +293,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(
-      <RecategorizeForm
-        categories={[
-          { id: "cat-vaca", name: "Vaca", sex: null, minAgeMonths: null, active: true },
-          { id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
-        ]}
-      />
-    );
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -284,6 +317,9 @@ describe("RecategorizeForm", () => {
   });
 
   it("shows a second decision selector on an age-unresolvable row once assigned to a mismatched target", async () => {
+    vi.mocked(listCategoriesAction).mockResolvedValue([
+      { id: "cat-novillo-macho", groupId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
+    ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
@@ -303,11 +339,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(
-      <RecategorizeForm categories={[{ id: "cat-novillo-macho", name: "Novillo", sex: "male", minAgeMonths: null, active: true }]} />
-    );
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
+    await pickFarm(user);
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));

@@ -4,6 +4,7 @@ import {
   ownTag,
   category,
   dicoseRegistration,
+  farm,
   paddock,
   batchOperation,
   event,
@@ -27,6 +28,15 @@ export type OwnTagImportResult = {
 };
 
 const CARAVAN_PATTERN = /^\d+$/;
+
+async function registrationGroupId(dicoseRegistrationId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ groupId: farm.groupId })
+    .from(dicoseRegistration)
+    .innerJoin(farm, eq(farm.id, dicoseRegistration.farmId))
+    .where(eq(dicoseRegistration.id, dicoseRegistrationId));
+  return row?.groupId ?? null;
+}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,15 +77,22 @@ export async function findMissingPaddockNames(dicoseRegistrationId: string, padd
   return distinctNames.filter((name) => !existingNames.has(name.toLowerCase()));
 }
 
-// Same idea as findMissingPaddockNames, but for the "category" column —
-// categories are a global list with no other creation flow in the app, so an
+// Same idea as findMissingPaddockNames, but for the "category" column — an
 // unrecognized name silently resolved to null instead of ever landing on the
-// tag. Exact match, matching how category names are matched everywhere else.
-export async function findMissingCategoryNames(categoryNames: string[]): Promise<string[]> {
+// tag. Exact match, matching how category names are matched everywhere else,
+// scoped to the registration's farm's grupo — a name that exists only in a
+// different grupo's catalog still counts as missing here.
+export async function findMissingCategoryNames(
+  dicoseRegistrationId: string,
+  categoryNames: string[]
+): Promise<string[]> {
   const distinctNames = [...new Set(categoryNames.map((n) => n.trim()).filter(Boolean))];
   if (distinctNames.length === 0) return [];
 
-  const existingCategories = await db.select({ name: category.name }).from(category);
+  const groupId = await registrationGroupId(dicoseRegistrationId);
+  const existingCategories = groupId
+    ? await db.select({ name: category.name }).from(category).where(eq(category.groupId, groupId))
+    : [];
   const existingNames = new Set(existingCategories.map((c) => c.name));
 
   return distinctNames.filter((name) => !existingNames.has(name));
@@ -86,7 +103,10 @@ export async function importOwnTags(
   userId: string,
   rawRows: MappedOwnTagRow[]
 ): Promise<OwnTagImportResult> {
-  const categoryRows = await db.select({ id: category.id, name: category.name }).from(category);
+  const groupId = await registrationGroupId(dicoseRegistrationId);
+  const categoryRows = groupId
+    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.groupId, groupId))
+    : [];
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
 
   let invalid = 0;

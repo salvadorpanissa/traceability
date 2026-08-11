@@ -41,6 +41,7 @@ type CandidateRow = {
   birth_date: string;
   sex: "male" | "female";
   current_category_id: string;
+  current_category_group_id: string;
   current_farm_id: string | null;
   current_category_source: string | null;
 };
@@ -64,7 +65,7 @@ export async function findAnimalsNeedingAgeRecategorization(
   asOfDate: string
 ): Promise<AgeRecategorizationCandidate[]> {
   const ageManagedCategories = await db
-    .select({ id: category.id, sex: category.sex, minAgeMonths: category.minAgeMonths })
+    .select({ id: category.id, groupId: category.groupId, sex: category.sex, minAgeMonths: category.minAgeMonths })
     .from(category)
     .where(isNotNull(category.minAgeMonths));
   if (ageManagedCategories.length === 0) return [];
@@ -75,6 +76,7 @@ export async function findAnimalsNeedingAgeRecategorization(
       a.birth_date,
       a.sex,
       acs.current_category_id,
+      c.group_id as current_category_group_id,
       acs.current_farm_id,
       lr.source as current_category_source
     from animal a
@@ -103,8 +105,9 @@ export async function findAnimalsNeedingAgeRecategorization(
     if (row.current_category_source === "manual") continue;
     if (!row.current_farm_id) continue;
 
+    const ownGroupCategories = ageManagedCategories.filter((c) => c.groupId === row.current_category_group_id);
     const ageMonths = computeAgeMonths(row.birth_date, asOfDate);
-    const targetCategoryId = resolveCategoryForAge(ageManagedCategories, row.sex, ageMonths);
+    const targetCategoryId = resolveCategoryForAge(ownGroupCategories, row.sex, ageMonths);
     if (!targetCategoryId || targetCategoryId === row.current_category_id) continue;
 
     // Only ever move an animal UP into a bracket with a higher minAgeMonths

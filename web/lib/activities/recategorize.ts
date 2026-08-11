@@ -1,7 +1,7 @@
-import { eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireFarmAccess, getFarmGroupId } from "@/lib/dal/farm-access";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
@@ -57,16 +57,28 @@ async function loadFreshState(animalIds: string[]): Promise<Map<string, FreshSta
 export async function confirmRecategorizeBatch(input: {
   userId: string;
   role: string | undefined;
+  operatingFarmId: string;
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
   sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
-  const { userId, role, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+  const { userId, role, operatingFarmId, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+
+  await requireFarmAccess(userId, role, operatingFarmId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
+
+  const groupId = await getFarmGroupId(operatingFarmId);
+  if (!groupId) throw new Error("Campo no encontrado");
+
+  const [targetCategoryRow] = await db.select({ sex: category.sex, groupId: category.groupId }).from(category).where(eq(category.id, targetCategoryId));
+  if (!targetCategoryRow || targetCategoryRow.groupId !== groupId) {
+    throw new Error("La categoría destino no pertenece al grupo del campo elegido");
+  }
+  const targetCategorySex = targetCategoryRow.sex;
 
   const animalIds = [...new Set(rows.filter((row) => row.status !== "error").map((row) => row.animalId))];
   const freshStateByAnimalId = await loadFreshState(animalIds);
@@ -76,11 +88,8 @@ export async function confirmRecategorizeBatch(input: {
     ? await db
         .select({ id: category.id, sex: category.sex, minAgeMonths: category.minAgeMonths })
         .from(category)
-        .where(isNotNull(category.minAgeMonths))
+        .where(and(isNotNull(category.minAgeMonths), eq(category.groupId, groupId)))
     : [];
-
-  const [targetCategoryRow] = await db.select({ sex: category.sex }).from(category).where(eq(category.id, targetCategoryId));
-  const targetCategorySex = targetCategoryRow?.sex ?? null;
 
   function isSexMismatch(animalSex: "male" | "female" | null): boolean {
     return targetCategorySex !== null && animalSex !== null && animalSex !== targetCategorySex;
@@ -95,6 +104,9 @@ export async function confirmRecategorizeBatch(input: {
       throw new Error(STALE_BATCH_ERROR);
     }
     const farmId = state.current_farm_id;
+    if (farmId !== operatingFarmId) {
+      throw new Error(STALE_BATCH_ERROR);
+    }
 
     if (row.status === "existing") {
       // The preview said this animal already had a category; if the DB no

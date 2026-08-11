@@ -44,9 +44,13 @@ export async function archiveCategory(input: {
     if (categoryId === targetCategoryId) {
       throw new Error("La categoría destino no puede ser la misma que se está archivando");
     }
+    const [source] = await db.select().from(category).where(eq(category.id, categoryId));
     const [target] = await db.select().from(category).where(eq(category.id, targetCategoryId));
     if (!target) throw new Error("La categoría destino no existe");
     if (!target.active) throw new Error("La categoría destino está archivada");
+    if (!source || target.groupId !== source.groupId) {
+      throw new Error("La categoría destino tiene que ser del mismo grupo de campos");
+    }
   }
 
   const byFarm = new Map<string, string[]>();

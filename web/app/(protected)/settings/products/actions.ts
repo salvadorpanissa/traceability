@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { createProduct, updateProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
+import { requireFarmAccess, requireGroupAccess, getFarmGroupId } from "@/lib/dal/farm-access";
+import { createProduct, updateProduct, getProductGroupId, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 
 export type ProductCatalogActionResult = { ok: true; entry: ProductCatalogEntry } | { ok: false; error: string };
@@ -16,17 +17,22 @@ const productInputSchema = z.object({
 });
 
 export async function createProductAction(input: {
+  farmId: string;
   name: string;
   defaultDose: string | null;
   defaultDoseUnit: string | null;
   defaultRoute: string | null;
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
-  await requireSession();
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
+  const groupId = await getFarmGroupId(input.farmId);
+  if (!groupId) return { ok: false, error: "Campo no encontrado" };
+
   const parsed = productInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createProduct(parsed.data.name, {
+    const entry = await createProduct(groupId, parsed.data.name, {
       defaultDose: parsed.data.defaultDose,
       defaultDoseUnit: parsed.data.defaultDoseUnit,
       defaultRoute: parsed.data.defaultRoute,
@@ -47,7 +53,11 @@ export async function updateProductAction(input: {
   defaultRoute: string | null;
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
-  await requireSession();
+  const session = await requireSession();
+  const groupId = await getProductGroupId(input.id);
+  if (!groupId) return { ok: false, error: "Producto no encontrado" };
+  await requireGroupAccess(session.user.id, session.user.role, groupId);
+
   const parsed = productInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {

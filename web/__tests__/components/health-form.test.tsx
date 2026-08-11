@@ -12,6 +12,18 @@ import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 // the full explanation.
 afterEach(cleanup);
 
+const catalog: ProductCatalogEntry[] = [
+  {
+    id: "p1",
+    groupId: "group-1",
+    name: "Ivermectina 1%",
+    defaultDose: "10",
+    defaultDoseUnit: "ml",
+    defaultRoute: "subcutánea",
+    defaultWithdrawalDays: 21,
+  },
+];
+
 vi.mock("@/app/(protected)/activities/health/actions", () => ({
   previewHealthBatch: vi.fn(async () => ({
     mappingNeeded: false,
@@ -33,27 +45,20 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
-  createProductAction: vi.fn(async (name: string) => ({
+  createProductAction: vi.fn(async (farmId: string, name: string) => ({
     id: "p2",
+    groupId: "group-1",
     name,
+    defaultDose: null,
     defaultDoseUnit: null,
+    defaultRoute: null,
     defaultWithdrawalDays: null,
   })),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
   createHealthPaddockAction: vi.fn(async (farmId: string, name: string) => ({ id: "pd2", name, farmId })),
   listPaddocksAction: vi.fn(async () => [{ id: "pd1", name: "Potrero 1", farmId: "farm-1" }]),
+  listProductsAction: vi.fn(async () => catalog),
 }));
-
-const catalog: ProductCatalogEntry[] = [
-  {
-    id: "p1",
-    name: "Ivermectina 1%",
-    defaultDose: "10",
-    defaultDoseUnit: "ml",
-    defaultRoute: "subcutánea",
-    defaultWithdrawalDays: 21,
-  },
-];
 const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
 const farms = [{ id: "farm-1", name: "Campo Norte" }];
 
@@ -70,7 +75,7 @@ async function selectPaddockAndUploadFile(user: ReturnType<typeof userEvent.setu
 
 describe("HealthForm", () => {
   it("shows the preview and lets the user add a product row", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -82,7 +87,7 @@ describe("HealthForm", () => {
   });
 
   it("disables Subir until a potrero and a file are both chosen", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
@@ -102,7 +107,7 @@ describe("HealthForm", () => {
   });
 
   it("prefills dose unit and withdrawal days from the selected product's defaults", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -117,7 +122,7 @@ describe("HealthForm", () => {
   });
 
   it("pre-fills a product row from a matched suggestion, including its dose and route, and creates a missing one inline", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -133,7 +138,7 @@ describe("HealthForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -179,7 +184,7 @@ describe("HealthForm", () => {
       productSuggestions: [],
     });
 
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
@@ -197,7 +202,7 @@ describe("HealthForm", () => {
   });
 
   it("lets the user pick an existing owner for a pending name instead of creating a new one, and confirms with the campo derived from the chosen potrero", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -223,7 +228,7 @@ describe("HealthForm", () => {
   });
 
   it("creates a new potrero inline within the chosen campo, and selects it", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
@@ -267,7 +272,7 @@ describe("HealthForm", () => {
       { id: "pd1", name: "Potrero 1", farmId: "farm-1" },
       { id: "pd2", name: "Potrero 2", farmId: "farm-1" },
     ]);
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -314,7 +319,7 @@ describe("HealthForm", () => {
       { id: "pd1", name: "Potrero 1", farmId: "farm-1" },
       { id: "pd2", name: "Potrero 2", farmId: "farm-1" },
     ]);
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -334,7 +339,7 @@ describe("HealthForm", () => {
   });
 
   it("does not show the paddock-mismatch warning when there are no mismatched rows", async () => {
-    render(<HealthForm catalog={catalog} ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);

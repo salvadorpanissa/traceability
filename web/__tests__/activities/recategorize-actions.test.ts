@@ -8,6 +8,7 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
+  farmGroup,
   role,
   farm,
   userAccount,
@@ -24,7 +25,10 @@ import {
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<ArrayBuffer> {
+async function buildWorkbookBuffer(
+  headers: string[],
+  rows: string[][],
+): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
   sheet.addRow(headers);
@@ -34,33 +38,63 @@ async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise
 }
 
 const { auth } = await import("@/auth");
-const { previewRecategorizeBatch, confirmRecategorizeBatchAction } = await import(
-  "@/app/(protected)/activities/recategorize/actions"
-);
+const { previewRecategorizeBatch, confirmRecategorizeBatchAction } =
+  await import("@/app/(protected)/activities/recategorize/actions");
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
 async function seedManagerAndFarm() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
-  vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
-  return { manager, seededFarm };
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarm.id });
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: manager.id, role: "manager" },
+  } as never);
+  return { manager, seededFarm, seededFarmGroup };
 }
 
-async function seedAnimalAtFarm(farmId: string, adminId: string, tag: string, categoryId: string) {
+async function seedAnimalAtFarm(
+  farmId: string,
+  adminId: string,
+  tag: string,
+  categoryId: string,
+) {
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-  await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+  await testDb
+    .insert(animalTagHistory)
+    .values({ animalId: createdAnimal.id, tag });
 
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "transfer", farmId, animalCount: 1, createdBy: adminId })
+    .values({
+      eventType: "transfer",
+      farmId,
+      animalCount: 1,
+      createdBy: adminId,
+    })
     .returning();
   const [transferEvent] = await testDb
     .insert(event)
@@ -73,7 +107,13 @@ async function seedAnimalAtFarm(farmId: string, adminId: string, tag: string, ca
       createdBy: adminId,
     })
     .returning();
-  await testDb.insert(eventTransfer).values({ eventId: transferEvent.id, originFarmId: farmId, destinationFarmId: farmId });
+  await testDb
+    .insert(eventTransfer)
+    .values({
+      eventId: transferEvent.id,
+      originFarmId: farmId,
+      destinationFarmId: farmId,
+    });
 
   const [recatEvent] = await testDb
     .insert(event)
@@ -88,32 +128,44 @@ async function seedAnimalAtFarm(farmId: string, adminId: string, tag: string, ca
     .returning();
   await testDb
     .insert(eventRecategorize)
-    .values({ eventId: recatEvent.id, oldCategoryId: categoryId, newCategoryId: categoryId });
+    .values({
+      eventId: recatEvent.id,
+      oldCategoryId: categoryId,
+      newCategoryId: categoryId,
+    });
 
   return createdAnimal;
 }
 
-async function excelFormData(rows: string[][], headers: string[] = ["Caravana", "Fecha"]): Promise<FormData> {
+async function excelFormData(
+  rows: string[][],
+  farmId: string,
+  headers: string[] = ["Caravana", "Fecha"],
+): Promise<FormData> {
   const buffer = await buildWorkbookBuffer(headers, rows);
   const formData = new FormData();
   formData.set("file", new Blob([buffer]), "lote.xlsx");
+  formData.set("farmId", farmId);
   return formData;
 }
 
 describe("previewRecategorizeBatch", () => {
   it("resolves rows once tag/date columns are mapped", async () => {
-    const { manager, seededFarm } = await seedManagerAndFarm();
-    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [novillo] = await testDb
+      .insert(category)
+      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
     await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
     await refreshDerivedState();
 
-    const formData = await excelFormData([["AR1", "2026-03-01"]]);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
-      ])
+      ]),
     );
 
     const result = await previewRecategorizeBatch(formData);
@@ -121,30 +173,61 @@ describe("previewRecategorizeBatch", () => {
     expect(result).toMatchObject({
       mappingNeeded: false,
       eventDateNeeded: false,
-      rows: [{ tag: "AR1", status: "existing", currentCategoryId: novillo.id, currentCategoryName: "Novillo" }],
+      rows: [
+        {
+          tag: "AR1",
+          status: "existing",
+          currentCategoryId: novillo.id,
+          currentCategoryName: "Novillo",
+        },
+      ],
     });
   });
 
-  it("masks rows for animals on campos the user has no access to", async () => {
-    const { manager, seededFarm } = await seedManagerAndFarm();
-    const [foreignFarm] = await testDb.insert(farm).values({ name: "Campo Ajeno" }).returning();
-    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
-    // Same manager id as creator (only a FK filler); what matters is that no
-    // user_farm row links this manager to Campo Ajeno.
-    await seedAnimalAtFarm(foreignFarm.id, manager.id, "AR9", novillo.id);
-    await refreshDerivedState();
+  it("rejects the whole batch when the manager has no access to the chosen campo", async () => {
+    await seedManagerAndFarm();
+    const [foreignGroup] = await testDb.insert(farmGroup).values({ name: "Grupo Ajeno" }).returning();
+    const [foreignFarm] = await testDb.insert(farm).values({ groupId: foreignGroup.id, name: "Campo Ajeno" }).returning();
 
-    const formData = await excelFormData([
-      ["AR1", "2026-03-01"],
-      ["AR9", "2026-03-01"],
-    ]);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], foreignFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
-      ])
+      ]),
+    );
+
+    await expect(previewRecategorizeBatch(formData)).rejects.toThrow("No tenés acceso a este campo");
+  });
+
+  it("errors a row whose animal is on a different campo than the one chosen", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [foreignGroup] = await testDb.insert(farmGroup).values({ name: "Grupo Ajeno" }).returning();
+    const [foreignFarm] = await testDb.insert(farm).values({ groupId: foreignGroup.id, name: "Campo Ajeno" }).returning();
+    const [novillo] = await testDb
+      .insert(category)
+      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
+    await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
+    // Same manager id as creator (only a FK filler) — the point is this animal
+    // lives on foreignFarm, not the campo the user picked in the form.
+    await seedAnimalAtFarm(foreignFarm.id, manager.id, "AR9", novillo.id);
+    await refreshDerivedState();
+
+    const formData = await excelFormData(
+      [
+        ["AR1", "2026-03-01"],
+        ["AR9", "2026-03-01"],
+      ],
+      seededFarm.id,
+    );
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "Caravana", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+      ]),
     );
 
     const result = await previewRecategorizeBatch(formData);
@@ -154,33 +237,42 @@ describe("previewRecategorizeBatch", () => {
       eventDateNeeded: false,
       rows: [
         { tag: "AR1", status: "existing", currentCategoryId: novillo.id },
-        { tag: "AR9", status: "error", reason: "No tenés acceso a este campo" },
+        { tag: "AR9", status: "error", reason: "El animal no pertenece al campo elegido" },
       ],
     });
-    // The masked row must not leak the animal's real campo/categoría/estado.
-    const rows = (result as { rows: Record<string, unknown>[] }).rows;
-    expect(rows[1]).not.toHaveProperty("currentFarmId");
-    expect(rows[1]).not.toHaveProperty("currentCategoryId");
-    expect(rows[1]).not.toHaveProperty("animalId");
   });
 
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    await seedManagerAndFarm();
+    const { seededFarm } = await seedManagerAndFarm();
 
-    const formData = await excelFormData([["AR1", "2026-03-01"]]);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarm.id);
 
     const result = await previewRecategorizeBatch(formData);
 
-    expect(result).toMatchObject({ mappingNeeded: true, headers: ["Caravana", "Fecha"] });
+    expect(result).toMatchObject({
+      mappingNeeded: true,
+      headers: ["Caravana", "Fecha"],
+    });
   });
 });
 
 describe("confirmRecategorizeBatchAction", () => {
   it("persists the mapping and confirms the batch", async () => {
-    const { manager, seededFarm } = await seedManagerAndFarm();
-    const [novillo] = await testDb.insert(category).values({ name: "Novillo" }).returning();
-    const [novilloPlus3] = await testDb.insert(category).values({ name: "Novillo +3 años" }).returning();
-    const createdAnimal = await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [novillo] = await testDb
+      .insert(category)
+      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
+    const [novilloPlus3] = await testDb
+      .insert(category)
+      .values({ groupId: seededFarmGroup.id, name: "Novillo +3 años" })
+      .returning();
+    const createdAnimal = await seedAnimalAtFarm(
+      seededFarm.id,
+      manager.id,
+      "AR1",
+      novillo.id,
+    );
     // confirmRecategorizeBatch re-reads campo/categoría from
     // animal_current_state, so the seeded events have to be visible there.
     await refreshDerivedState();
@@ -191,6 +283,7 @@ describe("confirmRecategorizeBatchAction", () => {
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
       ],
+      farmId: seededFarm.id,
       targetCategoryId: novilloPlus3.id,
       rows: [
         {
@@ -212,9 +305,12 @@ describe("confirmRecategorizeBatchAction", () => {
     // seedAnimalAtFarm already wrote one "initial" recategorize event (novillo
     // -> novillo, self-assignment) — the action must add a second, distinct
     // event carrying the real transition, not reuse/overwrite the first one.
-    const recategorizeEvents = (await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id))).filter(
-      (e) => e.eventType === "recategorize"
-    );
+    const recategorizeEvents = (
+      await testDb
+        .select()
+        .from(event)
+        .where(eq(event.animalId, createdAnimal.id))
+    ).filter((e) => e.eventType === "recategorize");
     expect(recategorizeEvents).toHaveLength(2);
 
     const recatRows = await testDb
@@ -223,10 +319,14 @@ describe("confirmRecategorizeBatchAction", () => {
       .where(
         inArray(
           eventRecategorize.eventId,
-          recategorizeEvents.map((e) => e.id)
-        )
+          recategorizeEvents.map((e) => e.id),
+        ),
       );
     const manualRecat = recatRows.find((r) => r.source === "manual");
-    expect(manualRecat).toMatchObject({ oldCategoryId: novillo.id, newCategoryId: novilloPlus3.id, source: "manual" });
+    expect(manualRecat).toMatchObject({
+      oldCategoryId: novillo.id,
+      newCategoryId: novilloPlus3.id,
+      source: "manual",
+    });
   });
 });

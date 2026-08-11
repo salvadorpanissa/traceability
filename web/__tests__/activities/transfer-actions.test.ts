@@ -8,20 +8,38 @@ import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, userFarm, columnMapping, owner, dicoseRegistration, ownTag } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  userFarm,
+  columnMapping,
+  owner,
+  dicoseRegistration,
+  ownTag,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewTransferBatch, confirmTransferBatchAction, createOwnerAction, listPaddocksAction, createPaddockAction } =
-  await import("../../app/(protected)/activities/transfer/actions");
+const {
+  previewTransferBatch,
+  confirmTransferBatchAction,
+  createOwnerAction,
+  listPaddocksAction,
+  createPaddockAction,
+} = await import("../../app/(protected)/activities/transfer/actions");
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
-async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<ArrayBuffer> {
+async function buildWorkbookBuffer(
+  headers: string[],
+  rows: string[][],
+): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
   sheet.addRow(headers);
@@ -31,26 +49,50 @@ async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise
 }
 
 async function seedManagerSession() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarm.id });
 
-  vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: manager.id, role: "manager" },
+  } as never);
 
   return { manager, seededFarm };
 }
 
 async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
-  const [createdOwner] = await testDb.insert(owner).values({ name: ownerName }).returning();
+  const [createdOwner] = await testDb
+    .insert(owner)
+    .values({ name: ownerName })
+    .returning();
   const [registration] = await testDb
     .insert(dicoseRegistration)
     .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
     .returning();
-  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id });
+  await testDb
+    .insert(ownTag)
+    .values({ tag, dicoseRegistrationId: registration.id });
   return createdOwner;
 }
 
@@ -75,7 +117,10 @@ describe("previewTransferBatch", () => {
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewTransferBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -92,7 +137,10 @@ describe("previewTransferBatch", () => {
     const { seededFarm } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
-      .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
+      .values({
+        headerSignature: JSON.stringify(["IDE"]),
+        mapping: [{ header: "IDE", meaning: "tag" }],
+      });
 
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000022"]]);
     const formData = new FormData();
@@ -114,7 +162,10 @@ describe("previewTransferBatch", () => {
       ],
     });
 
-    const buffer = await buildWorkbookBuffer(["IDE", "SEXO"], [["AR000000000100", "M"]]);
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "SEXO"],
+      [["AR000000000100", "M"]],
+    );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
@@ -134,7 +185,10 @@ describe("previewTransferBatch", () => {
     const { seededFarm } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
-      .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
+      .values({
+        headerSignature: JSON.stringify(["IDE"]),
+        mapping: [{ header: "IDE", meaning: "tag" }],
+      });
 
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
@@ -148,7 +202,10 @@ describe("previewTransferBatch", () => {
 
   it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
     const { seededFarm } = await seedManagerSession();
-    const buffer = await buildWorkbookBuffer(["IDE", "Fecha"], [["AR000000000102", "2026-03-10"]]);
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha"],
+      [["AR000000000102", "2026-03-10"]],
+    );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
@@ -157,7 +214,7 @@ describe("previewTransferBatch", () => {
       JSON.stringify([
         { header: "IDE", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
-      ])
+      ]),
     );
 
     const result = await previewTransferBatch(formData);
@@ -176,7 +233,10 @@ describe("previewTransferBatch", () => {
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewTransferBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -192,7 +252,10 @@ describe("previewTransferBatch", () => {
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewTransferBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -211,7 +274,10 @@ describe("previewTransferBatch", () => {
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewTransferBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -317,11 +383,25 @@ describe("confirmTransferBatchAction", () => {
 
   it("confirms a wrong_farm row, creating the animal with its DICOSE-inferred owner", async () => {
     const { seededFarm } = await seedManagerSession();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
-    const [createdOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [createdOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP" })
+      .returning();
     await testDb
       .insert(dicoseRegistration)
-      .values({ ownerId: createdOwner.id, farmId: otherFarm.id, dicoseCode: "151518192" });
+      .values({
+        ownerId: createdOwner.id,
+        farmId: otherFarm.id,
+        dicoseCode: "151518192",
+      });
 
     await confirmTransferBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
@@ -369,13 +449,24 @@ describe("listPaddocksAction and createPaddockAction", () => {
     expect(created.name).toBe("Potrero 1");
 
     const listed = await listPaddocksAction(seededFarm.id);
-    expect(listed).toEqual([{ id: created.id, name: "Potrero 1", farmId: seededFarm.id }]);
+    expect(listed).toEqual([
+      { id: created.id, name: "Potrero 1", farmId: seededFarm.id },
+    ]);
   });
 
   it("rejects creating a paddock in a farm the user doesn't have access to", async () => {
     await seedManagerSession();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .returning();
 
-    await expect(createPaddockAction(otherFarm.id, "Potrero 1")).rejects.toThrow();
+    await expect(
+      createPaddockAction(otherFarm.id, "Potrero 1"),
+    ).rejects.toThrow();
   });
 });

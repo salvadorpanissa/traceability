@@ -2,7 +2,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, animal, batchOperation, event, eventHealth, product } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  animal,
+  batchOperation,
+  event,
+  eventHealth,
+  product,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
@@ -13,18 +23,38 @@ beforeEach(async () => {
 });
 
 async function seedFarmUserAnimal() {
-  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [adminRole] = await testDb
+    .insert(role)
+    .values({ name: "admin" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [user] = await testDb
     .insert(userAccount)
-    .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+    .values({
+      name: "Admin",
+      email: "admin@example.com",
+      passwordHash: "hashed",
+      roleId: adminRole.id,
+    })
     .returning();
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "health", farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+    .values({
+      eventType: "health",
+      farmId: seededFarm.id,
+      animalCount: 1,
+      createdBy: user.id,
+    })
     .returning();
-  return { seededFarm, user, createdAnimal, batch };
+  return { seededFarm, seededFarmGroup, user, createdAnimal, batch };
 }
 
 async function seedHealthEvent(
@@ -35,7 +65,7 @@ async function seedHealthEvent(
   productId: string,
   eventDate: string,
   withdrawalDays: number | null,
-  voided = false
+  voided = false,
 ) {
   const [healthEvent] = await testDb
     .insert(event)
@@ -72,57 +102,160 @@ async function seedHealthEvent(
 
 describe("findPendingWithdrawals", () => {
   it("flags an animal whose withdrawal period has not elapsed by the given date", async () => {
-    const { seededFarm, user, createdAnimal, batch } = await seedFarmUserAnimal();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productA.id, "2026-02-01", 21);
+    const { seededFarm, seededFarmGroup, user, createdAnimal, batch } =
+      await seedFarmUserAnimal();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productA.id,
+      "2026-02-01",
+      21,
+    );
 
-    const result = await findPendingWithdrawals([createdAnimal.id], "2026-02-10");
+    const result = await findPendingWithdrawals(
+      [createdAnimal.id],
+      "2026-02-10",
+    );
 
-    expect(result).toEqual([{ animalId: createdAnimal.id, productName: "Ivermectina 1%", restrictionEndDate: "2026-02-22" }]);
+    expect(result).toEqual([
+      {
+        animalId: createdAnimal.id,
+        productName: "Ivermectina 1%",
+        restrictionEndDate: "2026-02-22",
+      },
+    ]);
   });
 
   it("does not flag an animal whose withdrawal period already elapsed by the given date", async () => {
-    const { seededFarm, user, createdAnimal, batch } = await seedFarmUserAnimal();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productA.id, "2026-02-01", 21);
+    const { seededFarm, seededFarmGroup, user, createdAnimal, batch } =
+      await seedFarmUserAnimal();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productA.id,
+      "2026-02-01",
+      21,
+    );
 
-    const result = await findPendingWithdrawals([createdAnimal.id], "2026-03-01");
+    const result = await findPendingWithdrawals(
+      [createdAnimal.id],
+      "2026-03-01",
+    );
 
     expect(result).toEqual([]);
   });
 
   it("does not flag a health event with no withdrawal days set", async () => {
-    const { seededFarm, user, createdAnimal, batch } = await seedFarmUserAnimal();
-    const [productA] = await testDb.insert(product).values({ name: "Vitamina" }).returning();
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productA.id, "2026-02-01", null);
+    const { seededFarm, seededFarmGroup, user, createdAnimal, batch } =
+      await seedFarmUserAnimal();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Vitamina" })
+      .returning();
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productA.id,
+      "2026-02-01",
+      null,
+    );
 
-    const result = await findPendingWithdrawals([createdAnimal.id], "2026-02-02");
+    const result = await findPendingWithdrawals(
+      [createdAnimal.id],
+      "2026-02-02",
+    );
 
     expect(result).toEqual([]);
   });
 
   it("does not flag a voided health event", async () => {
-    const { seededFarm, user, createdAnimal, batch } = await seedFarmUserAnimal();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productA.id, "2026-02-01", 21, true);
+    const { seededFarm, seededFarmGroup, user, createdAnimal, batch } =
+      await seedFarmUserAnimal();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productA.id,
+      "2026-02-01",
+      21,
+      true,
+    );
 
-    const result = await findPendingWithdrawals([createdAnimal.id], "2026-02-10");
+    const result = await findPendingWithdrawals(
+      [createdAnimal.id],
+      "2026-02-10",
+    );
 
     expect(result).toEqual([]);
   });
 
   it("returns one entry per active withdrawal when an animal has more than one pending", async () => {
-    const { seededFarm, user, createdAnimal, batch } = await seedFarmUserAnimal();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    const [productB] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productA.id, "2026-02-01", 21);
-    await seedHealthEvent(createdAnimal.id, seededFarm.id, batch.id, user.id, productB.id, "2026-02-05", 10);
+    const { seededFarm, seededFarmGroup, user, createdAnimal, batch } =
+      await seedFarmUserAnimal();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const [productB] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .returning();
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productA.id,
+      "2026-02-01",
+      21,
+    );
+    await seedHealthEvent(
+      createdAnimal.id,
+      seededFarm.id,
+      batch.id,
+      user.id,
+      productB.id,
+      "2026-02-05",
+      10,
+    );
 
-    const result = await findPendingWithdrawals([createdAnimal.id], "2026-02-10");
+    const result = await findPendingWithdrawals(
+      [createdAnimal.id],
+      "2026-02-10",
+    );
 
-    expect(result.sort((a, b) => a.productName.localeCompare(b.productName))).toEqual([
-      { animalId: createdAnimal.id, productName: "Aftosa", restrictionEndDate: "2026-02-15" },
-      { animalId: createdAnimal.id, productName: "Ivermectina 1%", restrictionEndDate: "2026-02-22" },
+    expect(
+      result.sort((a, b) => a.productName.localeCompare(b.productName)),
+    ).toEqual([
+      {
+        animalId: createdAnimal.id,
+        productName: "Aftosa",
+        restrictionEndDate: "2026-02-15",
+      },
+      {
+        animalId: createdAnimal.id,
+        productName: "Ivermectina 1%",
+        restrictionEndDate: "2026-02-22",
+      },
     ]);
   });
 

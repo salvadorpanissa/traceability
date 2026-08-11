@@ -160,6 +160,7 @@ describe("OwnTagUploadForm", () => {
     });
     vi.mocked(createOwnTagCategoryAction).mockResolvedValue({
       id: "c1",
+      groupId: "g1",
       name: "Vaca",
       sex: null,
       minAgeMonths: null,
@@ -179,7 +180,7 @@ describe("OwnTagUploadForm", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Crear categoría" }));
 
-    expect(createOwnTagCategoryAction).toHaveBeenCalledWith("Vaca");
+    expect(createOwnTagCategoryAction).toHaveBeenCalledWith("farm-1", "Vaca");
     await waitFor(() => expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeEnabled());
     expect(screen.queryByText("Categorías nuevas por crear")).not.toBeInTheDocument();
   });

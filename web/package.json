@@ -19,6 +19,8 @@
     "recategorize:age": "tsx db/recategorize-by-age.ts",
     "backfill:category-birthdates:local": "ENV_FILE=.env.local tsx db/backfill-category-birth-dates.ts",
     "backfill:category-birthdates:prod": "ENV_FILE=.env.production tsx db/backfill-category-birth-dates.ts",
+    "backfill:farm-groups:local": "ENV_FILE=.env.local tsx db/backfill-farm-groups.ts",
+    "backfill:farm-groups:prod": "ENV_FILE=.env.production tsx db/backfill-farm-groups.ts",
     "dev:up": "docker compose -f ../docker-compose.yml up -d postgres && npm run db:migrate && npm run db:seed && npm run dev",
     "test": "vitest run",
     "test:e2e": "playwright test"

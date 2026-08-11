@@ -239,6 +239,27 @@
       "when": 1786405351983,
       "tag": "0033_wonderful_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786414630530,
+      "tag": "0034_equal_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786415129879,
+      "tag": "0035_nosy_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786415554170,
+      "tag": "0036_same_the_captain",
+      "breakpoints": true
     }
   ]
 }

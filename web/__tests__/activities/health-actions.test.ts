@@ -6,21 +6,38 @@ import { eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, userFarm, product, columnMapping, owner, dicoseRegistration, ownTag } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  userFarm,
+  product,
+  columnMapping,
+  owner,
+  dicoseRegistration,
+  ownTag,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { previewHealthBatch, confirmHealthBatchAction, createProductAction, createOwnerAction } = await import(
-  "../../app/(protected)/activities/health/actions"
-);
+const {
+  previewHealthBatch,
+  confirmHealthBatchAction,
+  createProductAction,
+  createOwnerAction,
+} = await import("../../app/(protected)/activities/health/actions");
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
-async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise<ArrayBuffer> {
+async function buildWorkbookBuffer(
+  headers: string[],
+  rows: string[][],
+): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
   sheet.addRow(headers);
@@ -30,32 +47,56 @@ async function buildWorkbookBuffer(headers: string[], rows: string[][]): Promise
 }
 
 async function seedManagerSession() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarm.id });
 
-  vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: manager.id, role: "manager" },
+  } as never);
 
-  return { manager, seededFarm };
+  return { manager, seededFarm, seededFarmGroup };
 }
 
 async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
-  const [createdOwner] = await testDb.insert(owner).values({ name: ownerName }).returning();
+  const [createdOwner] = await testDb
+    .insert(owner)
+    .values({ name: ownerName })
+    .returning();
   const [registration] = await testDb
     .insert(dicoseRegistration)
     .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
     .returning();
-  await testDb.insert(ownTag).values({ tag, dicoseRegistrationId: registration.id });
+  await testDb
+    .insert(ownTag)
+    .values({ tag, dicoseRegistrationId: registration.id });
   return createdOwner;
 }
 
 describe("previewHealthBatch", () => {
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000080"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -67,14 +108,17 @@ describe("previewHealthBatch", () => {
   });
 
   it("applies a submitted mapping and resolves rows", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     await seedOwnTag("AR000000000081", seededFarm.id, "AIP");
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -85,7 +129,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     await testDb.insert(columnMapping).values({
       headerSignature: JSON.stringify(["IDE", "SEXO"]),
       mapping: [
@@ -94,7 +138,10 @@ describe("previewHealthBatch", () => {
       ],
     });
 
-    const buffer = await buildWorkbookBuffer(["IDE", "SEXO"], [["AR000000000100", "M"]]);
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "SEXO"],
+      [["AR000000000100", "M"]],
+    );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
@@ -111,10 +158,13 @@ describe("previewHealthBatch", () => {
   });
 
   it("applies the saved mapping silently when no column is left ignored", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
-      .values({ headerSignature: JSON.stringify(["IDE"]), mapping: [{ header: "IDE", meaning: "tag" }] });
+      .values({
+        headerSignature: JSON.stringify(["IDE"]),
+        mapping: [{ header: "IDE", meaning: "tag" }],
+      });
 
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
@@ -127,12 +177,15 @@ describe("previewHealthBatch", () => {
   });
 
   it("suggests a product row per product-mapped column, matched against the catalog when possible", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [matchedProduct] = await testDb.insert(product).values({ name: "Aftosa" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [matchedProduct] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .returning();
 
     const buffer = await buildWorkbookBuffer(
       ["IDE", "SANIDAD", "SANIDAD 2"],
-      [["AR000000000110", "ASPERSIN", "Aftosa"]]
+      [["AR000000000110", "ASPERSIN", "Aftosa"]],
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -144,7 +197,7 @@ describe("previewHealthBatch", () => {
         { header: "IDE", meaning: "tag" },
         { header: "SANIDAD", meaning: "product" },
         { header: "SANIDAD 2", meaning: "product" },
-      ])
+      ]),
     );
 
     const result = await previewHealthBatch(formData);
@@ -158,10 +211,10 @@ describe("previewHealthBatch", () => {
   });
 
   it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(
       ["IDE", "Fecha"],
-      [["AR000000000111", "2026-03-10"]]
+      [["AR000000000111", "2026-03-10"]],
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -171,7 +224,7 @@ describe("previewHealthBatch", () => {
       JSON.stringify([
         { header: "IDE", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
-      ])
+      ]),
     );
 
     const result = await previewHealthBatch(formData);
@@ -185,12 +238,15 @@ describe("previewHealthBatch", () => {
   });
 
   it("asks for an event date when no column is mapped as date and none was supplied", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000112"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -200,13 +256,16 @@ describe("previewHealthBatch", () => {
   });
 
   it("resolves rows once an event date is supplied for a file with no date column", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000113"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -219,13 +278,16 @@ describe("previewHealthBatch", () => {
   });
 
   it("marks an unregistered tag as foreign when there is no matching own_tag record", async () => {
-    const { seededFarm } = await seedManagerSession();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000299"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("farmId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
-    formData.set("mapping", JSON.stringify([{ header: "IDE", meaning: "tag" }]));
+    formData.set(
+      "mapping",
+      JSON.stringify([{ header: "IDE", meaning: "tag" }]),
+    );
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
@@ -237,14 +299,24 @@ describe("previewHealthBatch", () => {
 
 describe("confirmHealthBatchAction", () => {
   it("saves a new mapping and confirms the batch", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
 
     await confirmHealthBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -271,8 +343,11 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("overwrites a previously cached mapping when the user corrects it on a later import", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const headerSignature = JSON.stringify(["IDE", "NOTA"]);
 
     // A first import cached NOTA as "ignore" (e.g. a mistake).
@@ -293,7 +368,14 @@ describe("confirmHealthBatchAction", () => {
         { header: "NOTA", meaning: "notes" },
       ],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -328,14 +410,24 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("excludes an unforced foreign row from the confirmed batch", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
 
     await confirmHealthBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -361,14 +453,24 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("creates the animal for a forced foreign row", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
 
     await confirmHealthBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -399,19 +501,43 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("confirms a wrong_farm row, creating the animal with its DICOSE-inferred owner", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
-    const [createdOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [createdOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP" })
+      .returning();
     await testDb
       .insert(dicoseRegistration)
-      .values({ ownerId: createdOwner.id, farmId: otherFarm.id, dicoseCode: "151518192" });
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+      .values({
+        ownerId: createdOwner.id,
+        farmId: otherFarm.id,
+        dicoseCode: "151518192",
+      });
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
 
     await confirmHealthBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -438,19 +564,38 @@ describe("confirmHealthBatchAction", () => {
   });
 
   it("creates a traslado for a mismatched potrero when transferMismatchedToPaddock is true", async () => {
-    const { seededFarm } = await seedManagerSession();
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
-    const { paddock, animal, animalTagHistory, event, eventTransfer } = await import("@/db/schema");
-    const [potreroA] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero A" }).returning();
-    const [potreroB] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero B" }).returning();
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const { paddock, animal, animalTagHistory, event, eventTransfer } =
+      await import("@/db/schema");
+    const [potreroA] = await testDb
+      .insert(paddock)
+      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .returning();
+    const [potreroB] = await testDb
+      .insert(paddock)
+      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000087" });
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR000000000087" });
 
     await confirmHealthBatchAction({
       headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
-        { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+        {
+          productId: productA.id,
+          dose: "10",
+          doseUnit: "ml",
+          route: "subcutánea",
+          withdrawalDays: null,
+          notes: null,
+        },
       ],
       rows: [
         {
@@ -468,22 +613,31 @@ describe("confirmHealthBatchAction", () => {
       transferMismatchedToPaddock: true,
     });
 
-    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.id));
+    const animalEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, createdAnimal.id));
     const transferEvent = animalEvents.find((e) => e.eventType === "transfer");
     expect(transferEvent).toBeDefined();
-    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, transferEvent!.id));
+    const [transfer] = await testDb
+      .select()
+      .from(eventTransfer)
+      .where(eq(eventTransfer.eventId, transferEvent!.id));
     expect(transfer.destinationPaddockId).toBe(potreroA.id);
   });
 });
 
 describe("createProductAction", () => {
   it("creates a product and returns it", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
 
-    const created = await createProductAction("Ivermectina 1%");
+    const created = await createProductAction(seededFarm.id, "Ivermectina 1%");
 
     expect(created.name).toBe("Ivermectina 1%");
-    const [stored] = await testDb.select().from(product).where(eq(product.name, "Ivermectina 1%"));
+    const [stored] = await testDb
+      .select()
+      .from(product)
+      .where(eq(product.name, "Ivermectina 1%"));
     expect(stored).toBeDefined();
   });
 });

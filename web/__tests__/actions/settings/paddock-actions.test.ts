@@ -5,14 +5,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { role, farm, userAccount, userFarm, paddock } from "@/db/schema";
+import {
+  farmGroup,
+  role,
+  farm,
+  userAccount,
+  userFarm,
+  paddock,
+} from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { createPaddockAction, updatePaddockAction } = await import(
-  "../../../app/(protected)/settings/paddocks/actions"
-);
+const { createPaddockAction, updatePaddockAction } =
+  await import("../../../app/(protected)/settings/paddocks/actions");
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
@@ -20,16 +26,35 @@ beforeEach(async () => {
 });
 
 async function seedManagerSession() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
 
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarm.id });
 
-  vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: manager.id, role: "manager" },
+  } as never);
 
   return { manager, seededFarm };
 }
@@ -38,13 +63,23 @@ describe("createPaddockAction", () => {
   it("creates a paddock and returns it", async () => {
     const { seededFarm } = await seedManagerSession();
 
-    const result = await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
+    const result = await createPaddockAction({
+      farmId: seededFarm.id,
+      name: "Potrero 1",
+    });
 
     expect(result).toEqual({
       ok: true,
-      entry: { id: expect.any(String), name: "Potrero 1", farmId: seededFarm.id },
+      entry: {
+        id: expect.any(String),
+        name: "Potrero 1",
+        farmId: seededFarm.id,
+      },
     });
-    const [stored] = await testDb.select().from(paddock).where(eq(paddock.name, "Potrero 1"));
+    const [stored] = await testDb
+      .select()
+      .from(paddock)
+      .where(eq(paddock.name, "Potrero 1"));
     expect(stored).toBeDefined();
   });
 
@@ -52,9 +87,15 @@ describe("createPaddockAction", () => {
     const { seededFarm } = await seedManagerSession();
     await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
 
-    const result = await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
+    const result = await createPaddockAction({
+      farmId: seededFarm.id,
+      name: "Potrero 1",
+    });
 
-    expect(result).toEqual({ ok: false, error: "Ya existe un potrero con ese nombre en ese campo" });
+    expect(result).toEqual({
+      ok: false,
+      error: "Ya existe un potrero con ese nombre en ese campo",
+    });
   });
 });
 
@@ -62,11 +103,20 @@ describe("updatePaddockAction", () => {
   it("rejects renaming into a name that already exists within the same farm with a friendly error instead of throwing", async () => {
     const { seededFarm } = await seedManagerSession();
     await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
-    const created = await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 2" });
+    const created = await createPaddockAction({
+      farmId: seededFarm.id,
+      name: "Potrero 2",
+    });
     if (!created.ok) throw new Error("setup failed");
 
-    const result = await updatePaddockAction({ id: created.entry.id, name: "Potrero 1" });
+    const result = await updatePaddockAction({
+      id: created.entry.id,
+      name: "Potrero 1",
+    });
 
-    expect(result).toEqual({ ok: false, error: "Ya existe un potrero con ese nombre en ese campo" });
+    expect(result).toEqual({
+      ok: false,
+      error: "Ya existe un potrero con ese nombre en ese campo",
+    });
   });
 });

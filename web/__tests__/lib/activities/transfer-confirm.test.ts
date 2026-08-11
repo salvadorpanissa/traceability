@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
+  farmGroup,
   role,
   farm,
   userAccount,
@@ -28,14 +29,31 @@ beforeEach(async () => {
 });
 
 async function seedManagerAndFarm() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farmGroup)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(farm)
+    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
-  return { manager, seededFarm };
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarm.id });
+  return { manager, seededFarm, seededFarmGroup };
 }
 
 describe("confirmTransferBatch", () => {
@@ -75,11 +93,17 @@ describe("confirmTransferBatch", () => {
       .where(eq(animalTagHistory.tag, "AR000000000010"));
     expect(createdAnimal).toBeDefined();
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, createdAnimal.animalId));
+    const events = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, createdAnimal.animalId));
     expect(events).toHaveLength(2);
 
     const transferEvent = events.find((e) => e.eventType === "transfer")!;
-    const [transfer] = await testDb.select().from(eventTransfer).where(eq(eventTransfer.eventId, transferEvent.id));
+    const [transfer] = await testDb
+      .select()
+      .from(eventTransfer)
+      .where(eq(eventTransfer.eventId, transferEvent.id));
     expect(transfer.destinationPaddockId).toBe(destinationPaddock.id);
     expect(transfer.originFarmId).toBe(seededFarm.id);
   });
@@ -109,7 +133,10 @@ describe("confirmTransferBatch", () => {
       rows,
     });
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000014"));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.tag, "AR000000000014"));
     const retagEvents = await testDb
       .select()
       .from(event)
@@ -117,19 +144,25 @@ describe("confirmTransferBatch", () => {
     const retagEvent = retagEvents.find((e) => e.eventType === "retag")!;
     expect(retagEvent).toBeDefined();
 
-    const [retag] = await testDb.select().from(eventRetag).where(eq(eventRetag.eventId, retagEvent.id));
+    const [retag] = await testDb
+      .select()
+      .from(eventRetag)
+      .where(eq(eventRetag.eventId, retagEvent.id));
     expect(retag.oldTag).toBe("AR000000000014");
     expect(retag.newTag).toBe("AR000000000014");
 
     const stateResult = await testDb.execute<{ current_tag: string | null }>(
-      sql`select current_tag from animal_current_state where animal_id = ${tagRow.animalId}`
+      sql`select current_tag from animal_current_state where animal_id = ${tagRow.animalId}`,
     );
     expect(stateResult.rows[0].current_tag).toBe("AR000000000014");
   });
 
   it("creates a self-recategorize event for a new animal with an initial category", async () => {
-    const { manager, seededFarm } = await seedManagerAndFarm();
-    const [createdCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [createdCategory] = await testDb
+      .insert(category)
+      .values({ groupId: seededFarmGroup.id, name: "Ternero" })
+      .returning();
     const rows: ResolvedRow[] = [
       {
         tag: "AR000000000015",
@@ -153,9 +186,17 @@ describe("confirmTransferBatch", () => {
       rows,
     });
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000015"));
-    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
-    const recategorizeEvent = animalEvents.find((e) => e.eventType === "recategorize")!;
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.tag, "AR000000000015"));
+    const animalEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, tagRow.animalId));
+    const recategorizeEvent = animalEvents.find(
+      (e) => e.eventType === "recategorize",
+    )!;
     expect(recategorizeEvent).toBeDefined();
 
     const [recategorize] = await testDb
@@ -164,8 +205,10 @@ describe("confirmTransferBatch", () => {
       .where(eq(eventRecategorize.eventId, recategorizeEvent.id));
     expect(recategorize.newCategoryId).toBe(createdCategory.id);
 
-    const stateResult = await testDb.execute<{ current_category_id: string | null }>(
-      sql`select current_category_id from animal_current_state where animal_id = ${tagRow.animalId}`
+    const stateResult = await testDb.execute<{
+      current_category_id: string | null;
+    }>(
+      sql`select current_category_id from animal_current_state where animal_id = ${tagRow.animalId}`,
     );
     expect(stateResult.rows[0].current_category_id).toBe(createdCategory.id);
   });
@@ -195,14 +238,29 @@ describe("confirmTransferBatch", () => {
       rows,
     });
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000016"));
-    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
-    expect(animalEvents.some((e) => e.eventType === "recategorize")).toBe(false);
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.tag, "AR000000000016"));
+    const animalEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, tagRow.animalId));
+    expect(animalEvents.some((e) => e.eventType === "recategorize")).toBe(
+      false,
+    );
   });
 
   it("rejects a cross-farm transfer from a manager not assigned to the destination farm", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .returning();
 
     const rows: ResolvedRow[] = [
       {
@@ -226,14 +284,23 @@ describe("confirmTransferBatch", () => {
         destinationFarmId: otherFarm.id,
         destinationPaddockId: null,
         rows,
-      })
+      }),
     ).rejects.toThrow();
   });
 
   it("allows a cross-farm transfer from a manager assigned to both farms", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
-    await testDb.insert(userFarm).values({ userId: manager.id, farmId: otherFarm.id });
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .returning();
+    await testDb
+      .insert(userFarm)
+      .values({ userId: manager.id, farmId: otherFarm.id });
 
     const rows: ResolvedRow[] = [
       {
@@ -265,7 +332,15 @@ describe("confirmTransferBatch", () => {
 
   it("rejects the whole batch if any row is an error", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const rows: ResolvedRow[] = [{ tag: "AR000000000012", eventDate: "2026-02-01", notes: null, status: "error", reason: "x" }];
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000012",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "error",
+        reason: "x",
+      },
+    ];
 
     await expect(
       confirmTransferBatch({
@@ -275,7 +350,7 @@ describe("confirmTransferBatch", () => {
         destinationFarmId: seededFarm.id,
         destinationPaddockId: null,
         rows,
-      })
+      }),
     ).rejects.toThrow();
 
     const batches = await testDb.select().from(batchOperation);
@@ -284,8 +359,18 @@ describe("confirmTransferBatch", () => {
 
   it("rejects a destination paddock that belongs to a different farm", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const [otherFarm] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
-    const [wrongPaddock] = await testDb.insert(paddock).values({ farmId: otherFarm.id, name: "Potrero Sur" }).returning();
+    const [otherFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [otherFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .returning();
+    const [wrongPaddock] = await testDb
+      .insert(paddock)
+      .values({ farmId: otherFarm.id, name: "Potrero Sur" })
+      .returning();
 
     const rows: ResolvedRow[] = [
       {
@@ -309,7 +394,7 @@ describe("confirmTransferBatch", () => {
         destinationFarmId: seededFarm.id,
         destinationPaddockId: wrongPaddock.id,
         rows,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -337,7 +422,7 @@ describe("confirmTransferBatch", () => {
         destinationFarmId: seededFarm.id,
         destinationPaddockId: null,
         rows,
-      })
+      }),
     ).rejects.toThrow("propietarios pendientes");
   });
 
@@ -366,16 +451,36 @@ describe("confirmTransferBatch", () => {
       rows,
     });
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000018"));
-    const events = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.tag, "AR000000000018"));
+    const events = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, tagRow.animalId));
     const transferEvent = events.find((e) => e.eventType === "transfer")!;
     expect(transferEvent.notes).toBe("Cojera leve");
   });
 
   it("uses an explicit originFarmId for a new animal instead of operatingFarmId, when provided", async () => {
     const { manager } = await seedManagerAndFarm();
-    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
-    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    const [originFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [originFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: originFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [destinationFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte 2" })
+      .returning();
+    const [destinationFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: destinationFarmGroup.id, name: "Campo Norte 2" })
+      .returning();
 
     const rows: ResolvedRow[] = [
       {
@@ -442,7 +547,9 @@ describe("confirmTransferBatch", () => {
     const [createdBatch] = await testDb.select().from(batchOperation);
     expect(createdBatch.guideFileName).toBe("D838153.pdf");
     expect(createdBatch.guideMimeType).toBe("application/pdf");
-    expect(Buffer.from(createdBatch.guideFileData as Buffer)).toEqual(Buffer.from("%PDF-1.4 fake guide content"));
+    expect(Buffer.from(createdBatch.guideFileData as Buffer)).toEqual(
+      Buffer.from("%PDF-1.4 fake guide content"),
+    );
   });
 
   it("leaves the guide document columns null for a batch with no guideDocument (the Excel path)", async () => {
@@ -479,13 +586,29 @@ describe("confirmTransferBatch", () => {
 
   it("requires access to the explicit originFarmId when it differs from destinationFarmId", async () => {
     const { manager } = await seedManagerAndFarm();
-    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
-    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    const [originFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [originFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: originFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [destinationFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte 2" })
+      .returning();
+    const [destinationFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: destinationFarmGroup.id, name: "Campo Norte 2" })
+      .returning();
     // The manager operates at the destination farm itself (operatingFarmId ===
     // destinationFarmId), so the pre-existing operatingFarmId-vs-destinationFarmId
     // check would no-op; only the explicit originFarmId differing from the
     // destination — and the manager lacking access to it — should trigger the throw.
-    await testDb.insert(userFarm).values({ userId: manager.id, farmId: destinationFarm.id });
+    await testDb
+      .insert(userFarm)
+      .values({ userId: manager.id, farmId: destinationFarm.id });
 
     const rows: ResolvedRow[] = [
       {
@@ -510,14 +633,30 @@ describe("confirmTransferBatch", () => {
         destinationPaddockId: null,
         originFarmId: originFarm.id,
         rows,
-      })
-    ).rejects.toThrow("No tenés acceso a ambos campos para crear este traslado");
+      }),
+    ).rejects.toThrow(
+      "No tenés acceso a ambos campos para crear este traslado",
+    );
   });
 
   it("allows the explicit originFarmId to differ from destinationFarmId when the manager is assigned to both", async () => {
     const { manager } = await seedManagerAndFarm();
-    const [originFarm] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
-    const [destinationFarm] = await testDb.insert(farm).values({ name: "Campo Norte 2" }).returning();
+    const [originFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [originFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: originFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [destinationFarmGroup] = await testDb
+      .insert(farmGroup)
+      .values({ name: "Campo Norte 2" })
+      .returning();
+    const [destinationFarm] = await testDb
+      .insert(farm)
+      .values({ groupId: destinationFarmGroup.id, name: "Campo Norte 2" })
+      .returning();
     await testDb.insert(userFarm).values([
       { userId: manager.id, farmId: destinationFarm.id },
       { userId: manager.id, farmId: originFarm.id },
@@ -557,7 +696,9 @@ describe("confirmTransferBatch", () => {
   it("gap-fills breed and secondaryTag on an existing animal that has neither yet", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000090" });
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR000000000090" });
 
     const rows: ResolvedRow[] = [
       {
@@ -582,9 +723,15 @@ describe("confirmTransferBatch", () => {
       rows,
     });
 
-    const [updatedAnimal] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    const [updatedAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, createdAnimal.id));
     expect(updatedAnimal.breed).toBe("Angus");
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, createdAnimal.id));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, createdAnimal.id));
     expect(tagRow.secondaryTag).toBe("CHIP-090");
   });
 });

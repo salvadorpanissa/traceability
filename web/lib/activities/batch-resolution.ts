@@ -95,7 +95,10 @@ export async function resolveBatchRows(
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const categoryRows = await db.select({ id: category.id, name: category.name }).from(category);
+  const [operatingFarm] = await db.select({ groupId: farm.groupId }).from(farm).where(eq(farm.id, operatingFarmId));
+  const categoryRows = operatingFarm
+    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.groupId, operatingFarm.groupId))
+    : [];
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
 
   const ownerRows = await db.select({ id: owner.id, name: owner.name }).from(owner);

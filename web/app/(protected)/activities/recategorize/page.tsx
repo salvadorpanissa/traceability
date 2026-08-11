@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecategorizeForm } from "@/components/activities/recategorize-form";
-import { listCategories } from "@/lib/dal/category-catalog";
+import { listSelectableFarms } from "@/lib/dal/farm-access";
 import { requireSession } from "@/lib/dal/session";
 
 export default async function RecategorizeActivityPage() {
-  await requireSession();
-  const categories = await listCategories();
+  const session = await requireSession();
+  const farms = await listSelectableFarms(session.user.id, session.user.role);
 
   return (
     <Card className="mx-auto w-full max-w-2xl">
@@ -13,7 +13,7 @@ export default async function RecategorizeActivityPage() {
         <CardTitle>Recategorización</CardTitle>
       </CardHeader>
       <CardContent>
-        <RecategorizeForm categories={categories} />
+        <RecategorizeForm farms={farms} />
       </CardContent>
     </Card>
   );

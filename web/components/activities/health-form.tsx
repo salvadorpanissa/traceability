@@ -17,6 +17,7 @@ import {
   createOwnerAction,
   createHealthPaddockAction,
   listPaddocksAction,
+  listProductsAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -59,11 +60,9 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 }
 
 export function HealthForm({
-  catalog: initialCatalog,
   ownerCatalog: initialOwnerCatalog,
   farms,
 }: {
-  catalog: ProductCatalogEntry[];
   ownerCatalog: OwnerCatalogEntry[];
   farms: { id: string; name: string }[];
 }) {
@@ -75,7 +74,8 @@ export function HealthForm({
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
-  const [catalog, setCatalog] = useState<ProductCatalogEntry[]>(initialCatalog);
+  const [catalog, setCatalog] = useState<ProductCatalogEntry[]>([]);
+  const [catalogLoadError, setCatalogLoadError] = useState("");
   const [ownerCatalog, setOwnerCatalog] = useState<OwnerCatalogEntry[]>(initialOwnerCatalog);
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
@@ -90,8 +90,10 @@ export function HealthForm({
     setRows([]);
     setTransferMismatched(null);
     setPaddockLoadError("");
+    setCatalogLoadError("");
     if (!selectedFarmId) {
       setPaddocks([]);
+      setCatalog([]);
       return;
     }
     try {
@@ -99,6 +101,12 @@ export function HealthForm({
     } catch (err) {
       setPaddocks([]);
       setPaddockLoadError(err instanceof Error ? err.message : "No se pudieron cargar los potreros");
+    }
+    try {
+      setCatalog(await listProductsAction(selectedFarmId));
+    } catch (err) {
+      setCatalog([]);
+      setCatalogLoadError(err instanceof Error ? err.message : "No se pudieron cargar los productos");
     }
   }
 
@@ -139,7 +147,7 @@ export function HealthForm({
   }
 
   async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
-    const created = await createProductAction(name);
+    const created = await createProductAction(farmId, name);
     setCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -219,6 +227,7 @@ export function HealthForm({
         </select>
       </div>
       {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
+      {catalogLoadError ? <p className="text-sm text-red-600">{catalogLoadError}</p> : null}
       {farmId ? (
         <PaddockSelector
           paddocks={paddocks}
