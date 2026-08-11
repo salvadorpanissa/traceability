@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecentHealthEvents } from "@/components/dashboard/recent-health-events";
-import { voidHealthBatchAction } from "@/app/(protected)/activities/health/actions";
+import { voidHealthBatchAction, getHealthBatchDetailAction } from "@/app/(protected)/activities/health/actions";
 import { LocaleProvider } from "@/lib/i18n/context";
-import type { HealthBatchRow } from "@/lib/dashboard/health-batch-summary";
+import type { HealthBatchRow, HealthBatchDetail } from "@/lib/dashboard/health-batch-summary";
 
 afterEach(() => {
   cleanup();
@@ -13,6 +13,7 @@ afterEach(() => {
 
 vi.mock("@/app/(protected)/activities/health/actions", () => ({
   voidHealthBatchAction: vi.fn(),
+  getHealthBatchDetailAction: vi.fn(),
 }));
 
 const batches: HealthBatchRow[] = [
@@ -74,5 +75,52 @@ describe("RecentHealthEvents", () => {
 
     await waitFor(() => expect(screen.getByText("No se pudo anular. Probá de nuevo.")).toBeInTheDocument());
     expect(screen.getByText("FLOK")).toBeInTheDocument();
+  });
+
+  it("opens a detail modal with each animal's tag, date, withdrawal, and notes, plus product and paddock", async () => {
+    const detail: HealthBatchDetail = {
+      batchId: "batch-1",
+      eventDate: "2026-08-11",
+      establishmentName: "San Antonio",
+      paddockName: "Arerunguá",
+      products: [{ name: "FLOK", dose: "2", doseUnit: "ml", route: "subcutánea", withdrawalDays: 21 }],
+      animals: [
+        { tag: "001", eventDate: "2026-08-11", notes: "Cojera pata trasera", withdrawalUntil: "2026-09-01" },
+        { tag: "002", eventDate: "2026-08-11", notes: null, withdrawalUntil: "2026-09-01" },
+      ],
+    };
+    vi.mocked(getHealthBatchDetailAction).mockResolvedValue(detail);
+    render(
+      <LocaleProvider initialLocale="es">
+        <RecentHealthEvents batches={batches} />
+      </LocaleProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByText("FLOK"));
+
+    await waitFor(() => expect(getHealthBatchDetailAction).toHaveBeenCalledWith("batch-1"));
+    await waitFor(() => expect(screen.getByText("San Antonio, Arerunguá")).toBeInTheDocument());
+    expect(screen.getAllByText("11 de agosto de 2026")).toHaveLength(3);
+    expect(screen.getByText("001")).toBeInTheDocument();
+    expect(screen.getByText("Cojera pata trasera")).toBeInTheDocument();
+    expect(screen.getByText("002")).toBeInTheDocument();
+    expect(screen.getAllByText("1 de setiembre de 2026")).toHaveLength(2);
+    expect(screen.getByText("2 ml")).toBeInTheDocument();
+    expect(screen.getByText("subcutánea")).toBeInTheDocument();
+  });
+
+  it("does not open the detail modal when clicking the void button", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <LocaleProvider initialLocale="es">
+        <RecentHealthEvents batches={batches} />
+      </LocaleProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Anular" }));
+
+    expect(getHealthBatchDetailAction).not.toHaveBeenCalled();
   });
 });
