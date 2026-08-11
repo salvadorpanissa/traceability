@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createPaddockAction, updatePaddockAction } from "@/app/(protected)/settings/paddocks/actions";
@@ -23,6 +24,7 @@ export function PaddockCatalogForm({
   const [editName, setEditName] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [name, setName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -59,10 +61,50 @@ export function PaddockCatalogForm({
     setPaddocks((prev) => [...prev, result.entry]);
     setName("");
     setCreateError(null);
+    setCreateOpen(false);
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo potrero</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="paddock-farm">Campo</Label>
+              <select
+                id="paddock-farm"
+                value={farmId}
+                onChange={(e) => setFarmId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Elegir...</option>
+                {farms.map((farm) => (
+                  <option key={farm.id} value={farm.id}>
+                    {farm.name}
+                  </option>
+                ))}
+              </select>
+
+              <Label htmlFor="paddock-name">Nombre</Label>
+              <Input id="paddock-name" value={name} onChange={(e) => setName(e.target.value)} />
+
+              {farms.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tenés campos asociados</p>
+              ) : null}
+              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+
+              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
+                Agregar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left">
@@ -103,33 +145,6 @@ export function PaddockCatalogForm({
         </tbody>
       </table>
       {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="paddock-farm">Campo</Label>
-        <select
-          id="paddock-farm"
-          value={farmId}
-          onChange={(e) => setFarmId(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir...</option>
-          {farms.map((farm) => (
-            <option key={farm.id} value={farm.id}>
-              {farm.name}
-            </option>
-          ))}
-        </select>
-
-        <Label htmlFor="paddock-name">Nombre</Label>
-        <Input id="paddock-name" value={name} onChange={(e) => setName(e.target.value)} />
-
-        {farms.length === 0 ? <p className="text-sm text-muted-foreground">No tenés campos asociados</p> : null}
-        {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
-
-        <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
-          Agregar
-        </Button>
-      </div>
     </div>
   );
 }

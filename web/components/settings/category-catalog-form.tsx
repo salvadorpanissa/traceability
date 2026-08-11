@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,6 +28,7 @@ export function CategoryCatalogForm({
   const [editMinAgeMonths, setEditMinAgeMonths] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [sex, setSex] = useState("");
   const [minAgeMonths, setMinAgeMonths] = useState("");
@@ -85,6 +87,7 @@ export function CategoryCatalogForm({
     setSex("");
     setMinAgeMonths("");
     setCreateError(null);
+    setCreateOpen(false);
   }
 
   function startArchive(id: string) {
@@ -125,6 +128,47 @@ export function CategoryCatalogForm({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nueva categoría</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="category-name">Nombre</Label>
+              <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
+
+              <Label htmlFor="category-sex">Sexo</Label>
+              <select
+                id="category-sex"
+                value={sex}
+                onChange={(e) => setSex(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Ambos / no aplica</option>
+                <option value="male">Macho</option>
+                <option value="female">Hembra</option>
+              </select>
+
+              <Label htmlFor="category-min-age-months">Edad mínima (meses)</Label>
+              <Input
+                id="category-min-age-months"
+                type="number"
+                value={minAgeMonths}
+                onChange={(e) => setMinAgeMonths(e.target.value)}
+              />
+
+              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+
+              <Button type="button" disabled={!name} onClick={handleCreate}>
+                Agregar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left">
@@ -240,37 +284,6 @@ export function CategoryCatalogForm({
             );
           })()
         : null}
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="category-name">Nombre</Label>
-        <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
-
-        <Label htmlFor="category-sex">Sexo</Label>
-        <select
-          id="category-sex"
-          value={sex}
-          onChange={(e) => setSex(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Ambos / no aplica</option>
-          <option value="male">Macho</option>
-          <option value="female">Hembra</option>
-        </select>
-
-        <Label htmlFor="category-min-age-months">Edad mínima (meses)</Label>
-        <Input
-          id="category-min-age-months"
-          type="number"
-          value={minAgeMonths}
-          onChange={(e) => setMinAgeMonths(e.target.value)}
-        />
-
-        {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
-
-        <Button type="button" disabled={!name} onClick={handleCreate}>
-          Agregar
-        </Button>
-      </div>
 
       {archivedCategories.length > 0 ? (
         <div className="flex flex-col gap-2">

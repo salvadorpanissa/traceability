@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProductAction, updateProductAction } from "@/app/(protected)/settings/products/actions";
@@ -18,6 +19,7 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
   const [editWithdrawalDays, setEditWithdrawalDays] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [dose, setDose] = useState("");
   const [doseUnit, setDoseUnit] = useState("");
@@ -78,10 +80,49 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
     setRoute("");
     setWithdrawalDays("");
     setCreateError(null);
+    setCreateOpen(false);
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo producto</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="product-name">Nombre</Label>
+              <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
+
+              <Label htmlFor="product-dose">Dosis</Label>
+              <Input id="product-dose" value={dose} onChange={(e) => setDose(e.target.value)} />
+
+              <Label htmlFor="product-dose-unit">Unidad de dosis</Label>
+              <Input id="product-dose-unit" value={doseUnit} onChange={(e) => setDoseUnit(e.target.value)} />
+
+              <Label htmlFor="product-route">Vía</Label>
+              <Input id="product-route" value={route} onChange={(e) => setRoute(e.target.value)} />
+
+              <Label htmlFor="product-withdrawal-days">Días de retiro</Label>
+              <Input
+                id="product-withdrawal-days"
+                type="number"
+                value={withdrawalDays}
+                onChange={(e) => setWithdrawalDays(e.target.value)}
+              />
+
+              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+
+              <Button type="button" disabled={!name} onClick={handleCreate}>
+                Agregar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left">
@@ -148,34 +189,6 @@ export function ProductCatalogForm({ products: initialProducts }: { products: Pr
         </tbody>
       </table>
       {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="product-name">Nombre</Label>
-        <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
-
-        <Label htmlFor="product-dose">Dosis</Label>
-        <Input id="product-dose" value={dose} onChange={(e) => setDose(e.target.value)} />
-
-        <Label htmlFor="product-dose-unit">Unidad de dosis</Label>
-        <Input id="product-dose-unit" value={doseUnit} onChange={(e) => setDoseUnit(e.target.value)} />
-
-        <Label htmlFor="product-route">Vía</Label>
-        <Input id="product-route" value={route} onChange={(e) => setRoute(e.target.value)} />
-
-        <Label htmlFor="product-withdrawal-days">Días de retiro</Label>
-        <Input
-          id="product-withdrawal-days"
-          type="number"
-          value={withdrawalDays}
-          onChange={(e) => setWithdrawalDays(e.target.value)}
-        />
-
-        {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
-
-        <Button type="button" disabled={!name} onClick={handleCreate}>
-          Agregar
-        </Button>
-      </div>
     </div>
   );
 }
