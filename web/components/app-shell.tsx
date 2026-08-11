@@ -83,7 +83,7 @@ export function AppShell({
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3 md:flex-none">
+          <div className="@container flex min-w-0 flex-1 items-center gap-3 md:flex-none">
             <Button
               type="button"
               variant="ghost"
@@ -98,14 +98,18 @@ export function AppShell({
             </Button>
             <Link
               href="/dashboard"
-              className="flex items-center gap-1.5 truncate text-base font-bold md:text-lg"
+              className="flex items-center gap-1.5 text-base font-bold md:text-lg"
               onClick={() => {
                 setIsMobileNavOpen(false);
                 setIsUserMenuOpen(false);
               }}
             >
               <AppLogo className="size-8 shrink-0" />
-              {t("app.title")}
+              {/* Below @[9rem], the flex row has no room for the wordmark
+                  without wrapping or clipping mid-word — drop it and keep
+                  just the icon rather than truncate to something unreadable
+                  like "Tracke". */}
+              <span className="hidden truncate @[9rem]:inline">{t("app.title")}</span>
             </Link>
             <ThemeToggle />
           </div>
