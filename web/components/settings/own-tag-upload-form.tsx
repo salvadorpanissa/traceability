@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 import { ColumnMapper } from "@/components/activities/column-mapper";
 import { PendingItemEditor } from "@/components/activities/pending-item-editor";
@@ -138,7 +138,7 @@ export function OwnTagUploadForm({
         </select>
 
         <Label htmlFor="own-tag-file">Archivo</Label>
-        <Input id="own-tag-file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
+        <FileInput id="own-tag-file" file={file} onChange={handleFileChange} />
 
         <Button type="button" disabled={!file || !dicoseId} onClick={() => runPreview()}>
           Subir

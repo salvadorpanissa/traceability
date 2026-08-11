@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FileInput } from "@/components/ui/file-input";
 import { ImportColumnMapper } from "@/components/settings/import-column-mapper";
 import {
   applyImportColumnMapping,
@@ -161,13 +162,7 @@ export function ImportForm() {
         <label htmlFor="import-file" className="text-sm font-medium">
           Archivo Excel
         </label>
-        <input
-          id="import-file"
-          aria-label="Archivo Excel"
-          type="file"
-          accept=".xlsx"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
+        <FileInput id="import-file" aria-label="Archivo Excel" accept=".xlsx" file={file} onChange={setFile} />
         <Button type="button" disabled={!file || uploading} onClick={handleUpload}>
           Subir
         </Button>
