@@ -96,7 +96,7 @@ export function OwnTagUploadForm({
             <th className="py-1 pr-2">Dueño</th>
             <th className="py-1 pr-2">Campo</th>
             <th className="py-1 pr-2">DICOSE</th>
-            <th className="py-1 pr-2">Caravanas</th>
+            <th className="py-1 pr-2">Animales</th>
             <th className="py-1 pr-2">Última carga</th>
           </tr>
         </thead>

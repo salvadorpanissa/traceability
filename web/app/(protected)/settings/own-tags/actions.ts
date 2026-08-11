@@ -15,6 +15,8 @@ import {
 import {
   importOwnTags,
   countOwnTagsByRegistration,
+  countAliveAnimalsByOwnerFarm,
+  countBareOwnTagsByRegistration,
   findMissingPaddockNames,
   findMissingCategoryNames,
   type OwnTagImportResult,
@@ -127,17 +129,20 @@ export async function listOwnTagCounts(): Promise<
   { registration: DicoseRegistrationEntry; count: number; lastUploadedAt: string | null }[]
 > {
   const session = await requireSession();
-  const [registrations, counts] = await Promise.all([
+  const [registrations, animalCounts, bareCounts, uploads] = await Promise.all([
     listDicoseRegistrations(session.user.id, session.user.role),
+    countAliveAnimalsByOwnerFarm(),
+    countBareOwnTagsByRegistration(),
     countOwnTagsByRegistration(),
   ]);
-  const countByRegistrationId = new Map(counts.map((c) => [c.dicoseRegistrationId, c]));
-  return registrations.map((registration) => {
-    const match = countByRegistrationId.get(registration.id);
-    return {
-      registration,
-      count: match?.count ?? 0,
-      lastUploadedAt: match?.lastUploadedAt ? match.lastUploadedAt.toISOString() : null,
-    };
-  });
+  const animalCountByOwnerFarm = new Map(animalCounts.map((c) => [`${c.ownerId}:${c.farmId}`, c.count]));
+  const bareCountByRegistrationId = new Map(bareCounts.map((c) => [c.dicoseRegistrationId, c.count]));
+  const lastUploadedAtByRegistrationId = new Map(uploads.map((u) => [u.dicoseRegistrationId, u.lastUploadedAt]));
+  return registrations.map((registration) => ({
+    registration,
+    count:
+      (animalCountByOwnerFarm.get(`${registration.ownerId}:${registration.farmId}`) ?? 0) +
+      (bareCountByRegistrationId.get(registration.id) ?? 0),
+    lastUploadedAt: lastUploadedAtByRegistrationId.get(registration.id)?.toISOString() ?? null,
+  }));
 }

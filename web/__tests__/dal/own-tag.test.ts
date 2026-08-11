@@ -1,14 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { role, farm, userAccount, owner, dicoseRegistration, category, paddock, animal, animalTagHistory } from "@/db/schema";
+import { refreshDerivedState } from "../../test/refresh-derived-state";
+import {
+  role,
+  farm,
+  userAccount,
+  owner,
+  dicoseRegistration,
+  category,
+  paddock,
+  animal,
+  animalTagHistory,
+  batchOperation,
+  event,
+  eventTransfer,
+} from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import type { MappedOwnTagRow } from "@/lib/activities/column-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { importOwnTags, countOwnTagsByRegistration, findMissingPaddockNames, findMissingCategoryNames } =
-  await import("@/lib/dal/own-tag");
+const {
+  importOwnTags,
+  countOwnTagsByRegistration,
+  countAliveAnimalsByOwnerFarm,
+  countBareOwnTagsByRegistration,
+  findMissingPaddockNames,
+  findMissingCategoryNames,
+} = await import("@/lib/dal/own-tag");
 
 beforeEach(async () => {
   await resetTestDb();
@@ -301,5 +321,73 @@ describe("countOwnTagsByRegistration", () => {
     expect(counts).toHaveLength(1);
     expect(counts[0]).toMatchObject({ dicoseRegistrationId: registration.id, count: 2 });
     expect(counts[0].lastUploadedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("countAliveAnimalsByOwnerFarm", () => {
+  async function seedAliveAnimal(ownerId: string, farmId: string, adminId: string, tag: string) {
+    const [createdAnimal] = await testDb.insert(animal).values({ ownerId }).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag });
+
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", farmId, animalCount: 1, createdBy: adminId })
+      .returning();
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        farmId,
+        batchOperationId: batch.id,
+        createdBy: adminId,
+      })
+      .returning();
+    await testDb
+      .insert(eventTransfer)
+      .values({ eventId: transferEvent.id, originFarmId: farmId, destinationFarmId: farmId });
+
+    return createdAnimal;
+  }
+
+  it("counts only alive animals, grouped by owner and current farm", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [farmA] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [farmB] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    const [ownerA] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    const [ownerB] = await testDb.insert(owner).values({ name: "Otro" }).returning();
+
+    await seedAliveAnimal(ownerA.id, farmA.id, admin.id, "AR000000000090");
+    await seedAliveAnimal(ownerA.id, farmA.id, admin.id, "AR000000000091");
+    await seedAliveAnimal(ownerB.id, farmB.id, admin.id, "AR000000000092");
+    await refreshDerivedState();
+
+    const counts = await countAliveAnimalsByOwnerFarm();
+
+    expect(counts).toContainEqual({ ownerId: ownerA.id, farmId: farmA.id, count: 2 });
+    expect(counts).toContainEqual({ ownerId: ownerB.id, farmId: farmB.id, count: 1 });
+  });
+});
+
+describe("countBareOwnTagsByRegistration", () => {
+  it("counts only tags with no animal behind them yet, per registration", async () => {
+    const { registration, user } = await seedRegistration();
+    const [vaca] = await testDb.insert(category).values({ name: "Vaca" }).returning();
+
+    // Bare tags: registered but no animal created.
+    await importOwnTags(registration.id, user.id, tagRows(["100", "200"]));
+    // A tag with animal signal creates a real animal, so it shouldn't count as bare.
+    await importOwnTags(registration.id, user.id, [
+      { tag: "300", sex: "hembra", category: vaca.name, birthDate: null, paddock: null, date: null },
+    ]);
+
+    const counts = await countBareOwnTagsByRegistration();
+
+    expect(counts).toEqual([{ dicoseRegistrationId: registration.id, count: 2 }]);
   });
 });

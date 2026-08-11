@@ -365,3 +365,37 @@ export async function countOwnTagsByRegistration(): Promise<
     lastUploadedAt: row.lastUploadedAt ? new Date(row.lastUploadedAt) : null,
   }));
 }
+
+// How many currently-alive animals belong to each owner+campo pair — the
+// own-tags settings page shows this per DICOSE registration (owner+campo),
+// not the count of uploaded own-tag rows.
+export async function countAliveAnimalsByOwnerFarm(): Promise<
+  { ownerId: string; farmId: string; count: number }[]
+> {
+  const result = await db.execute<{ owner_id: string; farm_id: string; count: number }>(sql`
+    select a.owner_id, acs.current_farm_id as farm_id, count(*)::int as count
+    from animal_current_state acs
+    join animal a on a.id = acs.animal_id
+    where acs.status = 'alive' and acs.current_farm_id is not null
+    group by a.owner_id, acs.current_farm_id
+  `);
+  return result.rows.map((row) => ({ ownerId: row.owner_id, farmId: row.farm_id, count: row.count }));
+}
+
+// Own-tag rows with no animal behind them yet (a bare caravana upload — see
+// hasAnimalSignal) don't show up in countAliveAnimalsByOwnerFarm at all,
+// since no animal was created. The settings page adds this in per
+// registration so a bare caravana still counts as a head.
+export async function countBareOwnTagsByRegistration(): Promise<
+  { dicoseRegistrationId: string; count: number }[]
+> {
+  return db
+    .select({
+      dicoseRegistrationId: ownTag.dicoseRegistrationId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(ownTag)
+    .leftJoin(animalTagHistory, eq(animalTagHistory.tag, ownTag.tag))
+    .where(sql`${animalTagHistory.animalId} is null`)
+    .groupBy(ownTag.dicoseRegistrationId);
+}
