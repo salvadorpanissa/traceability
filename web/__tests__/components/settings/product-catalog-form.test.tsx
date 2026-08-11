@@ -12,6 +12,7 @@ vi.mock("@/app/(protected)/settings/products/actions", () => ({
 }));
 
 const establishments = [{ id: "establishment-1", name: "Campo Norte", farmId: "group-1" }];
+const farms = [{ id: "group-1", name: "Campo Norte" }];
 
 describe("ProductCatalogForm", () => {
   it("lists products, adds a new one, and edits an existing one", async () => {
@@ -54,6 +55,7 @@ describe("ProductCatalogForm", () => {
           },
         ]}
         establishments={establishments}
+        farms={farms}
       />
     );
 
@@ -98,7 +100,7 @@ describe("ProductCatalogForm", () => {
   it("shows an inline error and keeps the form when the name is a duplicate", async () => {
     vi.mocked(createProductAction).mockResolvedValue({ ok: false, error: "Ya existe un producto con ese nombre" });
 
-    render(<ProductCatalogForm products={[]} establishments={establishments} />);
+    render(<ProductCatalogForm products={[]} establishments={establishments} farms={farms} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Aftosa");

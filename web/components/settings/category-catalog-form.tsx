@@ -13,28 +13,23 @@ import {
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
 type Establishment = { id: string; name: string; farmId: string };
-
-function farmLabelsById(establishments: Establishment[]): Map<string, string> {
-  const namesByFarm = new Map<string, string[]>();
-  for (const e of establishments) {
-    namesByFarm.set(e.farmId, [...(namesByFarm.get(e.farmId) ?? []), e.name]);
-  }
-  return new Map([...namesByFarm].map(([farmId, names]) => [farmId, names.join(" + ")]));
-}
+type Farm = { id: string; name: string };
 
 export function CategoryCatalogForm({
   categories: initialCategories,
   animalCounts: initialAnimalCounts = {},
   establishments,
+  farms,
 }: {
   categories: CategoryCatalogEntry[];
   animalCounts?: Record<string, number>;
   establishments: Establishment[];
+  farms: Farm[];
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [animalCounts, setAnimalCounts] = useState(initialAnimalCounts);
-  const farmLabels = farmLabelsById(establishments);
-  const showFarmColumn = farmLabels.size > 1;
+  const farmLabels = new Map(farms.map((f) => [f.id, f.name]));
+  const showFarmColumn = farms.length > 1;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -206,7 +201,7 @@ export function CategoryCatalogForm({
             <th className="py-1 pr-2">Nombre</th>
             <th className="py-1 pr-2">Sexo</th>
             <th className="py-1 pr-2">Edad mín. (meses)</th>
-            {showFarmColumn ? <th className="py-1 pr-2">Grupo</th> : null}
+            {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
             <th className="py-1 pr-2" />
           </tr>
         </thead>
@@ -259,7 +254,7 @@ export function CategoryCatalogForm({
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => startArchive(entry.id)}>
+                  <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
                     Eliminar
                   </Button>
                 </td>
