@@ -19,9 +19,8 @@ const PADDOCK_NAMES = ["Potrero Norte", "Potrero Sur"];
 
 // Sex-neutral "Recría" brackets every 2 months right after Ternero/a make
 // the age-based recategorization replay below visibly change categories
-// often instead of just twice (at 12 and 24 months) — one bracket ladder
-// shared by both sexes, then the usual sex-specific categories take over
-// from 12 months on.
+// often — one shared ladder, topping out at 10 months (no 12/24-month
+// categories for now).
 const CATEGORIES = [
   { name: "Ternero", sex: "male" as const, minAgeMonths: 0 },
   { name: "Ternera", sex: "female" as const, minAgeMonths: 0 },
@@ -30,10 +29,6 @@ const CATEGORIES = [
   { name: "Recría 6 meses", sex: null, minAgeMonths: 6 },
   { name: "Recría 8 meses", sex: null, minAgeMonths: 8 },
   { name: "Recría 10 meses", sex: null, minAgeMonths: 10 },
-  { name: "Novillo", sex: "male" as const, minAgeMonths: 12 },
-  { name: "Vaquillona", sex: "female" as const, minAgeMonths: 12 },
-  { name: "Novillo 2-3 años", sex: "male" as const, minAgeMonths: 24 },
-  { name: "Vaca", sex: "female" as const, minAgeMonths: 24 },
 ];
 
 const PRODUCTS = [
