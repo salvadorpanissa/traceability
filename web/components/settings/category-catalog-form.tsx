@@ -195,74 +195,76 @@ export function CategoryCatalogForm({
         </Dialog>
       </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="py-1 pr-2">Nombre</th>
-            <th className="py-1 pr-2">Sexo</th>
-            <th className="py-1 pr-2">Edad mín. (meses)</th>
-            {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-            <th className="py-1 pr-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {activeCategories.map((entry) =>
-            editingId === entry.id ? (
-              <tr key={entry.id} className="border-b last:border-0">
-                <td className="py-1 pr-2">
-                  <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                </td>
-                <td className="py-1 pr-2">
-                  <select
-                    aria-label="Editar sexo"
-                    value={editSex}
-                    onChange={(e) => setEditSex(e.target.value)}
-                    className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-                  >
-                    <option value="">Ambos / no aplica</option>
-                    <option value="male">Macho</option>
-                    <option value="female">Hembra</option>
-                  </select>
-                </td>
-                <td className="py-1 pr-2">
-                  <Input
-                    aria-label="Editar edad mínima"
-                    type="number"
-                    value={editMinAgeMonths}
-                    onChange={(e) => setEditMinAgeMonths(e.target.value)}
-                  />
-                </td>
-                {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="flex gap-1 py-1 pr-2">
-                  <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                    Guardar
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                    Cancelar
-                  </Button>
-                </td>
-              </tr>
-            ) : (
-              <tr key={entry.id} className="border-b last:border-0">
-                <td className="py-1 pr-2">{entry.name}</td>
-                <td className="py-1 pr-2">
-                  {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
-                </td>
-                <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
-                {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="flex gap-1 py-1 pr-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                    Editar
-                  </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
-                    Eliminar
-                  </Button>
-                </td>
-              </tr>
-            )
-          )}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="py-1 pr-2">Nombre</th>
+              <th className="py-1 pr-2">Sexo</th>
+              <th className="py-1 pr-2">Edad mín. (meses)</th>
+              {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
+              <th className="py-1 pr-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {activeCategories.map((entry) =>
+              editingId === entry.id ? (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-1 pr-2">
+                    <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <select
+                      aria-label="Editar sexo"
+                      value={editSex}
+                      onChange={(e) => setEditSex(e.target.value)}
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                    >
+                      <option value="">Ambos / no aplica</option>
+                      <option value="male">Macho</option>
+                      <option value="female">Hembra</option>
+                    </select>
+                  </td>
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar edad mínima"
+                      type="number"
+                      value={editMinAgeMonths}
+                      onChange={(e) => setEditMinAgeMonths(e.target.value)}
+                    />
+                  </td>
+                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
+                  <td className="flex gap-1 py-1 pr-2">
+                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
+                      Guardar
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
+                      Cancelar
+                    </Button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-1 pr-2">{entry.name}</td>
+                  <td className="py-1 pr-2">
+                    {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
+                  </td>
+                  <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
+                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
+                  <td className="flex gap-1 py-1 pr-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
+                      Editar
+                    </Button>
+                    <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
+                      Eliminar
+                    </Button>
+                  </td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
       {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
 
       {archivingId
