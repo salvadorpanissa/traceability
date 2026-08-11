@@ -36,6 +36,25 @@ describe("parseExcelFile", () => {
     expect(rows).toEqual([]);
   });
 
+  it("skips trailing blank rows below the real data", async () => {
+    // A row with every cell cleared to "" still has cellCount > 0 in ExcelJS,
+    // which is exactly what real spreadsheets leave behind past the last row
+    // of actual data (formatting/used-range extends further than the data).
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha"],
+      [
+        ["123456789012345", "2026-01-15"],
+        ["", ""],
+        ["", ""],
+      ]
+    );
+
+    const { rows } = await parseExcelFile(buffer);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0][0]).toBe("123456789012345");
+  });
+
   it("formats a real Excel date cell as an ISO date instead of a locale-formatted string", async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Sheet1");

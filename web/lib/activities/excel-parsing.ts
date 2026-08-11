@@ -62,6 +62,10 @@ export async function parseExcelFile(buffer: ArrayBuffer): Promise<ParsedExcel> 
     for (let col = 1; col <= headers.length; col++) {
       values.push(cellText(row.getCell(col)));
     }
+    // Excel keeps a row's cells "present" (non-zero cellCount) even once every
+    // value has been cleared out — trailing rows below the real data commonly
+    // end up like this — so cellCount alone doesn't detect a blank row.
+    if (values.every((value) => value === "")) continue;
     rows.push(values);
   }
 
