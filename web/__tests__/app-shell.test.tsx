@@ -10,8 +10,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mockedPathname,
 }));
 
-vi.mock("@/components/settings-menu", () => ({
-  SettingsMenu: () => <span>settings-menu</span>,
+vi.mock("@/components/theme-toggle", () => ({
+  ThemeToggle: () => <span>theme-toggle</span>,
 }));
 
 afterEach(cleanup);
@@ -30,23 +30,24 @@ describe("AppShell", () => {
 
     const user = userEvent.setup();
     const userButton = screen.getByRole("button", { name: "Menú de usuario" });
-    const activeNavLink = screen.getByRole("link", { name: "Sanidades" });
+    const activeNavLink = screen.getByRole("link", { name: "Sanidad" });
 
-    expect(screen.getByText("settings-menu")).toBeInTheDocument();
+    expect(screen.getByText("theme-toggle")).toBeInTheDocument();
     expect(activeNavLink).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("link", { name: "Registro de Caravanas" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Recategorización" })).toHaveAttribute("href", "/activities/recategorize");
     expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 
-    await user.click(userButton);
-
     const settingsLink = screen.getByRole("link", { name: "Configuración del campo" });
     expect(settingsLink).toHaveAttribute("href", "/settings");
+
+    await user.click(userButton);
+
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
 
-  it("only marks Liquidaciones as active on /activities/sale-settlement, not Venta", async () => {
+  it("only marks Liquidación as active on /activities/sale-settlement, not Venta", async () => {
     mockedPathname = "/activities/sale-settlement";
 
     render(
@@ -57,7 +58,7 @@ describe("AppShell", () => {
       </LocaleProvider>
     );
 
-    expect(screen.getByRole("link", { name: "Liquidaciones" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Liquidación" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Venta" })).not.toHaveAttribute("aria-current", "page");
   });
 });

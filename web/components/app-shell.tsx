@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { AppLogo } from "@/components/app-logo";
 import { LogoutButton } from "@/components/logout-button";
-import { SettingsMenu } from "@/components/settings-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { FarmSettingsButton } from "@/components/farm-settings-button";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/lib/i18n/context";
 import type { TranslationKey } from "@/lib/i18n/dictionaries";
@@ -96,14 +98,16 @@ export function AppShell({
             </Button>
             <Link
               href="/dashboard"
-              className="truncate text-base font-bold md:text-lg"
+              className="flex items-center gap-1.5 truncate text-base font-bold md:text-lg"
               onClick={() => {
                 setIsMobileNavOpen(false);
                 setIsUserMenuOpen(false);
               }}
             >
+              <AppLogo className="size-8 shrink-0" />
               {t("app.title")}
             </Link>
+            <ThemeToggle />
           </div>
 
           <nav
@@ -133,7 +137,12 @@ export function AppShell({
           </nav>
 
           <div className="flex min-w-0 items-center justify-end gap-2 md:gap-3">
-            <SettingsMenu />
+            <FarmSettingsButton
+              onNavigate={() => {
+                setIsMobileNavOpen(false);
+                setIsUserMenuOpen(false);
+              }}
+            />
 
             <div className="relative" ref={userMenuRef}>
               <Button
@@ -149,16 +158,6 @@ export function AppShell({
               </Button>
               {isUserMenuOpen ? (
                 <div className="absolute right-0 z-10 mt-2 min-w-40 rounded-md border bg-background p-1 shadow-md">
-                  <Link
-                    href="/settings"
-                    onClick={() => {
-                      setIsMobileNavOpen(false);
-                      setIsUserMenuOpen(false);
-                    }}
-                    className="block rounded-md px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-muted"
-                  >
-                    {t("appShell.navFarmSettings")}
-                  </Link>
                   <LogoutButton className="w-full justify-start" />
                 </div>
               ) : null}

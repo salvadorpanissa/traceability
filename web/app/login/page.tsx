@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { AppLogo } from "@/components/app-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "@/components/login-form";
-import { SettingsMenu } from "@/components/settings-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 
 export default async function LoginPage() {
@@ -12,11 +13,14 @@ export default async function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted p-4">
       <div className="absolute right-4 top-4">
-        <SettingsMenu />
+        <ThemeToggle />
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>{translate(locale, "app.title")}</CardTitle>
+          <CardTitle className="flex items-center gap-1.5">
+            <AppLogo className="size-8 shrink-0" />
+            {translate(locale, "app.title")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Suspense>
