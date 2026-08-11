@@ -1,13 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryCatalogForm } from "@/components/settings/category-catalog-form";
 import { listAllCategoriesForFarms, countAliveAnimalsByCategory } from "@/lib/dal/category-catalog";
-import { listSelectableEstablishments } from "@/lib/dal/farm-access";
+import { listSelectableEstablishments, listSelectableFarms } from "@/lib/dal/farm-access";
 import { requireSession } from "@/lib/dal/session";
 
 export default async function CategoriesSettingsPage() {
   const session = await requireSession();
-  const establishments = await listSelectableEstablishments(session.user.id, session.user.role);
-  const farmIds = [...new Set(establishments.map((e) => e.farmId))];
+  const [establishments, farms] = await Promise.all([
+    listSelectableEstablishments(session.user.id, session.user.role),
+    listSelectableFarms(session.user.id, session.user.role),
+  ]);
+  const farmIds = farms.map((f) => f.id);
   const [categories, animalCounts] = await Promise.all([
     listAllCategoriesForFarms(farmIds),
     countAliveAnimalsByCategory(),
@@ -23,6 +26,7 @@ export default async function CategoriesSettingsPage() {
           categories={categories}
           animalCounts={Object.fromEntries(animalCounts)}
           establishments={establishments}
+          farms={farms}
         />
       </CardContent>
     </Card>

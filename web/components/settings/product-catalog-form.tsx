@@ -9,25 +9,20 @@ import { createProductAction, updateProductAction } from "@/app/(protected)/sett
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
 type Establishment = { id: string; name: string; farmId: string };
-
-function farmLabelsById(establishments: Establishment[]): Map<string, string> {
-  const namesByFarm = new Map<string, string[]>();
-  for (const e of establishments) {
-    namesByFarm.set(e.farmId, [...(namesByFarm.get(e.farmId) ?? []), e.name]);
-  }
-  return new Map([...namesByFarm].map(([farmId, names]) => [farmId, names.join(" + ")]));
-}
+type Farm = { id: string; name: string };
 
 export function ProductCatalogForm({
   products: initialProducts,
   establishments,
+  farms,
 }: {
   products: ProductCatalogEntry[];
   establishments: Establishment[];
+  farms: Farm[];
 }) {
   const [products, setProducts] = useState(initialProducts);
-  const farmLabels = farmLabelsById(establishments);
-  const showFarmColumn = farmLabels.size > 1;
+  const farmLabels = new Map(farms.map((f) => [f.id, f.name]));
+  const showFarmColumn = farms.length > 1;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -166,7 +161,7 @@ export function ProductCatalogForm({
             <th className="py-1 pr-2">Unidad de dosis</th>
             <th className="py-1 pr-2">Vía</th>
             <th className="py-1 pr-2">Días de retiro</th>
-            {showFarmColumn ? <th className="py-1 pr-2">Grupo</th> : null}
+            {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
             <th className="py-1 pr-2" />
           </tr>
         </thead>

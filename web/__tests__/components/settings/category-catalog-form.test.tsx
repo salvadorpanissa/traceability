@@ -17,6 +17,7 @@ vi.mock("@/app/(protected)/settings/categories/actions", () => ({
 }));
 
 const establishments = [{ id: "establishment-1", name: "Campo Norte", farmId: "group-1" }];
+const farms = [{ id: "group-1", name: "Campo Norte" }];
 
 describe("CategoryCatalogForm", () => {
   it("lists categories, adds a new one, and edits an existing one", async () => {
@@ -40,6 +41,7 @@ describe("CategoryCatalogForm", () => {
       <CategoryCatalogForm
         categories={[{ id: "cat-1", farmId: "group-1", name: "Vaca", sex: null, minAgeMonths: null, active: true }]}
         establishments={establishments}
+        farms={farms}
       />
     );
 
@@ -72,7 +74,7 @@ describe("CategoryCatalogForm", () => {
   it("shows an inline error when the name is a duplicate", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({ ok: false, error: "Ya existe una categoría con ese nombre" });
 
-    render(<CategoryCatalogForm categories={[]} establishments={establishments} />);
+    render(<CategoryCatalogForm categories={[]} establishments={establishments} farms={farms} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Vaca");
@@ -87,7 +89,7 @@ describe("CategoryCatalogForm", () => {
       entry: { id: "cat-2", farmId: "group-1", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
     });
 
-    render(<CategoryCatalogForm categories={[]} establishments={establishments} />);
+    render(<CategoryCatalogForm categories={[]} establishments={establishments} farms={farms} />);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "+ Agregar" }));
@@ -115,6 +117,7 @@ describe("CategoryCatalogForm", () => {
         categories={[{ id: "cat-1", farmId: "group-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
         animalCounts={{}}
         establishments={establishments}
+        farms={farms}
       />
     );
 
@@ -142,6 +145,7 @@ describe("CategoryCatalogForm", () => {
         ]}
         animalCounts={{ "cat-1": 492 }}
         establishments={establishments}
+        farms={farms}
       />
     );
 
@@ -169,6 +173,7 @@ describe("CategoryCatalogForm", () => {
         categories={[{ id: "cat-1", farmId: "group-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
         animalCounts={{}}
         establishments={establishments}
+        farms={farms}
       />
     );
 
