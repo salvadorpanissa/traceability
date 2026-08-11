@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   batchOperation,
@@ -34,12 +34,12 @@ async function seedManagerAndFarm() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -52,7 +52,7 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
   } as never);
@@ -81,8 +81,8 @@ describe("downloadGuideDocumentAction", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       guideNumber: "D838153",
       guideDocument: {
@@ -108,8 +108,8 @@ describe("downloadGuideDocumentAction", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       rows: sampleRows(),
     });
@@ -120,13 +120,13 @@ describe("downloadGuideDocumentAction", () => {
     expect(result).toBeNull();
   });
 
-  it("rejects when the logged-in user lacks access to the batch's farm", async () => {
+  it("rejects when the logged-in user lacks access to the batch's establishment", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       guideNumber: "D838153",
       guideDocument: {

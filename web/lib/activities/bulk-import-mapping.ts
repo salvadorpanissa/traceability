@@ -2,7 +2,7 @@ export type ImportColumnMeaning =
   | "tag"
   | "secondaryTag"
   | "owner"
-  | "farm"
+  | "establishment"
   | "paddock"
   | "category"
   | "breed"
@@ -20,7 +20,7 @@ export type MappedImportRow = {
   tag: string;
   secondaryTag: string | null;
   ownerName: string | null;
-  farmName: string | null;
+  establishmentName: string | null;
   paddockName: string | null;
   categoryName: string | null;
   breed: string | null;
@@ -38,7 +38,7 @@ const HEADER_MEANING_BY_TEXT: Record<string, ImportColumnMeaning> = {
   "IDE (caravana electrónica)": "tag",
   "Chip secundario": "secondaryTag",
   Propietario: "owner",
-  Estancia: "farm",
+  Estancia: "establishment",
   "Potrero actual": "paddock",
   Categoría: "category",
   Raza: "breed",
@@ -65,7 +65,7 @@ export function applyImportColumnMapping(
   const tagIndex = columnIndexFor(headers, mapping, "tag");
   const secondaryTagIndex = columnIndexFor(headers, mapping, "secondaryTag");
   const ownerIndex = columnIndexFor(headers, mapping, "owner");
-  const farmIndex = columnIndexFor(headers, mapping, "farm");
+  const establishmentIndex = columnIndexFor(headers, mapping, "establishment");
   const paddockIndex = columnIndexFor(headers, mapping, "paddock");
   const categoryIndex = columnIndexFor(headers, mapping, "category");
   const breedIndex = columnIndexFor(headers, mapping, "breed");
@@ -77,7 +77,7 @@ export function applyImportColumnMapping(
     tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
     secondaryTag: secondaryTagIndex >= 0 ? (row[secondaryTagIndex] || null) : null,
     ownerName: ownerIndex >= 0 ? (row[ownerIndex] || null) : null,
-    farmName: farmIndex >= 0 ? (row[farmIndex] || null) : null,
+    establishmentName: establishmentIndex >= 0 ? (row[establishmentIndex] || null) : null,
     paddockName: paddockIndex >= 0 ? (row[paddockIndex] || null) : null,
     categoryName: categoryIndex >= 0 ? (row[categoryIndex] || null) : null,
     breed: breedIndex >= 0 ? (row[breedIndex] || null) : null,

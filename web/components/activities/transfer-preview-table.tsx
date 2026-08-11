@@ -3,7 +3,7 @@ import type { ResolvedRow } from "@/lib/activities/transfer";
 function statusLabel(row: ResolvedRow): string {
   if (row.status === "existing") return "Existente";
   if (row.status === "new") return "Nuevo";
-  if (row.status === "wrong_farm") return "Campo incorrecto";
+  if (row.status === "wrong_establishment") return "Campo incorrecto";
   if (row.status === "foreign") return "Ajena";
   return "Error";
 }
@@ -11,7 +11,7 @@ function statusLabel(row: ResolvedRow): string {
 function detailText(row: ResolvedRow): string | null {
   if (row.status === "error") return row.reason;
   if (row.status === "new" && row.pendingOwnerName) return `Propietario pendiente: ${row.pendingOwnerName}`;
-  if (row.status === "wrong_farm") return `Registrada en ${row.registeredFarmName} — verificar pastoreo`;
+  if (row.status === "wrong_establishment") return `Registrada en ${row.registeredEstablishmentName} — verificar pastoreo`;
   if (row.status === "foreign" && row.pendingOwnerName) return `Propietario pendiente: ${row.pendingOwnerName}`;
   return null;
 }

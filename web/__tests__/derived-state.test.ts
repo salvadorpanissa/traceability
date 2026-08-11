@@ -4,9 +4,9 @@ import { testDb } from "../test/db";
 import { resetTestDb } from "../test/reset-db";
 import { refreshDerivedState } from "../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -18,34 +18,34 @@ beforeEach(async () => {
   await resetTestDb();
 });
 
-async function currentFarmIdFor(animalId: string): Promise<string | null> {
-  const result = await testDb.execute<{ current_farm_id: string | null }>(
-    sql`select current_farm_id from animal_current_state where animal_id = ${animalId}`,
+async function currentEstablishmentIdFor(animalId: string): Promise<string | null> {
+  const result = await testDb.execute<{ current_establishment_id: string | null }>(
+    sql`select current_establishment_id from animal_current_state where animal_id = ${animalId}`,
   );
-  return result.rows[0]?.current_farm_id ?? null;
+  return result.rows[0]?.current_establishment_id ?? null;
 }
 
 describe("animal_current_state", () => {
-  it("reflects the transfer destination farm after insert, and excludes voided transfers", async () => {
+  it("reflects the transfer destination establishment after insert, and excludes voided transfers", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [user] = await testDb
       .insert(userAccount)
@@ -62,7 +62,7 @@ describe("animal_current_state", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: farmNorte.id,
+        establishmentId: farmNorte.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -73,7 +73,7 @@ describe("animal_current_state", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: farmNorte.id,
+        establishmentId: farmNorte.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       })
@@ -82,19 +82,19 @@ describe("animal_current_state", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmNorte.id,
-        destinationFarmId: farmSur.id,
+        originEstablishmentId: farmNorte.id,
+        destinationEstablishmentId: farmSur.id,
       });
     await refreshDerivedState();
 
-    expect(await currentFarmIdFor(createdAnimal.id)).toBe(farmSur.id);
+    expect(await currentEstablishmentIdFor(createdAnimal.id)).toBe(farmSur.id);
 
-    // Void the transfer and confirm the animal falls back to "no current farm".
+    // Void the transfer and confirm the animal falls back to "no current establishment".
     const [voidBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "void",
-        farmId: farmNorte.id,
+        establishmentId: farmNorte.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -103,14 +103,14 @@ describe("animal_current_state", () => {
       eventType: "void",
       eventDate: "2026-01-02",
       animalId: createdAnimal.id,
-      farmId: farmNorte.id,
+      establishmentId: farmNorte.id,
       batchOperationId: voidBatch.id,
       createdBy: user.id,
       voidsEventId: transferEvent.id,
     });
     await refreshDerivedState();
 
-    expect(await currentFarmIdFor(createdAnimal.id)).toBeNull();
+    expect(await currentEstablishmentIdFor(createdAnimal.id)).toBeNull();
 
     const remainingTransferEvents = await testDb.execute(
       sql`select count(*) as count from event where event_type = 'transfer'`,

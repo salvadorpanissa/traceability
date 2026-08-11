@@ -14,20 +14,20 @@ import {
   type OwnTagPreviewResult,
 } from "@/app/(protected)/settings/own-tags/actions";
 import { ownTagMappingHasAnimalData, type ColumnMapping } from "@/lib/activities/column-mapping";
-import type { DicoseRegistrationEntry } from "@/lib/dal/dicose-registration";
+import type { DicoseEntry } from "@/lib/dal/dicose";
 import type { OwnTagImportResult } from "@/lib/dal/own-tag";
 
-type CountRow = { registration: DicoseRegistrationEntry; count: number; lastUploadedAt: string | null };
+type CountRow = { registration: DicoseEntry; count: number; lastUploadedAt: string | null };
 
 export function OwnTagUploadForm({
   registrations,
   counts: initialCounts,
 }: {
-  registrations: DicoseRegistrationEntry[];
+  registrations: DicoseEntry[];
   counts: CountRow[];
 }) {
   const [counts, setCounts] = useState(initialCounts);
-  const [dicoseRegistrationId, setDicoseRegistrationId] = useState("");
+  const [dicoseId, setDicoseId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<OwnTagPreviewResult | null>(null);
   const [resolvedPaddockNames, setResolvedPaddockNames] = useState<string[]>([]);
@@ -43,31 +43,31 @@ export function OwnTagUploadForm({
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !dicoseRegistrationId) return;
+    if (!file || !dicoseId) return;
     const formData = new FormData();
     formData.set("file", file);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     setResolvedPaddockNames([]);
     setResolvedCategoryNames([]);
-    setPreview(await previewOwnTagUpload(dicoseRegistrationId, formData));
+    setPreview(await previewOwnTagUpload(dicoseId, formData));
   }
 
   async function handleCreatePaddock(name: string) {
-    const farmId = registrations.find((r) => r.id === dicoseRegistrationId)?.farmId;
-    if (!farmId) throw new Error("Elegí un registro DICOSE primero");
-    return createOwnTagPaddockAction(farmId, name);
+    const establishmentId = registrations.find((r) => r.id === dicoseId)?.establishmentId;
+    if (!establishmentId) throw new Error("Elegí un registro DICOSE primero");
+    return createOwnTagPaddockAction(establishmentId, name);
   }
 
   async function handleCreateCategory(name: string) {
-    const farmId = registrations.find((r) => r.id === dicoseRegistrationId)?.farmId;
-    if (!farmId) throw new Error("Elegí un registro DICOSE primero");
-    return createOwnTagCategoryAction(farmId, name);
+    const establishmentId = registrations.find((r) => r.id === dicoseId)?.establishmentId;
+    if (!establishmentId) throw new Error("Elegí un registro DICOSE primero");
+    return createOwnTagCategoryAction(establishmentId, name);
   }
 
   async function handleConfirm() {
-    if (!dicoseRegistrationId || !preview || preview.mappingNeeded) return;
+    if (!dicoseId || !preview || preview.mappingNeeded) return;
     const importResult = await confirmOwnTagUpload(
-      dicoseRegistrationId,
+      dicoseId,
       preview.headerSignature,
       preview.mapping,
       preview.rows
@@ -75,7 +75,7 @@ export function OwnTagUploadForm({
     setResult(importResult);
     setCounts((prev) =>
       prev.map((row) =>
-        row.registration.id === dicoseRegistrationId
+        row.registration.id === dicoseId
           ? { ...row, count: row.count + importResult.registered, lastUploadedAt: new Date().toISOString() }
           : row
       )
@@ -110,7 +110,7 @@ export function OwnTagUploadForm({
           {counts.map((row) => (
             <tr key={row.registration.id} className="border-b last:border-0">
               <td className="py-1 pr-2">{row.registration.ownerName}</td>
-              <td className="py-1 pr-2">{row.registration.farmName}</td>
+              <td className="py-1 pr-2">{row.registration.establishmentName}</td>
               <td className="py-1 pr-2">{row.registration.dicoseCode}</td>
               <td className="py-1 pr-2">{row.count}</td>
               <td className="py-1 pr-2">
@@ -125,14 +125,14 @@ export function OwnTagUploadForm({
         <Label htmlFor="own-tag-dicose">DICOSE</Label>
         <select
           id="own-tag-dicose"
-          value={dicoseRegistrationId}
-          onChange={(e) => setDicoseRegistrationId(e.target.value)}
+          value={dicoseId}
+          onChange={(e) => setDicoseId(e.target.value)}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir...</option>
           {registrations.map((registration) => (
             <option key={registration.id} value={registration.id}>
-              {registration.ownerName} — {registration.farmName} ({registration.dicoseCode})
+              {registration.ownerName} — {registration.establishmentName} ({registration.dicoseCode})
             </option>
           ))}
         </select>
@@ -140,7 +140,7 @@ export function OwnTagUploadForm({
         <Label htmlFor="own-tag-file">Archivo</Label>
         <Input id="own-tag-file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
 
-        <Button type="button" disabled={!file || !dicoseRegistrationId} onClick={() => runPreview()}>
+        <Button type="button" disabled={!file || !dicoseId} onClick={() => runPreview()}>
           Subir
         </Button>
 

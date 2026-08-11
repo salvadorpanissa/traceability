@@ -4,9 +4,9 @@ import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   animalTagHistory,
@@ -16,7 +16,7 @@ import {
   eventSale,
   category,
   owner,
-  dicoseRegistration,
+  dicose,
   ownTag,
 } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
@@ -29,7 +29,7 @@ beforeEach(async () => {
   await resetTestDb();
 });
 
-async function seedFarmUserRole(farmName = "Campo Norte") {
+async function seedFarmUserRole(establishmentName = "Campo Norte") {
   const [existingRole] = await testDb
     .select()
     .from(role)
@@ -38,18 +38,18 @@ async function seedFarmUserRole(farmName = "Campo Norte") {
     existingRole ??
     (await testDb.insert(role).values({ name: "admin" }).returning())[0];
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
-    .values({ name: farmName })
+    .insert(farm)
+    .values({ name: establishmentName })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: farmName })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: establishmentName })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
     .values({
       name: "Admin",
-      email: `admin-${farmName}@example.com`,
+      email: `admin-${establishmentName}@example.com`,
       passwordHash: "hashed",
       roleId: adminRole.id,
     })
@@ -68,7 +68,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
     .insert(batchOperation)
     .values({
       eventType: "transfer",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: user.id,
     })
@@ -79,7 +79,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
       eventType: "transfer",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: batch.id,
       createdBy: user.id,
     })
@@ -88,8 +88,8 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
     .insert(eventTransfer)
     .values({
       eventId: createdEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
     });
 
   if (opts.sold) {
@@ -97,7 +97,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -108,7 +108,7 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
         eventType: "sale",
         eventDate: "2026-01-02",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: saleBatch.id,
         createdBy: user.id,
       })
@@ -120,18 +120,18 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
   return { seededFarm, user, createdAnimal };
 }
 
-async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
+async function seedOwnTag(tag: string, establishmentId: string, ownerName: string) {
   const [ownerRow] = await testDb
     .insert(owner)
     .values({ name: ownerName })
     .returning();
   const [registration] = await testDb
-    .insert(dicoseRegistration)
-    .values({ ownerId: ownerRow.id, farmId, dicoseCode: "999999999" })
+    .insert(dicose)
+    .values({ ownerId: ownerRow.id, establishmentId, dicoseCode: "999999999" })
     .returning();
   await testDb
     .insert(ownTag)
-    .values({ tag, dicoseRegistrationId: registration.id });
+    .values({ tag, dicoseId: registration.id });
   return ownerRow;
 }
 
@@ -160,7 +160,7 @@ describe("resolveBatchRows", () => {
       status: "existing",
       tag: "AR000000000001",
       animalId: createdAnimal.id,
-      currentFarmId: seededFarm.id,
+      currentEstablishmentId: seededFarm.id,
       eventDate: "2026-02-01",
     });
   });
@@ -188,12 +188,12 @@ describe("resolveBatchRows", () => {
     expect(resolved.status).toBe("error");
   });
 
-  it("resolves a registered tag at its own farm with a matching category", async () => {
+  it("resolves a registered tag at its own establishment with a matching category", async () => {
     const { seededFarm, seededFarmGroup } = await seedFarmUserRole();
     await seedOwnTag("AR000000000003", seededFarm.id, "AIP");
     const [createdCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const rows: MappedRow[] = [
       {
@@ -585,7 +585,7 @@ describe("resolveBatchRows", () => {
     });
   });
 
-  it("marks a tag registered at a different farm as wrong_farm, with the owner inferred from its DICOSE", async () => {
+  it("marks a tag registered at a different establishment as wrong_establishment, with the owner inferred from its DICOSE", async () => {
     const { seededFarm: homeFarm } =
       await seedFarmUserRole("Campo San Antonio");
     const { seededFarm: otherFarm } = await seedFarmUserRole("Cuatro Cerros");
@@ -608,10 +608,10 @@ describe("resolveBatchRows", () => {
     const [resolved] = await resolveBatchRows(rows, "2026-02-01", otherFarm.id);
 
     expect(resolved).toMatchObject({
-      status: "wrong_farm",
+      status: "wrong_establishment",
       ownerId: registeredOwner.id,
-      registeredFarmId: homeFarm.id,
-      registeredFarmName: "Campo San Antonio",
+      registeredEstablishmentId: homeFarm.id,
+      registeredEstablishmentName: "Campo San Antonio",
     });
   });
 

@@ -12,7 +12,7 @@ const MEANING_LABELS: Record<ImportColumnMeaning, string> = {
   tag: "Caravana",
   secondaryTag: "Chip secundario",
   owner: "Propietario",
-  farm: "Estancia",
+  establishment: "Estancia",
   paddock: "Potrero",
   category: "Categoría",
   breed: "Raza",

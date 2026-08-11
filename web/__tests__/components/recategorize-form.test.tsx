@@ -16,24 +16,24 @@ vi.mock("@/app/(protected)/activities/recategorize/actions", () => ({
   listCategoriesAction: vi.fn(),
 }));
 
-const farms = [{ id: "farm-1", name: "Campo Norte" }];
+const establishments = [{ id: "establishment-1", name: "Campo Norte" }];
 
 function sampleFile(): File {
   return new File(["Caravana,Fecha\nAR1,2026-03-01"], "lote.csv", { type: "text/csv" });
 }
 
 async function pickFarm(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+  await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
   await waitFor(() => expect(screen.getByLabelText("Categoría destino")).not.toBeDisabled());
 }
 
 describe("RecategorizeForm", () => {
   it("asks for a campo, loads that campo's categories, previews resolved rows, and confirms", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo", farmId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
       {
         id: "cat-novillo-plus3",
-        groupId: "group-1",
+        farmId: "group-1",
         name: "Novillo +3 años",
         sex: "male",
         minAgeMonths: 36,
@@ -52,7 +52,7 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-1",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentCategoryId: "cat-novillo",
           currentCategoryName: "Novillo",
           sex: null,
@@ -61,7 +61,7 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     expect(screen.getByLabelText("Categoría destino")).toBeDisabled();
@@ -82,7 +82,7 @@ describe("RecategorizeForm", () => {
       expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith({
         headerSignature: "sig",
         mapping: [],
-        farmId: "farm-1",
+        establishmentId: "establishment-1",
         targetCategoryId: "cat-novillo-plus3",
         rows: expect.any(Array),
         unresolvableDecisions: {},
@@ -94,10 +94,10 @@ describe("RecategorizeForm", () => {
 
   it("shows the server's error message when confirming fails", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo", farmId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
       {
         id: "cat-novillo-plus3",
-        groupId: "group-1",
+        farmId: "group-1",
         name: "Novillo +3 años",
         sex: "male",
         minAgeMonths: 36,
@@ -116,7 +116,7 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-1",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentCategoryId: "cat-novillo",
           currentCategoryName: "Novillo",
           sex: null,
@@ -127,7 +127,7 @@ describe("RecategorizeForm", () => {
       new Error("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.")
     );
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);
@@ -155,7 +155,7 @@ describe("RecategorizeForm", () => {
 
   it("disables Confirmar when a row has an error", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo", farmId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
     ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
@@ -165,7 +165,7 @@ describe("RecategorizeForm", () => {
       rows: [{ tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" }],
     });
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);
@@ -179,7 +179,7 @@ describe("RecategorizeForm", () => {
 
   it("shows an age-resolved row as confirmable without needing the target category", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo", farmId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
     ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
@@ -193,7 +193,7 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "age-resolved",
           animalId: "animal-3",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           resolvedCategoryId: "cat-ternero",
           resolvedCategoryName: "Ternero/a",
         },
@@ -201,7 +201,7 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);
@@ -222,7 +222,7 @@ describe("RecategorizeForm", () => {
 
   it("lets the user override the global decision for an individual age-unresolvable row", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo", groupId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo", farmId: "group-1", name: "Novillo", sex: null, minAgeMonths: null, active: true },
     ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
@@ -236,14 +236,14 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "age-unresolvable",
           animalId: "animal-4",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           sex: null,
         },
       ],
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);
@@ -269,8 +269,8 @@ describe("RecategorizeForm", () => {
 
   it("excludes a sex-mismatched existing row by default, and includes it when overridden to assignTarget", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-vaca", groupId: "group-1", name: "Vaca", sex: null, minAgeMonths: null, active: true },
-      { id: "cat-novillo-macho", groupId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
+      { id: "cat-vaca", farmId: "group-1", name: "Vaca", sex: null, minAgeMonths: null, active: true },
+      { id: "cat-novillo-macho", farmId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
     ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
@@ -284,7 +284,7 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-5",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentCategoryId: "cat-vaca",
           currentCategoryName: "Vaca",
           sex: "female",
@@ -293,7 +293,7 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);
@@ -318,7 +318,7 @@ describe("RecategorizeForm", () => {
 
   it("shows a second decision selector on an age-unresolvable row once assigned to a mismatched target", async () => {
     vi.mocked(listCategoriesAction).mockResolvedValue([
-      { id: "cat-novillo-macho", groupId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
+      { id: "cat-novillo-macho", farmId: "group-1", name: "Novillo", sex: "male", minAgeMonths: null, active: true },
     ]);
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
@@ -332,14 +332,14 @@ describe("RecategorizeForm", () => {
           notes: null,
           status: "age-unresolvable",
           animalId: "animal-6",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           sex: "female",
         },
       ],
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm farms={farms} />);
+    render(<RecategorizeForm establishments={establishments} />);
 
     const user = userEvent.setup();
     await pickFarm(user);

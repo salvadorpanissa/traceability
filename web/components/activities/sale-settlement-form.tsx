@@ -96,7 +96,7 @@ export function SaleSettlementForm() {
             <dt className="text-muted-foreground">Total</dt>
             <dd>{preview.total}</dd>
             <dt className="text-muted-foreground">Campo</dt>
-            <dd>{preview.match.farmName}</dd>
+            <dd>{preview.match.establishmentName}</dd>
             <dt className="text-muted-foreground">Fecha de la venta</dt>
             <dd>{preview.match.eventDate}</dd>
             <dt className="text-muted-foreground">Comprador</dt>

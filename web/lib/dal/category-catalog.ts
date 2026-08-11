@@ -4,7 +4,7 @@ import { category } from "@/db/schema";
 
 export type CategoryCatalogEntry = {
   id: string;
-  groupId: string;
+  farmId: string;
   name: string;
   sex: "male" | "female" | null;
   minAgeMonths: number | null;
@@ -13,7 +13,7 @@ export type CategoryCatalogEntry = {
 
 const CATEGORY_COLUMNS = {
   id: category.id,
-  groupId: category.groupId,
+  farmId: category.farmId,
   name: category.name,
   sex: category.sex,
   minAgeMonths: category.minAgeMonths,
@@ -24,34 +24,34 @@ const CATEGORY_COLUMNS = {
 // forward (manual recategorize, imports) should offer. An archived category
 // still exists (its historical events still reference it) but shouldn't be
 // chosen for new assignments.
-export async function listCategoriesByGroup(groupId: string): Promise<CategoryCatalogEntry[]> {
+export async function listCategoriesByFarm(farmId: string): Promise<CategoryCatalogEntry[]> {
   return db
     .select(CATEGORY_COLUMNS)
     .from(category)
-    .where(sql`${category.groupId} = ${groupId} and ${category.active} = true`)
+    .where(sql`${category.farmId} = ${farmId} and ${category.active} = true`)
     .orderBy(asc(category.name));
 }
 
 // Every category regardless of active state — only the settings management
 // page needs this, to show archived categories alongside active ones.
-export async function listAllCategoriesByGroup(groupId: string): Promise<CategoryCatalogEntry[]> {
-  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.groupId, groupId)).orderBy(asc(category.name));
+export async function listAllCategoriesByFarm(farmId: string): Promise<CategoryCatalogEntry[]> {
+  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.farmId, farmId)).orderBy(asc(category.name));
 }
 
-// Every category (any active state) across a set of grupos — an admin can
-// reach more than one grupo, so the settings page lists them all together.
-export async function listAllCategoriesForGroups(groupIds: string[]): Promise<CategoryCatalogEntry[]> {
-  if (groupIds.length === 0) return [];
-  return db.select(CATEGORY_COLUMNS).from(category).where(inArray(category.groupId, groupIds)).orderBy(asc(category.name));
+// Every category (any active state) across a set of farms — an admin can
+// reach more than one farm, so the settings page lists them all together.
+export async function listAllCategoriesForFarms(farmIds: string[]): Promise<CategoryCatalogEntry[]> {
+  if (farmIds.length === 0) return [];
+  return db.select(CATEGORY_COLUMNS).from(category).where(inArray(category.farmId, farmIds)).orderBy(asc(category.name));
 }
 
-export async function getCategoryGroupId(id: string): Promise<string | null> {
-  const [row] = await db.select({ groupId: category.groupId }).from(category).where(eq(category.id, id));
-  return row?.groupId ?? null;
+export async function getCategoryFarmId(id: string): Promise<string | null> {
+  const [row] = await db.select({ farmId: category.farmId }).from(category).where(eq(category.id, id));
+  return row?.farmId ?? null;
 }
 
 export async function createCategory(
-  groupId: string,
+  farmId: string,
   input: {
     name: string;
     sex?: "male" | "female" | null;
@@ -61,7 +61,7 @@ export async function createCategory(
   const [created] = await db
     .insert(category)
     .values({
-      groupId,
+      farmId,
       name: input.name,
       sex: input.sex ?? null,
       minAgeMonths: input.minAgeMonths ?? null,
@@ -69,7 +69,7 @@ export async function createCategory(
     .returning();
   return {
     id: created.id,
-    groupId: created.groupId,
+    farmId: created.farmId,
     name: created.name,
     sex: created.sex,
     minAgeMonths: created.minAgeMonths,
@@ -92,7 +92,7 @@ export async function updateCategory(
     .returning();
   return {
     id: updated.id,
-    groupId: updated.groupId,
+    farmId: updated.farmId,
     name: updated.name,
     sex: updated.sex,
     minAgeMonths: updated.minAgeMonths,

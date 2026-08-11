@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateReportingSql } from "@/lib/dal/reporting/sql-validator";
 
-const ALLOWED_TABLES = ["my_animal_state", "my_farms"];
+const ALLOWED_TABLES = ["my_animal_state", "my_establishments"];
 
 describe("validateReportingSql", () => {
   it("accepts a simple SELECT against an allowed table", () => {

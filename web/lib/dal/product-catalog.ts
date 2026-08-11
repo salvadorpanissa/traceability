@@ -4,7 +4,7 @@ import { product } from "@/db/schema";
 
 export type ProductCatalogEntry = {
   id: string;
-  groupId: string;
+  farmId: string;
   name: string;
   defaultDose: string | null;
   defaultDoseUnit: string | null;
@@ -14,7 +14,7 @@ export type ProductCatalogEntry = {
 
 const PRODUCT_COLUMNS = {
   id: product.id,
-  groupId: product.groupId,
+  farmId: product.farmId,
   name: product.name,
   defaultDose: product.defaultDose,
   defaultDoseUnit: product.defaultDoseUnit,
@@ -22,24 +22,24 @@ const PRODUCT_COLUMNS = {
   defaultWithdrawalDays: product.defaultWithdrawalDays,
 };
 
-export async function listProductsByGroup(groupId: string): Promise<ProductCatalogEntry[]> {
-  return db.select(PRODUCT_COLUMNS).from(product).where(eq(product.groupId, groupId)).orderBy(asc(product.name));
+export async function listProductsByFarm(farmId: string): Promise<ProductCatalogEntry[]> {
+  return db.select(PRODUCT_COLUMNS).from(product).where(eq(product.farmId, farmId)).orderBy(asc(product.name));
 }
 
-// Every product across a set of grupos — an admin can reach more than one
-// grupo, so the settings page and sanidad's catalog list them all together.
-export async function listProductsForGroups(groupIds: string[]): Promise<ProductCatalogEntry[]> {
-  if (groupIds.length === 0) return [];
-  return db.select(PRODUCT_COLUMNS).from(product).where(inArray(product.groupId, groupIds)).orderBy(asc(product.name));
+// Every product across a set of farms — an admin can reach more than one
+// farm, so the settings page and sanidad's catalog list them all together.
+export async function listProductsForFarms(farmIds: string[]): Promise<ProductCatalogEntry[]> {
+  if (farmIds.length === 0) return [];
+  return db.select(PRODUCT_COLUMNS).from(product).where(inArray(product.farmId, farmIds)).orderBy(asc(product.name));
 }
 
-export async function getProductGroupId(id: string): Promise<string | null> {
-  const [row] = await db.select({ groupId: product.groupId }).from(product).where(eq(product.id, id));
-  return row?.groupId ?? null;
+export async function getProductFarmId(id: string): Promise<string | null> {
+  const [row] = await db.select({ farmId: product.farmId }).from(product).where(eq(product.id, id));
+  return row?.farmId ?? null;
 }
 
 export async function createProduct(
-  groupId: string,
+  farmId: string,
   name: string,
   options?: {
     defaultDose?: string | null;
@@ -51,7 +51,7 @@ export async function createProduct(
   const [created] = await db
     .insert(product)
     .values({
-      groupId,
+      farmId,
       name,
       defaultDose: options?.defaultDose ?? null,
       defaultDoseUnit: options?.defaultDoseUnit ?? null,
@@ -61,7 +61,7 @@ export async function createProduct(
     .returning();
   return {
     id: created.id,
-    groupId: created.groupId,
+    farmId: created.farmId,
     name: created.name,
     defaultDose: created.defaultDose,
     defaultDoseUnit: created.defaultDoseUnit,
@@ -93,7 +93,7 @@ export async function updateProduct(
     .returning();
   return {
     id: updated.id,
-    groupId: updated.groupId,
+    farmId: updated.farmId,
     name: updated.name,
     defaultDose: updated.defaultDose,
     defaultDoseUnit: updated.defaultDoseUnit,

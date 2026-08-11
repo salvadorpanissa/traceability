@@ -3,12 +3,12 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   owner,
-  dicoseRegistration,
+  dicose,
   category,
   paddock,
   animal,
@@ -25,7 +25,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 const {
   importOwnTags,
   countOwnTagsByRegistration,
-  countAliveAnimalsByOwnerFarm,
+  countAliveAnimalsByOwnerEstablishment,
   countBareOwnTagsByRegistration,
   findMissingPaddockNames,
   findMissingCategoryNames,
@@ -52,12 +52,12 @@ async function seedRegistration() {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -73,10 +73,10 @@ async function seedRegistration() {
     .values({ name: "AIP" })
     .returning();
   const [registration] = await testDb
-    .insert(dicoseRegistration)
+    .insert(dicose)
     .values({
       ownerId: createdOwner.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       dicoseCode: "151400442",
     })
     .returning();
@@ -131,7 +131,7 @@ describe("importOwnTags", () => {
     const { registration, user, seededFarmGroup } = await seedRegistration();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
 
     const result = await importOwnTags(registration.id, user.id, [
@@ -168,13 +168,13 @@ describe("importOwnTags", () => {
 
     const state = await testDb.execute<{
       current_category_id: string | null;
-      current_farm_id: string;
+      current_establishment_id: string;
       current_paddock_id: string | null;
     }>(
-      sql`select current_category_id, current_farm_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
+      sql`select current_category_id, current_establishment_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
     );
     expect(state.rows[0].current_category_id).toBe(vaca.id);
-    expect(state.rows[0].current_farm_id).toBe(registration.farmId);
+    expect(state.rows[0].current_establishment_id).toBe(registration.establishmentId);
     expect(state.rows[0].current_paddock_id).toBeNull();
   });
 
@@ -247,7 +247,7 @@ describe("importOwnTags", () => {
     const { registration, user } = await seedRegistration();
     const [potrero] = await testDb
       .insert(paddock)
-      .values({ farmId: registration.farmId, name: "Potrero 1" })
+      .values({ establishmentId: registration.establishmentId, name: "Potrero 1" })
       .returning();
 
     const result = await importOwnTags(registration.id, user.id, [
@@ -282,15 +282,15 @@ describe("importOwnTags", () => {
 
     const state = await testDb.execute<{
       current_paddock_id: string;
-      current_farm_id: string;
+      current_establishment_id: string;
     }>(
-      sql`select current_farm_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
+      sql`select current_establishment_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
     );
-    expect(state.rows[0].current_farm_id).toBe(registration.farmId);
+    expect(state.rows[0].current_establishment_id).toBe(registration.establishmentId);
     expect(state.rows[0].current_paddock_id).toBe(potrero.id);
   });
 
-  it("does NOT auto-create a missing paddock — leaves the animal farm-located without a paddock instead", async () => {
+  it("does NOT auto-create a missing paddock — leaves the animal establishment-located without a paddock instead", async () => {
     const { registration, user } = await seedRegistration();
 
     await importOwnTags(registration.id, user.id, [
@@ -316,11 +316,11 @@ describe("importOwnTags", () => {
       .where(eq(animalTagHistory.tag, "501"));
     const state = await testDb.execute<{
       current_paddock_id: string | null;
-      current_farm_id: string;
+      current_establishment_id: string;
     }>(
-      sql`select current_farm_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
+      sql`select current_establishment_id, current_paddock_id from animal_current_state where animal_id = ${history.animalId}`,
     );
-    expect(state.rows[0].current_farm_id).toBe(registration.farmId);
+    expect(state.rows[0].current_establishment_id).toBe(registration.establishmentId);
     expect(state.rows[0].current_paddock_id).toBeNull();
   });
 
@@ -328,7 +328,7 @@ describe("importOwnTags", () => {
     const { registration, user } = await seedRegistration();
     const [potrero] = await testDb
       .insert(paddock)
-      .values({ farmId: registration.farmId, name: "Potrero 1" })
+      .values({ establishmentId: registration.establishmentId, name: "Potrero 1" })
       .returning();
 
     await importOwnTags(registration.id, user.id, tagRows(["502"]));
@@ -366,11 +366,11 @@ describe("importOwnTags", () => {
     const { registration, user, seededFarmGroup } = await seedRegistration();
     const [potrero] = await testDb
       .insert(paddock)
-      .values({ farmId: registration.farmId, name: "Potrero 1" })
+      .values({ establishmentId: registration.establishmentId, name: "Potrero 1" })
       .returning();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
 
     // First upload: paddock mapped (creates the animal), category not mapped yet.
@@ -480,11 +480,11 @@ describe("importOwnTags", () => {
     const { registration, user, seededFarmGroup } = await seedRegistration();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [toro] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Toro" })
+      .values({ farmId: seededFarmGroup.id, name: "Toro" })
       .returning();
 
     await importOwnTags(registration.id, user.id, [
@@ -587,11 +587,11 @@ describe("importOwnTags", () => {
 });
 
 describe("findMissingPaddockNames", () => {
-  it("returns only the names that don't exist yet for the registration's farm", async () => {
+  it("returns only the names that don't exist yet for the registration's establishment", async () => {
     const { registration } = await seedRegistration();
     await testDb
       .insert(paddock)
-      .values({ farmId: registration.farmId, name: "Potrero 1" });
+      .values({ establishmentId: registration.establishmentId, name: "Potrero 1" });
 
     const missing = await findMissingPaddockNames(registration.id, [
       "Potrero 1",
@@ -606,7 +606,7 @@ describe("findMissingPaddockNames", () => {
 describe("findMissingCategoryNames", () => {
   it("returns only category names that don't exist yet in the registration's grupo, using exact match", async () => {
     const { registration, seededFarmGroup } = await seedRegistration();
-    await testDb.insert(category).values({ groupId: seededFarmGroup.id, name: "Vaca" });
+    await testDb.insert(category).values({ farmId: seededFarmGroup.id, name: "Vaca" });
 
     const missing = await findMissingCategoryNames(registration.id, ["Vaca", "Toro", "vaca"]);
 
@@ -615,8 +615,8 @@ describe("findMissingCategoryNames", () => {
 
   it("treats a name that only exists in a different grupo's catalog as missing", async () => {
     const { registration } = await seedRegistration();
-    const [otherGroup] = await testDb.insert(farmGroup).values({ name: "Otro grupo" }).returning();
-    await testDb.insert(category).values({ groupId: otherGroup.id, name: "Vaca" });
+    const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
+    await testDb.insert(category).values({ farmId: otherGroup.id, name: "Vaca" });
 
     const missing = await findMissingCategoryNames(registration.id, ["Vaca"]);
 
@@ -633,17 +633,17 @@ describe("countOwnTagsByRegistration", () => {
 
     expect(counts).toHaveLength(1);
     expect(counts[0]).toMatchObject({
-      dicoseRegistrationId: registration.id,
+      dicoseId: registration.id,
       count: 2,
     });
     expect(counts[0].lastUploadedAt).toBeInstanceOf(Date);
   });
 });
 
-describe("countAliveAnimalsByOwnerFarm", () => {
+describe("countAliveAnimalsByOwnerEstablishment", () => {
   async function seedAliveAnimal(
     ownerId: string,
-    farmId: string,
+    establishmentId: string,
     adminId: string,
     tag: string,
   ) {
@@ -659,7 +659,7 @@ describe("countAliveAnimalsByOwnerFarm", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -670,7 +670,7 @@ describe("countAliveAnimalsByOwnerFarm", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
       })
@@ -679,33 +679,33 @@ describe("countAliveAnimalsByOwnerFarm", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmId,
-        destinationFarmId: farmId,
+        originEstablishmentId: establishmentId,
+        destinationEstablishmentId: establishmentId,
       });
 
     return createdAnimal;
   }
 
-  it("counts only alive animals, grouped by owner and current farm", async () => {
+  it("counts only alive animals, grouped by owner and current establishment", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
       .returning();
     const [farmAGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmA] = await testDb
-      .insert(farm)
-      .values({ groupId: farmAGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmAGroup.id, name: "Campo Norte" })
       .returning();
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo Sur" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -730,16 +730,16 @@ describe("countAliveAnimalsByOwnerFarm", () => {
     await seedAliveAnimal(ownerB.id, farmB.id, admin.id, "AR000000000092");
     await refreshDerivedState();
 
-    const counts = await countAliveAnimalsByOwnerFarm();
+    const counts = await countAliveAnimalsByOwnerEstablishment();
 
     expect(counts).toContainEqual({
       ownerId: ownerA.id,
-      farmId: farmA.id,
+      establishmentId: farmA.id,
       count: 2,
     });
     expect(counts).toContainEqual({
       ownerId: ownerB.id,
-      farmId: farmB.id,
+      establishmentId: farmB.id,
       count: 1,
     });
   });
@@ -750,7 +750,7 @@ describe("countBareOwnTagsByRegistration", () => {
     const { registration, user, seededFarmGroup } = await seedRegistration();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
 
     // Bare tags: registered but no animal created.
@@ -770,7 +770,7 @@ describe("countBareOwnTagsByRegistration", () => {
     const counts = await countBareOwnTagsByRegistration();
 
     expect(counts).toEqual([
-      { dicoseRegistrationId: registration.id, count: 2 },
+      { dicoseId: registration.id, count: 2 },
     ]);
   });
 });

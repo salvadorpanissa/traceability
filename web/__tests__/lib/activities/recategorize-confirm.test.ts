@@ -4,9 +4,9 @@ import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   category,
@@ -34,18 +34,18 @@ beforeEach(async () => {
   seededEventIds = [];
 });
 
-async function seedFarmAndAdmin(farmName = "Campo Norte") {
+async function seedFarmAndAdmin(establishmentName = "Campo Norte") {
   const [adminRole] = await testDb
     .insert(role)
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
-    .values({ name: farmName })
+    .insert(farm)
+    .values({ name: establishmentName })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: farmName })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: establishmentName })
     .returning();
   const [admin] = await testDb
     .insert(userAccount)
@@ -65,7 +65,7 @@ async function seedFarmAndAdmin(farmName = "Campo Norte") {
 // a bare `animal` row with no events resolves to "no campo asignado" and is
 // (correctly) rejected as stale.
 async function seedAnimalAtFarm(opts: {
-  farmId: string;
+  establishmentId: string;
   createdBy: string;
   categoryId?: string;
   birthDate?: string;
@@ -80,7 +80,7 @@ async function seedAnimalAtFarm(opts: {
     .insert(batchOperation)
     .values({
       eventType: "transfer",
-      farmId: opts.farmId,
+      establishmentId: opts.establishmentId,
       animalCount: 1,
       createdBy: opts.createdBy,
     })
@@ -92,7 +92,7 @@ async function seedAnimalAtFarm(opts: {
       eventType: "transfer",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId: opts.farmId,
+      establishmentId: opts.establishmentId,
       batchOperationId: batch.id,
       createdBy: opts.createdBy,
     })
@@ -101,8 +101,8 @@ async function seedAnimalAtFarm(opts: {
     .insert(eventTransfer)
     .values({
       eventId: transferEvent.id,
-      originFarmId: opts.farmId,
-      destinationFarmId: opts.farmId,
+      originEstablishmentId: opts.establishmentId,
+      destinationEstablishmentId: opts.establishmentId,
     });
   seededEventIds.push(transferEvent.id);
 
@@ -113,7 +113,7 @@ async function seedAnimalAtFarm(opts: {
         eventType: "recategorize",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: opts.farmId,
+        establishmentId: opts.establishmentId,
         batchOperationId: batch.id,
         createdBy: opts.createdBy,
       })
@@ -147,7 +147,7 @@ async function recategorizeBatches() {
 }
 
 function existingRow(
-  farmId: string,
+  establishmentId: string,
   overrides: Partial<Extract<RecategorizeResolvedRow, { status: "existing" }>>,
 ): RecategorizeResolvedRow {
   return {
@@ -156,7 +156,7 @@ function existingRow(
     notes: null,
     status: "existing",
     animalId: "placeholder",
-    currentFarmId: farmId,
+    currentEstablishmentId: establishmentId,
     currentCategoryId: "placeholder",
     currentCategoryName: "Novillo",
     sex: null,
@@ -165,7 +165,7 @@ function existingRow(
 }
 
 function ageResolvedRow(
-  farmId: string,
+  establishmentId: string,
   overrides: Partial<
     Extract<RecategorizeResolvedRow, { status: "age-resolved" }>
   >,
@@ -176,7 +176,7 @@ function ageResolvedRow(
     notes: null,
     status: "age-resolved",
     animalId: "placeholder",
-    currentFarmId: farmId,
+    currentEstablishmentId: establishmentId,
     resolvedCategoryId: "placeholder",
     resolvedCategoryName: "Ternero/a",
     ...overrides,
@@ -184,7 +184,7 @@ function ageResolvedRow(
 }
 
 function unresolvableRow(
-  farmId: string,
+  establishmentId: string,
   overrides: Partial<
     Extract<RecategorizeResolvedRow, { status: "age-unresolvable" }>
   >,
@@ -195,7 +195,7 @@ function unresolvableRow(
     notes: null,
     status: "age-unresolvable",
     animalId: "placeholder",
-    currentFarmId: farmId,
+    currentEstablishmentId: establishmentId,
     sex: null,
     ...overrides,
   };
@@ -206,14 +206,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [novilloPlus3] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo +3 años" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo +3 años" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: novillo.id,
     });
@@ -222,7 +222,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novilloPlus3.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id }),
@@ -252,19 +252,19 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [other] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const unchangedAnimalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: novillo.id,
     });
     const changingAnimalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: other.id,
     });
@@ -273,7 +273,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, {
@@ -302,10 +302,10 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: novillo.id,
     });
@@ -315,7 +315,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -337,14 +337,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [otherCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: otherCategory.id,
     });
@@ -354,7 +354,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -381,14 +381,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [ternero] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Ternero/a", minAgeMonths: 0 })
+      .values({ farmId: seededFarmGroup.id, name: "Ternero/a", minAgeMonths: 0 })
       .returning();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       birthDate: "2025-06-01",
       sex: "male",
@@ -398,7 +398,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [
         ageResolvedRow(seededFarm.id, {
@@ -427,10 +427,10 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
     });
     await refreshDerivedState();
@@ -438,7 +438,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -462,14 +462,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", minAgeMonths: 0 })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", minAgeMonths: 0 })
       .returning();
     const skippedAnimalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
     });
     const changingAnimalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       birthDate: "2024-01-01",
       sex: "male",
@@ -479,7 +479,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [
         unresolvableRow(seededFarm.id, {
@@ -506,14 +506,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [other] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: other.id,
     });
@@ -522,7 +522,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, {
@@ -537,32 +537,32 @@ describe("confirmRecategorizeBatch", () => {
 
     const batches = await recategorizeBatches();
     expect(batches).toHaveLength(1);
-    expect(batches[0].farmId).toBe(seededFarm.id);
+    expect(batches[0].establishmentId).toBe(seededFarm.id);
   });
 
-  // The batch is scoped to one campo now (operatingFarmId); a row whose
+  // The batch is scoped to one campo now (operatingEstablishmentId); a row whose
   // animal really lives elsewhere per the fresh DB read must not sneak
   // through even if the client-supplied row claims otherwise.
-  it("rejects a row whose animal is on a different campo than operatingFarmId", async () => {
+  it("rejects a row whose animal is on a different campo than operatingEstablishmentId", async () => {
     const { admin, seededFarm: farmA, seededFarmGroup } = await seedFarmAndAdmin("Campo A");
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo B" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Campo B" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
       .returning();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [other] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const animalOnB = await seedAnimalAtFarm({
-      farmId: farmB.id,
+      establishmentId: farmB.id,
       createdBy: admin.id,
       categoryId: other.id,
     });
@@ -572,7 +572,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: farmA.id,
+        operatingEstablishmentId: farmA.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(farmA.id, {
@@ -597,20 +597,20 @@ describe("confirmRecategorizeBatch", () => {
       .values({ name: "manager" })
       .returning();
     const [accessibleFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [accessibleFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: accessibleFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: accessibleFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -623,17 +623,17 @@ describe("confirmRecategorizeBatch", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: accessibleFarm.id });
+      .values({ userId: manager.id, farmId: accessibleFarmGroup.id });
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: otherFarmGroup.id, name: "Novillo" })
+      .values({ farmId: otherFarmGroup.id, name: "Novillo" })
       .returning();
     const [other] = await testDb
       .insert(category)
-      .values({ groupId: otherFarmGroup.id, name: "Vaca" })
+      .values({ farmId: otherFarmGroup.id, name: "Vaca" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: otherFarm.id,
+      establishmentId: otherFarm.id,
       createdBy: manager.id,
       categoryId: other.id,
     });
@@ -643,7 +643,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: otherFarm.id,
+        operatingEstablishmentId: otherFarm.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(otherFarm.id, { animalId, currentCategoryId: other.id }),
@@ -655,28 +655,28 @@ describe("confirmRecategorizeBatch", () => {
   });
 
   // Finding 1: the preview row round-trips through the browser, so its
-  // currentFarmId is attacker-controlled. Claiming an accessible campo for an
+  // currentEstablishmentId is attacker-controlled. Claiming an accessible campo for an
   // animal that actually lives on an inaccessible one must not write anything.
-  it("ignores a client-supplied currentFarmId and enforces access against the animal's real farm", async () => {
+  it("ignores a client-supplied currentEstablishmentId and enforces access against the animal's real establishment", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
       .returning();
     const [accessibleFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [accessibleFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: accessibleFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: accessibleFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [foreignFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Ajeno" })
       .returning();
     const [foreignFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: foreignFarmGroup.id, name: "Campo Ajeno" })
+      .insert(establishment)
+      .values({ farmId: foreignFarmGroup.id, name: "Campo Ajeno" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -689,32 +689,32 @@ describe("confirmRecategorizeBatch", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: accessibleFarm.id });
+      .values({ userId: manager.id, farmId: accessibleFarmGroup.id });
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: accessibleFarmGroup.id, name: "Novillo" })
+      .values({ farmId: accessibleFarmGroup.id, name: "Novillo" })
       .returning();
     const [other] = await testDb
       .insert(category)
-      .values({ groupId: foreignFarmGroup.id, name: "Vaca" })
+      .values({ farmId: foreignFarmGroup.id, name: "Vaca" })
       .returning();
     // The animal really lives on the campo the manager has NO access to.
     const animalId = await seedAnimalAtFarm({
-      farmId: foreignFarm.id,
+      establishmentId: foreignFarm.id,
       createdBy: manager.id,
       categoryId: other.id,
     });
     await refreshDerivedState();
 
-    // The manager operates the campo they DO have access to (requireFarmAccess
+    // The manager operates the campo they DO have access to (requireEstablishmentAccess
     // passes), but the animal re-read fresh from the DB is really on
-    // foreignFarm — the per-row farmId !== operatingFarmId guard must catch
-    // this even though the client-supplied currentFarmId lied about it.
+    // foreignFarm — the per-row establishmentId !== operatingEstablishmentId guard must catch
+    // this even though the client-supplied currentEstablishmentId lied about it.
     await expect(
       confirmRecategorizeBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: accessibleFarm.id,
+        operatingEstablishmentId: accessibleFarm.id,
         targetCategoryId: novillo.id,
         // ...but the payload claims it's on the accessible one.
         rows: [
@@ -738,19 +738,19 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [target] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo +3 años" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo +3 años" })
       .returning();
     // DB says "Vaca"; the preview row still claims "Novillo".
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
     });
@@ -760,7 +760,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: target.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -783,14 +783,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
       sex: "female",
@@ -801,7 +801,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: novilloMacho.id,
         rows: [
           existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -820,14 +820,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
       sex: "female",
@@ -837,7 +837,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novilloMacho.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -863,14 +863,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
     });
@@ -879,7 +879,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novilloMacho.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -895,14 +895,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
       sex: "female",
@@ -912,7 +912,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -928,10 +928,10 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       sex: "female",
     });
@@ -941,7 +941,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: novilloMacho.id,
         rows: [unresolvableRow(seededFarm.id, { animalId })],
         unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -958,10 +958,10 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       sex: "female",
     });
@@ -970,7 +970,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: novilloMacho.id,
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -992,21 +992,21 @@ describe("confirmRecategorizeBatch", () => {
 
   // Design spec requirement: "el sexo usado para el chequeo se re-deriva de
   // la base y no del valor que mande el cliente en la fila". The preview row
-  // round-trips through the browser like currentFarmId/currentCategoryId do,
+  // round-trips through the browser like currentEstablishmentId/currentCategoryId do,
   // so a client could lie about an animal's sex to dodge the mismatch check.
   it("ignores a client-supplied sex and re-derives it from the database for the mismatch check", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [novilloMacho] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo", sex: "male" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
     // The animal really is female...
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: vaca.id,
       sex: "female",
@@ -1017,7 +1017,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         targetCategoryId: novilloMacho.id,
         // ...but the payload claims it's male, matching the target category
         // and trying to sneak past the mismatch check undetected.
@@ -1042,14 +1042,14 @@ describe("confirmRecategorizeBatch", () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [oldCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Ternero" })
+      .values({ farmId: seededFarmGroup.id, name: "Ternero" })
       .returning();
     const [newCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const animalId = await seedAnimalAtFarm({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: oldCategory.id,
     });
@@ -1061,7 +1061,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       targetCategoryId: newCategory.id,
       rows: [
         existingRow(seededFarm.id, {

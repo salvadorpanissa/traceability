@@ -9,8 +9,8 @@ describe("QueryResultTable", () => {
   it("renders known columns with a friendly label and row values", () => {
     render(
       <QueryResultTable
-        columns={["farm_name", "total"]}
-        rows={[{ farm_name: "Campo Norte", total: 3 }]}
+        columns={["establishment_name", "total"]}
+        rows={[{ establishment_name: "Campo Norte", total: 3 }]}
         locale="es"
       />
     );
@@ -39,8 +39,8 @@ describe("QueryResultTable", () => {
   it("filters rows via the search box and offers an Excel download", async () => {
     render(
       <QueryResultTable
-        columns={["farm_name"]}
-        rows={[{ farm_name: "Campo Norte" }, { farm_name: "Cuatro Cerros" }]}
+        columns={["establishment_name"]}
+        rows={[{ establishment_name: "Campo Norte" }, { establishment_name: "Cuatro Cerros" }]}
         locale="es"
       />
     );

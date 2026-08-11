@@ -1,11 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { batchOperation, event, eventTransfer, eventHealth, paddock, product } from "@/db/schema";
 import { db } from "@/db";
-import { requireFarmAccess, getFarmGroupId } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
-import { isSameFarmMismatch } from "@/lib/activities/health-paddock-mismatch";
+import { isSameEstablishmentMismatch } from "@/lib/activities/health-paddock-mismatch";
 
 export type HealthProduct = {
   productId: string;
@@ -24,7 +24,7 @@ export type HealthProduct = {
 export async function confirmHealthBatch(input: {
   userId: string;
   role: string | undefined;
-  operatingFarmId: string;
+  operatingEstablishmentId: string;
   products: HealthProduct[];
   rows: ResolvedRow[];
   paddockId: string | null;
@@ -33,14 +33,14 @@ export async function confirmHealthBatch(input: {
   const {
     userId,
     role,
-    operatingFarmId,
+    operatingEstablishmentId,
     products,
     rows,
     paddockId,
     transferMismatchedToPaddock = false,
   } = input;
 
-  await requireFarmAccess(userId, role, operatingFarmId);
+  await requireEstablishmentAccess(userId, role, operatingEstablishmentId);
 
   if (products.length === 0) {
     throw new Error("Hay que elegir al menos un producto");
@@ -57,18 +57,18 @@ export async function confirmHealthBatch(input: {
   }
   if (paddockId) {
     const [paddockRow] = await db.select().from(paddock).where(eq(paddock.id, paddockId));
-    if (!paddockRow || paddockRow.farmId !== operatingFarmId) {
+    if (!paddockRow || paddockRow.establishmentId !== operatingEstablishmentId) {
       throw new Error("El potrero no pertenece al campo activo");
     }
   }
 
-  const groupId = await getFarmGroupId(operatingFarmId);
+  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
   const productIds = [...new Set(products.map((p) => p.productId))];
-  const validProductRows = groupId
+  const validProductRows = farmId
     ? await db
         .select({ id: product.id })
         .from(product)
-        .where(and(inArray(product.id, productIds), eq(product.groupId, groupId)))
+        .where(and(inArray(product.id, productIds), eq(product.farmId, farmId)))
     : [];
   if (validProductRows.length !== productIds.length) {
     throw new Error("Uno de los productos no pertenece al grupo del campo activo");
@@ -77,7 +77,7 @@ export async function confirmHealthBatch(input: {
   await db.transaction(async (tx) => {
     const [batch] = await tx
       .insert(batchOperation)
-      .values({ eventType: "health", farmId: operatingFarmId, animalCount: rows.length, createdBy: userId })
+      .values({ eventType: "health", establishmentId: operatingEstablishmentId, animalCount: rows.length, createdBy: userId })
       .returning();
 
     for (const row of rows) {
@@ -91,27 +91,27 @@ export async function confirmHealthBatch(input: {
         await gapFillBreed(tx, animalId, row.breed);
         await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
       } else {
-        animalId = await createNewAnimal(tx, { userId, operatingFarmId, batchId: batch.id, row });
+        animalId = await createNewAnimal(tx, { userId, operatingEstablishmentId, batchId: batch.id, row });
 
         // Sanidad doesn't relocate animals, but a brand-new one still needs a
         // transfer event to be visible in animal_current_state (which only
-        // derives current_farm_id from event_transfer) — this places it at
-        // the farm it was loaded from, origin = destination.
+        // derives current_establishment_id from event_transfer) — this places
+        // it at the establecimiento it was loaded from, origin = destination.
         const [placementEvent] = await tx
           .insert(event)
           .values({
             eventType: "transfer",
             eventDate: row.eventDate,
             animalId,
-            farmId: operatingFarmId,
+            establishmentId: operatingEstablishmentId,
             batchOperationId: batch.id,
             createdBy: userId,
           })
           .returning();
         await tx.insert(eventTransfer).values({
           eventId: placementEvent.id,
-          originFarmId: operatingFarmId,
-          destinationFarmId: operatingFarmId,
+          originEstablishmentId: operatingEstablishmentId,
+          destinationEstablishmentId: operatingEstablishmentId,
           originPaddockId: null,
           destinationPaddockId: null,
         });
@@ -124,7 +124,7 @@ export async function confirmHealthBatch(input: {
             eventType: "health",
             eventDate: row.eventDate,
             animalId,
-            farmId: operatingFarmId,
+            establishmentId: operatingEstablishmentId,
             batchOperationId: batch.id,
             createdBy: userId,
             notes: row.notes,
@@ -154,22 +154,22 @@ export async function confirmHealthBatch(input: {
       // silently move nothing.
       const relocationDate = new Date().toISOString().slice(0, 10);
       for (const row of rows) {
-        if (!isSameFarmMismatch(row, paddockId, operatingFarmId)) continue;
+        if (!isSameEstablishmentMismatch(row, paddockId, operatingEstablishmentId)) continue;
         const [transferEvent] = await tx
           .insert(event)
           .values({
             eventType: "transfer",
             eventDate: relocationDate,
             animalId: row.animalId,
-            farmId: operatingFarmId,
+            establishmentId: operatingEstablishmentId,
             batchOperationId: batch.id,
             createdBy: userId,
           })
           .returning();
         await tx.insert(eventTransfer).values({
           eventId: transferEvent.id,
-          originFarmId: operatingFarmId,
-          destinationFarmId: operatingFarmId,
+          originEstablishmentId: operatingEstablishmentId,
+          destinationEstablishmentId: operatingEstablishmentId,
           originPaddockId: row.currentPaddockId,
           destinationPaddockId: paddockId,
         });

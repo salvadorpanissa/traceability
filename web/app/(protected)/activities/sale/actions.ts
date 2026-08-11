@@ -1,12 +1,12 @@
 "use server";
 
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { resolveBatchRows, confirmSaleBatch, type ResolvedRow } from "@/lib/activities/sale";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
-import { findFarmByDicoseCode } from "@/lib/dal/dicose-registration";
+import { findEstablishmentByDicoseCode } from "@/lib/dal/dicose";
 import { findPendingWithdrawals } from "@/lib/dal/health-withdrawal";
 import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
 import type { MappedRow } from "@/lib/activities/column-mapping";
@@ -17,8 +17,8 @@ export type PdfPreviewResult =
       ok: true;
       guideNumber: string;
       eventDate: string;
-      originFarmId: string;
-      originFarmName: string;
+      originEstablishmentId: string;
+      originEstablishmentName: string;
       rows: ResolvedRow[];
       withdrawalWarnings: { tag: string; productName: string; restrictionEndDate: string }[];
     };
@@ -35,15 +35,16 @@ export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPr
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo leer el PDF" };
   }
 
-  // Only the origin DICOSE is validated against registered farms — the
-  // destination DICOSE identifies the external buyer, which is never a farm
-  // tracked by this system, so it is intentionally not looked up here.
-  const origin = await findFarmByDicoseCode(guide.originDicoseCode);
+  // Only the origin DICOSE is validated against registered establecimientos —
+  // the destination DICOSE identifies the external buyer, which is never an
+  // establecimiento tracked by this system, so it is intentionally not
+  // looked up here.
+  const origin = await findEstablishmentByDicoseCode(guide.originDicoseCode);
   if (!origin) {
     return { ok: false, error: `No hay ningún campo registrado con DICOSE ${guide.originDicoseCode}` };
   }
 
-  await requireFarmAccess(session.user.id, session.user.role, origin.farmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, origin.establishmentId);
 
   const mappedRows: MappedRow[] = guide.animals.map((a) => ({
     tag: a.tag,
@@ -55,7 +56,7 @@ export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPr
     birthDate: a.ageMonths !== null ? estimateBirthDateFromAge(guide.eventDate, a.ageMonths) : null,
   }));
 
-  const rows = await resolveBatchRows(mappedRows, guide.eventDate, origin.farmId);
+  const rows = await resolveBatchRows(mappedRows, guide.eventDate, origin.establishmentId);
 
   const existingRows = rows.filter(
     (row): row is Extract<ResolvedRow, { status: "existing" }> => row.status === "existing"
@@ -73,8 +74,8 @@ export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPr
     ok: true,
     guideNumber: guide.guideNumber,
     eventDate: guide.eventDate,
-    originFarmId: origin.farmId,
-    originFarmName: origin.farmName,
+    originEstablishmentId: origin.establishmentId,
+    originEstablishmentName: origin.establishmentName,
     rows,
     withdrawalWarnings,
   };
@@ -82,8 +83,8 @@ export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPr
 
 export async function confirmSaleBatchFromPdfAction(formData: FormData): Promise<void> {
   const session = await requireSession();
-  const originFarmId = formData.get("originFarmId") as string;
-  await requireFarmAccess(session.user.id, session.user.role, originFarmId);
+  const originEstablishmentId = formData.get("originEstablishmentId") as string;
+  await requireEstablishmentAccess(session.user.id, session.user.role, originEstablishmentId);
 
   const file = requireFile(formData, "file");
   const rows = JSON.parse(formData.get("rows") as string) as ResolvedRow[];
@@ -102,7 +103,7 @@ export async function confirmSaleBatchFromPdfAction(formData: FormData): Promise
   await confirmSaleBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: originFarmId,
+    operatingEstablishmentId: originEstablishmentId,
     guideNumber,
     buyer,
     price,

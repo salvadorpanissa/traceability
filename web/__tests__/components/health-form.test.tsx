@@ -15,7 +15,7 @@ afterEach(cleanup);
 const catalog: ProductCatalogEntry[] = [
   {
     id: "p1",
-    groupId: "group-1",
+    farmId: "group-1",
     name: "Ivermectina 1%",
     defaultDose: "10",
     defaultDoseUnit: "ml",
@@ -45,9 +45,9 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     productSuggestions: [{ rawValue: "Aftosa", matchedProductId: "p1" }],
   })),
   confirmHealthBatchAction: vi.fn(async () => undefined),
-  createProductAction: vi.fn(async (farmId: string, name: string) => ({
+  createProductAction: vi.fn(async (establishmentId: string, name: string) => ({
     id: "p2",
-    groupId: "group-1",
+    farmId: "group-1",
     name,
     defaultDose: null,
     defaultDoseUnit: null,
@@ -55,15 +55,15 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     defaultWithdrawalDays: null,
   })),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
-  createHealthPaddockAction: vi.fn(async (farmId: string, name: string) => ({ id: "pd2", name, farmId })),
-  listPaddocksAction: vi.fn(async () => [{ id: "pd1", name: "Potrero 1", farmId: "farm-1" }]),
+  createHealthPaddockAction: vi.fn(async (establishmentId: string, name: string) => ({ id: "pd2", name, establishmentId })),
+  listPaddocksAction: vi.fn(async () => [{ id: "pd1", name: "Potrero 1", establishmentId: "establishment-1" }]),
   listProductsAction: vi.fn(async () => catalog),
 }));
 const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
-const farms = [{ id: "farm-1", name: "Campo Norte" }];
+const establishments = [{ id: "establishment-1", name: "Campo Norte" }];
 
 async function selectPaddockAndUploadFile(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+  await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
   await waitFor(() => expect(screen.getByRole("option", { name: "Potrero 1" })).toBeInTheDocument());
   await user.selectOptions(screen.getByLabelText("Potrero"), "pd1");
   const file = new File(["dummy"], "lote.xlsx", {
@@ -75,7 +75,7 @@ async function selectPaddockAndUploadFile(user: ReturnType<typeof userEvent.setu
 
 describe("HealthForm", () => {
   it("shows the preview and lets the user add a product row", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -87,7 +87,7 @@ describe("HealthForm", () => {
   });
 
   it("disables Subir until a potrero and a file are both chosen", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
@@ -98,7 +98,7 @@ describe("HealthForm", () => {
     await user.upload(screen.getByLabelText(/archivo/i), file);
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+    await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
     await waitFor(() => expect(screen.getByRole("option", { name: "Potrero 1" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
 
@@ -107,7 +107,7 @@ describe("HealthForm", () => {
   });
 
   it("prefills dose unit and withdrawal days from the selected product's defaults", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -122,7 +122,7 @@ describe("HealthForm", () => {
   });
 
   it("pre-fills a product row from a matched suggestion, including its dose and route, and creates a missing one inline", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -138,7 +138,7 @@ describe("HealthForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -184,7 +184,7 @@ describe("HealthForm", () => {
       productSuggestions: [],
     });
 
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("HealthForm", () => {
   });
 
   it("lets the user pick an existing owner for a pending name instead of creating a new one, and confirms with the campo derived from the chosen potrero", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -219,7 +219,7 @@ describe("HealthForm", () => {
     await waitFor(() =>
       expect(confirmHealthBatchAction).toHaveBeenCalledWith(
         expect.objectContaining({
-          farmId: "farm-1",
+          establishmentId: "establishment-1",
           paddockId: "pd1",
           rows: [expect.objectContaining({ ownerId: "existing-owner" })],
         })
@@ -228,17 +228,17 @@ describe("HealthForm", () => {
   });
 
   it("creates a new potrero inline within the chosen campo, and selects it", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+    await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
     await waitFor(() => expect(screen.getByRole("option", { name: "Potrero 1" })).toBeInTheDocument());
     await user.selectOptions(screen.getByLabelText("Potrero"), "__create_new__");
     await user.type(screen.getByLabelText("Nombre del potrero nuevo"), "Potrero 2");
     await user.click(screen.getByRole("button", { name: /^crear$/i }));
 
     const { createHealthPaddockAction } = await import("@/app/(protected)/activities/health/actions");
-    await waitFor(() => expect(createHealthPaddockAction).toHaveBeenCalledWith("farm-1", "Potrero 2"));
+    await waitFor(() => expect(createHealthPaddockAction).toHaveBeenCalledWith("establishment-1", "Potrero 2"));
     expect(screen.getByLabelText("Potrero")).toHaveValue("pd2");
 
     const file = new File(["dummy"], "lote.xlsx", {
@@ -261,7 +261,7 @@ describe("HealthForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-1",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentPaddockId: "pd2",
         },
       ],
@@ -269,10 +269,10 @@ describe("HealthForm", () => {
     });
 
     vi.mocked(listPaddocksAction).mockResolvedValueOnce([
-      { id: "pd1", name: "Potrero 1", farmId: "farm-1" },
-      { id: "pd2", name: "Potrero 2", farmId: "farm-1" },
+      { id: "pd1", name: "Potrero 1", establishmentId: "establishment-1" },
+      { id: "pd2", name: "Potrero 2", establishmentId: "establishment-1" },
     ]);
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -308,7 +308,7 @@ describe("HealthForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-2",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentPaddockId: "pd2",
         },
       ],
@@ -316,10 +316,10 @@ describe("HealthForm", () => {
     });
 
     vi.mocked(listPaddocksAction).mockResolvedValueOnce([
-      { id: "pd1", name: "Potrero 1", farmId: "farm-1" },
-      { id: "pd2", name: "Potrero 2", farmId: "farm-1" },
+      { id: "pd1", name: "Potrero 1", establishmentId: "establishment-1" },
+      { id: "pd2", name: "Potrero 2", establishmentId: "establishment-1" },
     ]);
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
@@ -339,7 +339,7 @@ describe("HealthForm", () => {
   });
 
   it("does not show the paddock-mismatch warning when there are no mismatched rows", async () => {
-    render(<HealthForm ownerCatalog={ownerCatalog} farms={farms} />);
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);

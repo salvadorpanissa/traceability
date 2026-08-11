@@ -4,10 +4,10 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
+  farm,
   category,
   role,
-  farm,
+  establishment,
   userAccount,
   animal,
   animalTagHistory,
@@ -20,9 +20,9 @@ import {
 vi.mock("@/db", () => ({ db: testDb }));
 
 const {
-  listCategoriesByGroup,
-  listAllCategoriesByGroup,
-  listAllCategoriesForGroups,
+  listCategoriesByFarm,
+  listAllCategoriesByFarm,
+  listAllCategoriesForFarms,
   createCategory,
   updateCategory,
   setCategoryActive,
@@ -34,24 +34,24 @@ beforeEach(async () => {
 });
 
 async function seedGroup(name = "Grupo") {
-  const [group] = await testDb.insert(farmGroup).values({ name }).returning();
+  const [group] = await testDb.insert(farm).values({ name }).returning();
   return group;
 }
 
-describe("listCategoriesByGroup", () => {
+describe("listCategoriesByFarm", () => {
   it("lists every active category in the grupo ordered by name", async () => {
     const group = await seedGroup();
     await testDb.insert(category).values([
-      { groupId: group.id, name: "Toro" },
-      { groupId: group.id, name: "Vaca" },
+      { farmId: group.id, name: "Toro" },
+      { farmId: group.id, name: "Vaca" },
     ]);
 
-    const categories = await listCategoriesByGroup(group.id);
+    const categories = await listCategoriesByFarm(group.id);
 
     expect(categories).toEqual([
       {
         id: expect.any(String),
-        groupId: group.id,
+        farmId: group.id,
         name: "Toro",
         sex: null,
         minAgeMonths: null,
@@ -59,7 +59,7 @@ describe("listCategoriesByGroup", () => {
       },
       {
         id: expect.any(String),
-        groupId: group.id,
+        farmId: group.id,
         name: "Vaca",
         sex: null,
         minAgeMonths: null,
@@ -73,11 +73,11 @@ describe("listCategoriesByGroup", () => {
     await testDb
       .insert(category)
       .values([
-        { groupId: group.id, name: "Toro" },
-        { groupId: group.id, name: "Vaca", active: false },
+        { farmId: group.id, name: "Toro" },
+        { farmId: group.id, name: "Vaca", active: false },
       ]);
 
-    const categories = await listCategoriesByGroup(group.id);
+    const categories = await listCategoriesByFarm(group.id);
 
     expect(categories.map((c) => c.name)).toEqual(["Toro"]);
   });
@@ -85,23 +85,23 @@ describe("listCategoriesByGroup", () => {
   it("does not include a category from a different grupo", async () => {
     const groupA = await seedGroup("A");
     const groupB = await seedGroup("B");
-    await testDb.insert(category).values({ groupId: groupB.id, name: "Vaca" });
+    await testDb.insert(category).values({ farmId: groupB.id, name: "Vaca" });
 
-    expect(await listCategoriesByGroup(groupA.id)).toEqual([]);
+    expect(await listCategoriesByFarm(groupA.id)).toEqual([]);
   });
 });
 
-describe("listAllCategoriesByGroup", () => {
+describe("listAllCategoriesByFarm", () => {
   it("includes archived categories alongside active ones", async () => {
     const group = await seedGroup();
     await testDb
       .insert(category)
       .values([
-        { groupId: group.id, name: "Toro" },
-        { groupId: group.id, name: "Vaca", active: false },
+        { farmId: group.id, name: "Toro" },
+        { farmId: group.id, name: "Vaca", active: false },
       ]);
 
-    const categories = await listAllCategoriesByGroup(group.id);
+    const categories = await listAllCategoriesByFarm(group.id);
 
     expect(categories.map((c) => ({ name: c.name, active: c.active }))).toEqual([
       { name: "Toro", active: true },
@@ -110,16 +110,16 @@ describe("listAllCategoriesByGroup", () => {
   });
 });
 
-describe("listAllCategoriesForGroups", () => {
+describe("listAllCategoriesForFarms", () => {
   it("lists categories across every grupo given", async () => {
     const groupA = await seedGroup("A");
     const groupB = await seedGroup("B");
     await testDb.insert(category).values([
-      { groupId: groupA.id, name: "Toro" },
-      { groupId: groupB.id, name: "Vaca" },
+      { farmId: groupA.id, name: "Toro" },
+      { farmId: groupB.id, name: "Vaca" },
     ]);
 
-    const categories = await listAllCategoriesForGroups([groupA.id, groupB.id]);
+    const categories = await listAllCategoriesForFarms([groupA.id, groupB.id]);
 
     expect(categories.map((c) => c.name)).toEqual(["Toro", "Vaca"]);
   });
@@ -132,7 +132,7 @@ describe("createCategory", () => {
 
     expect(created).toEqual({
       id: expect.any(String),
-      groupId: group.id,
+      farmId: group.id,
       name: "Vaca",
       sex: null,
       minAgeMonths: null,
@@ -150,7 +150,7 @@ describe("createCategory", () => {
 
     expect(created).toEqual({
       id: expect.any(String),
-      groupId: group.id,
+      farmId: group.id,
       name: "Novillo +3 años",
       sex: "male",
       minAgeMonths: 36,
@@ -185,7 +185,7 @@ describe("updateCategory", () => {
 
     expect(updated).toEqual({
       id: created.id,
-      groupId: group.id,
+      farmId: group.id,
       name: "Vaca de invernada",
       sex: null,
       minAgeMonths: null,
@@ -225,14 +225,14 @@ describe("updateCategory", () => {
 });
 
 describe("setCategoryActive", () => {
-  it("archives a category, hiding it from listCategoriesByGroup but not listAllCategoriesByGroup", async () => {
+  it("archives a category, hiding it from listCategoriesByFarm but not listAllCategoriesByFarm", async () => {
     const group = await seedGroup();
     const created = await createCategory(group.id, { name: "Vaca" });
 
     await setCategoryActive(created.id, false);
 
-    expect(await listCategoriesByGroup(group.id)).toEqual([]);
-    const all = await listAllCategoriesByGroup(group.id);
+    expect(await listCategoriesByFarm(group.id)).toEqual([]);
+    const all = await listAllCategoriesByFarm(group.id);
     expect(all).toEqual([{ ...created, active: false }]);
   });
 
@@ -243,13 +243,13 @@ describe("setCategoryActive", () => {
 
     await setCategoryActive(created.id, true);
 
-    expect((await listCategoriesByGroup(group.id)).map((c) => c.id)).toContain(created.id);
+    expect((await listCategoriesByFarm(group.id)).map((c) => c.id)).toContain(created.id);
   });
 });
 
 describe("countAliveAnimalsByCategory", () => {
   async function seedAliveAnimalInCategory(
-    farmId: string,
+    establishmentId: string,
     adminId: string,
     categoryId: string,
     tag: string,
@@ -263,7 +263,7 @@ describe("countAliveAnimalsByCategory", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -274,7 +274,7 @@ describe("countAliveAnimalsByCategory", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
       })
@@ -283,15 +283,15 @@ describe("countAliveAnimalsByCategory", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmId,
-        destinationFarmId: farmId,
+        originEstablishmentId: establishmentId,
+        destinationEstablishmentId: establishmentId,
       });
 
     const [recatBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "recategorize",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -302,7 +302,7 @@ describe("countAliveAnimalsByCategory", () => {
         eventType: "recategorize",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: recatBatch.id,
         createdBy: adminId,
       })
@@ -324,12 +324,12 @@ describe("countAliveAnimalsByCategory", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -342,11 +342,11 @@ describe("countAliveAnimalsByCategory", () => {
       .returning();
     const [categoryA] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Ternera" })
+      .values({ farmId: seededFarmGroup.id, name: "Ternera" })
       .returning();
     const [categoryB] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca de cría" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca de cría" })
       .returning();
 
     await seedAliveAnimalInCategory(

@@ -61,12 +61,12 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
 
 export function HealthForm({
   ownerCatalog: initialOwnerCatalog,
-  farms,
+  establishments,
 }: {
   ownerCatalog: OwnerCatalogEntry[];
-  farms: { id: string; name: string }[];
+  establishments: { id: string; name: string }[];
 }) {
-  const [farmId, setFarmId] = useState("");
+  const [establishmentId, setEstablishmentId] = useState("");
   const [paddockId, setPaddockId] = useState<string | null>(null);
   const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
   const [paddockLoadError, setPaddockLoadError] = useState("");
@@ -82,8 +82,8 @@ export function HealthForm({
   const [confirmed, setConfirmed] = useState(false);
   const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
 
-  async function handleFarmChange(selectedFarmId: string) {
-    setFarmId(selectedFarmId);
+  async function handleEstablishmentChange(selectedEstablishmentId: string) {
+    setEstablishmentId(selectedEstablishmentId);
     setPaddockId(null);
     setEventDate("");
     setPreview(null);
@@ -91,19 +91,19 @@ export function HealthForm({
     setTransferMismatched(null);
     setPaddockLoadError("");
     setCatalogLoadError("");
-    if (!selectedFarmId) {
+    if (!selectedEstablishmentId) {
       setPaddocks([]);
       setCatalog([]);
       return;
     }
     try {
-      setPaddocks(await listPaddocksAction(selectedFarmId));
+      setPaddocks(await listPaddocksAction(selectedEstablishmentId));
     } catch (err) {
       setPaddocks([]);
       setPaddockLoadError(err instanceof Error ? err.message : "No se pudieron cargar los potreros");
     }
     try {
-      setCatalog(await listProductsAction(selectedFarmId));
+      setCatalog(await listProductsAction(selectedEstablishmentId));
     } catch (err) {
       setCatalog([]);
       setCatalogLoadError(err instanceof Error ? err.message : "No se pudieron cargar los productos");
@@ -125,11 +125,11 @@ export function HealthForm({
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !farmId) return;
+    if (!file || !establishmentId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
-    formData.set("farmId", farmId);
+    formData.set("establishmentId", establishmentId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
     setPreview(result);
@@ -147,7 +147,7 @@ export function HealthForm({
   }
 
   async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
-    const created = await createProductAction(farmId, name);
+    const created = await createProductAction(establishmentId, name);
     setCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -159,7 +159,7 @@ export function HealthForm({
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
-    const created = await createHealthPaddockAction(farmId, name);
+    const created = await createHealthPaddockAction(establishmentId, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -186,13 +186,13 @@ export function HealthForm({
       products,
       rows,
       paddockId,
-      farmId,
+      establishmentId,
       transferMismatchedToPaddock: transferMismatched ?? false,
     });
     setConfirmed(true);
   }
 
-  const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId, farmId), [rows, paddockId, farmId]);
+  const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId, establishmentId), [rows, paddockId, establishmentId]);
   const paddockNameById = useMemo(() => new Map(paddocks.map((p) => [p.id, p.name])), [paddocks]);
 
   if (confirmed) {
@@ -203,32 +203,32 @@ export function HealthForm({
   const pendingNames = pendingOwnerNames(rows);
   const hasConfirmableRow = rows.some(
     (r) =>
-      r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
+      r.status === "new" || r.status === "existing" || r.status === "wrong_establishment" || (r.status === "foreign" && r.forced)
   );
   const needsMismatchDecision = mismatches.length > 0 && transferMismatched === null;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="farm">Campo</Label>
+        <Label htmlFor="establishment">Campo</Label>
         <select
-          id="farm"
+          id="establishment"
           aria-label="Campo"
-          value={farmId}
-          onChange={(e) => handleFarmChange(e.target.value)}
+          value={establishmentId}
+          onChange={(e) => handleEstablishmentChange(e.target.value)}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir campo</option>
-          {farms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
+          {establishments.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name}
             </option>
           ))}
         </select>
       </div>
       {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
       {catalogLoadError ? <p className="text-sm text-red-600">{catalogLoadError}</p> : null}
-      {farmId ? (
+      {establishmentId ? (
         <PaddockSelector
           paddocks={paddocks}
           paddockId={paddockId}
@@ -242,7 +242,7 @@ export function HealthForm({
         <Label htmlFor="file">Archivo</Label>
         <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
       </div>
-      <Button type="button" disabled={!farmId || !paddockId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!establishmentId || !paddockId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 

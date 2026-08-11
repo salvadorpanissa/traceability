@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   paddock,
@@ -31,12 +31,12 @@ async function seedManagerSession() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -50,7 +50,7 @@ async function seedManagerSession() {
 
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
 
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
@@ -64,7 +64,7 @@ describe("createPaddockAction", () => {
     const { seededFarm } = await seedManagerSession();
 
     const result = await createPaddockAction({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       name: "Potrero 1",
     });
 
@@ -73,7 +73,7 @@ describe("createPaddockAction", () => {
       entry: {
         id: expect.any(String),
         name: "Potrero 1",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
       },
     });
     const [stored] = await testDb
@@ -83,12 +83,12 @@ describe("createPaddockAction", () => {
     expect(stored).toBeDefined();
   });
 
-  it("rejects a duplicate name within the same farm with a friendly error instead of throwing", async () => {
+  it("rejects a duplicate name within the same establishment with a friendly error instead of throwing", async () => {
     const { seededFarm } = await seedManagerSession();
-    await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
+    await createPaddockAction({ establishmentId: seededFarm.id, name: "Potrero 1" });
 
     const result = await createPaddockAction({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       name: "Potrero 1",
     });
 
@@ -100,11 +100,11 @@ describe("createPaddockAction", () => {
 });
 
 describe("updatePaddockAction", () => {
-  it("rejects renaming into a name that already exists within the same farm with a friendly error instead of throwing", async () => {
+  it("rejects renaming into a name that already exists within the same establishment with a friendly error instead of throwing", async () => {
     const { seededFarm } = await seedManagerSession();
-    await createPaddockAction({ farmId: seededFarm.id, name: "Potrero 1" });
+    await createPaddockAction({ establishmentId: seededFarm.id, name: "Potrero 1" });
     const created = await createPaddockAction({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       name: "Potrero 2",
     });
     if (!created.ok) throw new Error("setup failed");

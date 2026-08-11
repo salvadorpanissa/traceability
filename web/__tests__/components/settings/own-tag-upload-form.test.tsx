@@ -22,8 +22,8 @@ const registration = {
   id: "reg-1",
   ownerId: "owner-1",
   ownerName: "AIP",
-  farmId: "farm-1",
-  farmName: "Campo San Antonio",
+  establishmentId: "establishment-1",
+  establishmentName: "Campo San Antonio",
   dicoseCode: "151400442",
 };
 
@@ -126,7 +126,7 @@ describe("OwnTagUploadForm", () => {
       pendingPaddockNames: ["Potrero Nuevo"],
       pendingCategoryNames: [],
     });
-    vi.mocked(createOwnTagPaddockAction).mockResolvedValue({ id: "p1", name: "Potrero Nuevo", farmId: "farm-1" });
+    vi.mocked(createOwnTagPaddockAction).mockResolvedValue({ id: "p1", name: "Potrero Nuevo", establishmentId: "establishment-1" });
 
     render(<OwnTagUploadForm registrations={[registration]} counts={[]} />);
 
@@ -141,7 +141,7 @@ describe("OwnTagUploadForm", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Crear potrero" }));
 
-    expect(createOwnTagPaddockAction).toHaveBeenCalledWith("farm-1", "Potrero Nuevo");
+    expect(createOwnTagPaddockAction).toHaveBeenCalledWith("establishment-1", "Potrero Nuevo");
     await waitFor(() => expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeEnabled());
     expect(screen.queryByText("Potreros nuevos por crear")).not.toBeInTheDocument();
   });
@@ -160,7 +160,7 @@ describe("OwnTagUploadForm", () => {
     });
     vi.mocked(createOwnTagCategoryAction).mockResolvedValue({
       id: "c1",
-      groupId: "g1",
+      farmId: "g1",
       name: "Vaca",
       sex: null,
       minAgeMonths: null,
@@ -180,7 +180,7 @@ describe("OwnTagUploadForm", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Crear categoría" }));
 
-    expect(createOwnTagCategoryAction).toHaveBeenCalledWith("farm-1", "Vaca");
+    expect(createOwnTagCategoryAction).toHaveBeenCalledWith("establishment-1", "Vaca");
     await waitFor(() => expect(screen.getByRole("button", { name: "Confirmar carga" })).toBeEnabled());
     expect(screen.queryByText("Categorías nuevas por crear")).not.toBeInTheDocument();
   });

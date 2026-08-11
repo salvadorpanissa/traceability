@@ -260,6 +260,20 @@
       "when": 1786415554170,
       "tag": "0036_same_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786500000000,
+      "tag": "0037_rename_farm_to_establishment",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786510000000,
+      "tag": "0038_user_farm_assignment",
+      "breakpoints": true
     }
   ]
 }

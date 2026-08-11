@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess, requireGroupAccess, getFarmGroupId } from "@/lib/dal/farm-access";
-import { createProduct, updateProduct, getProductGroupId, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
+import { requireEstablishmentAccess, requireFarmAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { createProduct, updateProduct, getProductFarmId, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 
 export type ProductCatalogActionResult = { ok: true; entry: ProductCatalogEntry } | { ok: false; error: string };
@@ -17,7 +17,7 @@ const productInputSchema = z.object({
 });
 
 export async function createProductAction(input: {
-  farmId: string;
+  establishmentId: string;
   name: string;
   defaultDose: string | null;
   defaultDoseUnit: string | null;
@@ -25,14 +25,14 @@ export async function createProductAction(input: {
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
-  const groupId = await getFarmGroupId(input.farmId);
-  if (!groupId) return { ok: false, error: "Campo no encontrado" };
+  await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
+  const farmId = await getEstablishmentFarmId(input.establishmentId);
+  if (!farmId) return { ok: false, error: "Campo no encontrado" };
 
   const parsed = productInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createProduct(groupId, parsed.data.name, {
+    const entry = await createProduct(farmId, parsed.data.name, {
       defaultDose: parsed.data.defaultDose,
       defaultDoseUnit: parsed.data.defaultDoseUnit,
       defaultRoute: parsed.data.defaultRoute,
@@ -54,9 +54,9 @@ export async function updateProductAction(input: {
   defaultWithdrawalDays: number | null;
 }): Promise<ProductCatalogActionResult> {
   const session = await requireSession();
-  const groupId = await getProductGroupId(input.id);
-  if (!groupId) return { ok: false, error: "Producto no encontrado" };
-  await requireGroupAccess(session.user.id, session.user.role, groupId);
+  const farmId = await getProductFarmId(input.id);
+  if (!farmId) return { ok: false, error: "Producto no encontrado" };
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
 
   const parsed = productInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };

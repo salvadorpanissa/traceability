@@ -8,9 +8,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   category,
@@ -51,12 +51,12 @@ async function seedManagerAndFarm() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -69,7 +69,7 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
   } as never);
@@ -77,7 +77,7 @@ async function seedManagerAndFarm() {
 }
 
 async function seedAnimalAtFarm(
-  farmId: string,
+  establishmentId: string,
   adminId: string,
   tag: string,
   categoryId: string,
@@ -91,7 +91,7 @@ async function seedAnimalAtFarm(
     .insert(batchOperation)
     .values({
       eventType: "transfer",
-      farmId,
+      establishmentId,
       animalCount: 1,
       createdBy: adminId,
     })
@@ -102,7 +102,7 @@ async function seedAnimalAtFarm(
       eventType: "transfer",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batch.id,
       createdBy: adminId,
     })
@@ -111,8 +111,8 @@ async function seedAnimalAtFarm(
     .insert(eventTransfer)
     .values({
       eventId: transferEvent.id,
-      originFarmId: farmId,
-      destinationFarmId: farmId,
+      originEstablishmentId: establishmentId,
+      destinationEstablishmentId: establishmentId,
     });
 
   const [recatEvent] = await testDb
@@ -121,7 +121,7 @@ async function seedAnimalAtFarm(
       eventType: "recategorize",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batch.id,
       createdBy: adminId,
     })
@@ -139,13 +139,13 @@ async function seedAnimalAtFarm(
 
 async function excelFormData(
   rows: string[][],
-  farmId: string,
+  establishmentId: string,
   headers: string[] = ["Caravana", "Fecha"],
 ): Promise<FormData> {
   const buffer = await buildWorkbookBuffer(headers, rows);
   const formData = new FormData();
   formData.set("file", new Blob([buffer]), "lote.xlsx");
-  formData.set("farmId", farmId);
+  formData.set("establishmentId", establishmentId);
   return formData;
 }
 
@@ -154,7 +154,7 @@ describe("previewRecategorizeBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
     await refreshDerivedState();
@@ -186,8 +186,8 @@ describe("previewRecategorizeBatch", () => {
 
   it("rejects the whole batch when the manager has no access to the chosen campo", async () => {
     await seedManagerAndFarm();
-    const [foreignGroup] = await testDb.insert(farmGroup).values({ name: "Grupo Ajeno" }).returning();
-    const [foreignFarm] = await testDb.insert(farm).values({ groupId: foreignGroup.id, name: "Campo Ajeno" }).returning();
+    const [foreignGroup] = await testDb.insert(farm).values({ name: "Grupo Ajeno" }).returning();
+    const [foreignFarm] = await testDb.insert(establishment).values({ farmId: foreignGroup.id, name: "Campo Ajeno" }).returning();
 
     const formData = await excelFormData([["AR1", "2026-03-01"]], foreignFarm.id);
     formData.set(
@@ -203,11 +203,11 @@ describe("previewRecategorizeBatch", () => {
 
   it("errors a row whose animal is on a different campo than the one chosen", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
-    const [foreignGroup] = await testDb.insert(farmGroup).values({ name: "Grupo Ajeno" }).returning();
-    const [foreignFarm] = await testDb.insert(farm).values({ groupId: foreignGroup.id, name: "Campo Ajeno" }).returning();
+    const [foreignGroup] = await testDb.insert(farm).values({ name: "Grupo Ajeno" }).returning();
+    const [foreignFarm] = await testDb.insert(establishment).values({ farmId: foreignGroup.id, name: "Campo Ajeno" }).returning();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
     // Same manager id as creator (only a FK filler) — the point is this animal
@@ -261,11 +261,11 @@ describe("confirmRecategorizeBatchAction", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [novillo] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [novilloPlus3] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo +3 años" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo +3 años" })
       .returning();
     const createdAnimal = await seedAnimalAtFarm(
       seededFarm.id,
@@ -283,7 +283,7 @@ describe("confirmRecategorizeBatchAction", () => {
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
       ],
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       targetCategoryId: novilloPlus3.id,
       rows: [
         {
@@ -292,7 +292,7 @@ describe("confirmRecategorizeBatchAction", () => {
           notes: null,
           status: "existing",
           animalId: createdAnimal.id,
-          currentFarmId: seededFarm.id,
+          currentEstablishmentId: seededFarm.id,
           currentCategoryId: novillo.id,
           currentCategoryName: "Novillo",
           sex: null,

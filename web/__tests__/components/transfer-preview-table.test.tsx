@@ -57,19 +57,19 @@ describe("TransferPreviewTable", () => {
     expect(onToggleForced).toHaveBeenCalledWith("AR000000000050");
   });
 
-  it("labels a wrong_farm row with its registered farm, and shows no checkbox", () => {
+  it("labels a wrong_establishment row with its registered establishment, and shows no checkbox", () => {
     const rows: ResolvedRow[] = [
       {
         tag: "AR000000000051",
         eventDate: "2026-02-01",
         notes: null,
-        status: "wrong_farm",
+        status: "wrong_establishment",
         categoryId: null,
         sex: null,
         birthDate: null,
         ownerId: "owner-1",
-        registeredFarmId: "farm-1",
-        registeredFarmName: "Cuatro Cerros",
+        registeredEstablishmentId: "establishment-1",
+        registeredEstablishmentName: "Cuatro Cerros",
       },
     ];
 

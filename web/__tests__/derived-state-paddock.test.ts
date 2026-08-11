@@ -4,9 +4,9 @@ import { testDb } from "../test/db";
 import { resetTestDb } from "../test/reset-db";
 import { refreshDerivedState } from "../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -27,26 +27,26 @@ async function currentPaddockIdFor(animalId: string): Promise<string | null> {
 }
 
 describe("animal_current_state.current_paddock_id", () => {
-  it("reflects the destination paddock after a same-farm transfer, and stays null without one", async () => {
+  it("reflects the destination paddock after a same-establishment transfer, and stays null without one", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroB] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero B" })
       .returning();
     const [user] = await testDb
       .insert(userAccount)
@@ -67,7 +67,7 @@ describe("animal_current_state.current_paddock_id", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -78,15 +78,15 @@ describe("animal_current_state.current_paddock_id", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: animalWithPaddock.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch1.id,
         createdBy: user.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: event1.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       originPaddockId: potreroA.id,
       destinationPaddockId: potreroB.id,
     });
@@ -103,7 +103,7 @@ describe("animal_current_state.current_paddock_id", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -114,7 +114,7 @@ describe("animal_current_state.current_paddock_id", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: animalWithoutPaddock.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch2.id,
         createdBy: user.id,
       })
@@ -123,8 +123,8 @@ describe("animal_current_state.current_paddock_id", () => {
       .insert(eventTransfer)
       .values({
         eventId: event2.id,
-        originFarmId: seededFarm.id,
-        destinationFarmId: seededFarm.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
       });
     await refreshDerivedState();
 

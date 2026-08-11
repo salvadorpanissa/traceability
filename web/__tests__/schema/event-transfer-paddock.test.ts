@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -24,20 +24,20 @@ describe("event_transfer paddock columns", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroB] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero B" })
       .returning();
     const [user] = await testDb
       .insert(userAccount)
@@ -53,7 +53,7 @@ describe("event_transfer paddock columns", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -64,7 +64,7 @@ describe("event_transfer paddock columns", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       })
@@ -74,8 +74,8 @@ describe("event_transfer paddock columns", () => {
       .insert(eventTransfer)
       .values({
         eventId: createdEvent.id,
-        originFarmId: seededFarm.id,
-        destinationFarmId: seededFarm.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
         originPaddockId: potreroA.id,
         destinationPaddockId: potreroB.id,
       })

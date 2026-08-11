@@ -31,17 +31,17 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
   })),
   confirmTransferBatchAction: vi.fn(async () => undefined),
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
-  listPaddocksAction: vi.fn(async () => [{ id: "p1", name: "Potrero 1", farmId: "farm-1" }]),
-  createPaddockAction: vi.fn(async (_farmId: string, name: string) => ({ id: "p2", name, farmId: "farm-1" })),
+  listPaddocksAction: vi.fn(async () => [{ id: "p1", name: "Potrero 1", establishmentId: "establishment-1" }]),
+  createPaddockAction: vi.fn(async (_farmId: string, name: string) => ({ id: "p2", name, establishmentId: "establishment-1" })),
 }));
 
-const farms = [
-  { id: "farm-1", name: "Campo Norte" },
-  { id: "farm-2", name: "Campo Sur" },
+const establishments = [
+  { id: "establishment-1", name: "Campo Norte" },
+  { id: "establishment-2", name: "Campo Sur" },
 ];
 
 async function selectDestinationFarmAndUploadFile(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText(/campo destino/i), "farm-1");
+  await user.selectOptions(screen.getByLabelText(/campo destino/i), "establishment-1");
   const file = new File(["dummy"], "lote.xlsx", {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
@@ -51,7 +51,7 @@ async function selectDestinationFarmAndUploadFile(user: ReturnType<typeof userEv
 
 describe("TransferForm", () => {
   it("shows the preview after uploading a file", async () => {
-    render(<TransferForm farms={farms} />);
+    render(<TransferForm establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectDestinationFarmAndUploadFile(user);
@@ -60,8 +60,8 @@ describe("TransferForm", () => {
     expect(screen.getByText("Nuevo")).toBeInTheDocument();
   });
 
-  it("disables Subir until a destination farm and a file are both chosen", async () => {
-    render(<TransferForm farms={farms} />);
+  it("disables Subir until a destination establishment and a file are both chosen", async () => {
+    render(<TransferForm establishments={establishments} />);
     const user = userEvent.setup();
 
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
@@ -72,15 +72,15 @@ describe("TransferForm", () => {
     await user.upload(screen.getByLabelText(/archivo/i), file);
     expect(screen.getByRole("button", { name: /subir/i })).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText(/campo destino/i), "farm-1");
+    await user.selectOptions(screen.getByLabelText(/campo destino/i), "establishment-1");
     expect(screen.getByRole("button", { name: /subir/i })).not.toBeDisabled();
   });
 
   it("lets the user pick a destination potrero before uploading", async () => {
-    render(<TransferForm farms={farms} />);
+    render(<TransferForm establishments={establishments} />);
     const user = userEvent.setup();
 
-    await user.selectOptions(screen.getByLabelText(/campo destino/i), "farm-1");
+    await user.selectOptions(screen.getByLabelText(/campo destino/i), "establishment-1");
     await waitFor(() => expect(screen.getByRole("option", { name: "Potrero 1" })).toBeInTheDocument());
     await user.selectOptions(screen.getByLabelText(/potrero destino/i), "p1");
 
@@ -93,7 +93,7 @@ describe("TransferForm", () => {
   });
 
   it("disables Confirmar while an owner is pending, and enables it once created inline", async () => {
-    render(<TransferForm farms={farms} />);
+    render(<TransferForm establishments={establishments} />);
     const user = userEvent.setup();
 
     await selectDestinationFarmAndUploadFile(user);
@@ -134,7 +134,7 @@ describe("TransferForm", () => {
       ],
     });
 
-    render(<TransferForm farms={farms} />);
+    render(<TransferForm establishments={establishments} />);
     const user = userEvent.setup();
 
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();

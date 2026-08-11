@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  dicoseRegistration,
   farm,
+  dicose,
+  establishment,
   owner,
   role,
   userAccount,
@@ -16,39 +16,39 @@ vi.mock("@/db", () => ({ db: testDb }));
 const {
   listDicoseRegistrations,
   createDicoseRegistration,
-  findFarmByDicoseCode,
-} = await import("@/lib/dal/dicose-registration");
+  findEstablishmentByDicoseCode,
+} = await import("@/lib/dal/dicose");
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
 describe("dicose-registration", () => {
-  it("creates a registration and returns it with owner/farm names resolved", async () => {
+  it("creates a registration and returns it with owner/establishment names resolved", async () => {
     const [createdOwner] = await testDb
       .insert(owner)
       .values({ name: "AIP" })
       .returning();
     const [createdFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo San Antonio" })
       .returning();
     const [createdFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: createdFarmGroup.id, name: "Campo San Antonio" })
+      .insert(establishment)
+      .values({ farmId: createdFarmGroup.id, name: "Campo San Antonio" })
       .returning();
 
     const created = await createDicoseRegistration({
       ownerId: createdOwner.id,
-      farmId: createdFarm.id,
+      establishmentId: createdFarm.id,
       dicoseCode: "151400442",
     });
 
     expect(created).toMatchObject({
       ownerId: createdOwner.id,
       ownerName: "AIP",
-      farmId: createdFarm.id,
-      farmName: "Campo San Antonio",
+      establishmentId: createdFarm.id,
+      establishmentName: "Campo San Antonio",
       dicoseCode: "151400442",
     });
   });
@@ -76,22 +76,22 @@ describe("dicose-registration", () => {
       .values({ name: "SASG" })
       .returning();
     const [createdFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo San Antonio" })
       .returning();
     const [createdFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: createdFarmGroup.id, name: "Campo San Antonio" })
+      .insert(establishment)
+      .values({ farmId: createdFarmGroup.id, name: "Campo San Antonio" })
       .returning();
 
     await createDicoseRegistration({
       ownerId: ownerAip.id,
-      farmId: createdFarm.id,
+      establishmentId: createdFarm.id,
       dicoseCode: "151400442",
     });
     await createDicoseRegistration({
       ownerId: ownerSasg.id,
-      farmId: createdFarm.id,
+      establishmentId: createdFarm.id,
       dicoseCode: "151422799",
     });
 
@@ -126,39 +126,39 @@ describe("dicose-registration", () => {
       .values({ name: "SASG" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
 
     await createDicoseRegistration({
       ownerId: ownerAip.id,
-      farmId: farmNorte.id,
+      establishmentId: farmNorte.id,
       dicoseCode: "151400442",
     });
     await createDicoseRegistration({
       ownerId: ownerSasg.id,
-      farmId: farmSur.id,
+      establishmentId: farmSur.id,
       dicoseCode: "151422799",
     });
 
     const registrations = await listDicoseRegistrations(manager.id, "manager");
     expect(registrations).toHaveLength(1);
-    expect(registrations[0].farmId).toBe(farmNorte.id);
+    expect(registrations[0].establishmentId).toBe(farmNorte.id);
   });
 
   it("returns an empty list for a manager with no assigned farms", async () => {
@@ -180,37 +180,37 @@ describe("dicose-registration", () => {
   });
 });
 
-describe("findFarmByDicoseCode", () => {
-  it("resolves a registered DICOSE code to its farm", async () => {
+describe("findEstablishmentByDicoseCode", () => {
+  it("resolves a registered DICOSE code to its establishment", async () => {
     const [seededOwner] = await testDb
       .insert(owner)
       .values({ name: "AIP" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     await testDb
-      .insert(dicoseRegistration)
+      .insert(dicose)
       .values({
         ownerId: seededOwner.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         dicoseCode: "151518192",
       });
 
-    const result = await findFarmByDicoseCode("151518192");
+    const result = await findEstablishmentByDicoseCode("151518192");
 
     expect(result).toEqual({
-      farmId: seededFarm.id,
-      farmName: "Cuatro Cerros",
+      establishmentId: seededFarm.id,
+      establishmentName: "Cuatro Cerros",
     });
   });
 
   it("returns null for a DICOSE code with no registration", async () => {
-    expect(await findFarmByDicoseCode("000000000")).toBeNull();
+    expect(await findEstablishmentByDicoseCode("000000000")).toBeNull();
   });
 });

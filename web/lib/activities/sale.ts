@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { batchOperation, event, eventTransfer, eventSale } from "@/db/schema";
 import { db } from "@/db";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
@@ -18,7 +18,7 @@ export type GuideDocument = {
 export async function confirmSaleBatch(input: {
   userId: string;
   role: string | undefined;
-  operatingFarmId: string;
+  operatingEstablishmentId: string;
   guideNumber: string;
   buyer: string | null;
   price: string | null;
@@ -27,9 +27,9 @@ export async function confirmSaleBatch(input: {
   forcedWithdrawalTags: string[];
   guideDocument?: GuideDocument;
 }): Promise<void> {
-  const { userId, role, operatingFarmId, guideNumber, buyer, price, weightKg, rows, forcedWithdrawalTags } = input;
+  const { userId, role, operatingEstablishmentId, guideNumber, buyer, price, weightKg, rows, forcedWithdrawalTags } = input;
 
-  await requireFarmAccess(userId, role, operatingFarmId);
+  await requireEstablishmentAccess(userId, role, operatingEstablishmentId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
@@ -43,12 +43,13 @@ export async function confirmSaleBatch(input: {
   }
 
   // An "existing" row is any alive animal in the system with that caravana —
-  // resolveBatchRows does not scope that lookup by farm. Selling an animal that
-  // is currently standing at a different campo would permanently mark another
-  // farm's animal as sold, from a farm the user may have no access to at all.
+  // resolveBatchRows does not scope that lookup by campo. Selling an animal
+  // that is currently standing at a different campo would permanently mark
+  // another campo's animal as sold, from a campo the user may have no access
+  // to at all.
   const misplaced = rows.find(
     (row): row is Extract<ResolvedRow, { status: "existing" }> =>
-      row.status === "existing" && row.currentFarmId !== operatingFarmId
+      row.status === "existing" && row.currentEstablishmentId !== operatingEstablishmentId
   );
   if (misplaced) {
     throw new Error(`La caravana ${misplaced.tag} figura en otro campo; no se puede vender desde acá`);
@@ -85,7 +86,7 @@ export async function confirmSaleBatch(input: {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: operatingFarmId,
+        establishmentId: operatingEstablishmentId,
         animalCount: rows.length,
         createdBy: userId,
         guideFileName: input.guideDocument?.fileName ?? null,
@@ -105,10 +106,10 @@ export async function confirmSaleBatch(input: {
         await gapFillBreed(tx, animalId, row.breed);
         await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
       } else {
-        animalId = await createNewAnimal(tx, { userId, operatingFarmId, batchId: batch.id, row });
+        animalId = await createNewAnimal(tx, { userId, operatingEstablishmentId, batchId: batch.id, row });
 
         // A brand-new animal still needs a placement traslado to be visible in
-        // animal_current_state (current_farm_id only ever comes from
+        // animal_current_state (current_establishment_id only ever comes from
         // event_transfer) — same reasoning as confirmHealthBatch.
         const [placementEvent] = await tx
           .insert(event)
@@ -116,15 +117,15 @@ export async function confirmSaleBatch(input: {
             eventType: "transfer",
             eventDate: row.eventDate,
             animalId,
-            farmId: operatingFarmId,
+            establishmentId: operatingEstablishmentId,
             batchOperationId: batch.id,
             createdBy: userId,
           })
           .returning();
         await tx.insert(eventTransfer).values({
           eventId: placementEvent.id,
-          originFarmId: operatingFarmId,
-          destinationFarmId: operatingFarmId,
+          originEstablishmentId: operatingEstablishmentId,
+          destinationEstablishmentId: operatingEstablishmentId,
           originPaddockId: null,
           destinationPaddockId: null,
         });
@@ -136,7 +137,7 @@ export async function confirmSaleBatch(input: {
           eventType: "sale",
           eventDate: row.eventDate,
           animalId,
-          farmId: operatingFarmId,
+          establishmentId: operatingEstablishmentId,
           batchOperationId: batch.id,
           createdBy: userId,
           notes: row.notes,

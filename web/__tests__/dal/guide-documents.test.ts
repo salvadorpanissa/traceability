@@ -3,9 +3,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { eq } from "drizzle-orm";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   batchOperation,
@@ -22,18 +22,18 @@ beforeEach(async () => {
   await resetTestDb();
 });
 
-async function seedManagerAndFarm(farmName = "Campo Norte") {
+async function seedManagerAndFarm(establishmentName = "Campo Norte") {
   const [managerRole] = await testDb
     .insert(role)
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
-    .values({ name: farmName })
+    .insert(farm)
+    .values({ name: establishmentName })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: farmName })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: establishmentName })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -46,7 +46,7 @@ async function seedManagerAndFarm(farmName = "Campo Norte") {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   return { manager, seededFarm };
 }
 
@@ -73,8 +73,8 @@ describe("listGuideDocuments", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       guideNumber: "D838153",
       guideDocument: {
@@ -93,8 +93,8 @@ describe("listGuideDocuments", () => {
       mimeType: "application/pdf",
       animalCount: 1,
       guideNumber: "D838153",
-      originFarmName: seededFarm.name,
-      destinationFarmName: seededFarm.name,
+      originEstablishmentName: seededFarm.name,
+      destinationEstablishmentName: seededFarm.name,
     });
   });
 
@@ -103,8 +103,8 @@ describe("listGuideDocuments", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       rows: sampleRows(),
     });
@@ -112,15 +112,15 @@ describe("listGuideDocuments", () => {
     expect(await listGuideDocuments(manager.id, "manager")).toEqual([]);
   });
 
-  it("scopes results to the manager's assigned farm", async () => {
+  it("scopes results to the manager's assigned establishment", async () => {
     const { manager } = await seedManagerAndFarm();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Campo Sur" })
       .returning();
     const [adminRole] = await testDb
       .insert(role)
@@ -139,8 +139,8 @@ describe("listGuideDocuments", () => {
     await confirmTransferBatch({
       userId: admin.id,
       role: "admin",
-      operatingFarmId: otherFarm.id,
-      destinationFarmId: otherFarm.id,
+      operatingEstablishmentId: otherFarm.id,
+      destinationEstablishmentId: otherFarm.id,
       destinationPaddockId: null,
       guideNumber: "OTHER-1",
       guideDocument: {
@@ -162,8 +162,8 @@ describe("getGuideDocumentFile", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       guideNumber: "D838153",
       guideDocument: {
@@ -189,8 +189,8 @@ describe("getGuideDocumentFile", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       rows: sampleRows(),
     });
@@ -201,13 +201,13 @@ describe("getGuideDocumentFile", () => {
     ).toBeNull();
   });
 
-  it("rejects a manager without access to the batch's farm", async () => {
+  it("rejects a manager without access to the batch's establishment", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       guideNumber: "D838153",
       guideDocument: {
@@ -243,8 +243,8 @@ describe("getGuideDocumentFile", () => {
     await confirmTransferBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: null,
       rows: sampleRows(),
     });

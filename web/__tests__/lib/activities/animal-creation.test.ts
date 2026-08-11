@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   category,
   owner,
@@ -32,12 +32,12 @@ async function seedFarmAndUser() {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -52,7 +52,7 @@ async function seedFarmAndUser() {
     .insert(batchOperation)
     .values({
       eventType: "health",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: user.id,
     })
@@ -78,7 +78,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -109,7 +109,7 @@ describe("createNewAnimal", () => {
     const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const [createdCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Ternero" })
+      .values({ farmId: seededFarmGroup.id, name: "Ternero" })
       .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000061",
@@ -126,7 +126,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -172,7 +172,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -205,7 +205,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -228,14 +228,14 @@ describe("createNewAnimal", () => {
     const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
     const [category23] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
       .returning();
     await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo +3 años", sex: "male", minAgeMonths: 36 });
+      .values({ farmId: seededFarmGroup.id, name: "Novillo +3 años", sex: "male", minAgeMonths: 36 });
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000065",
       eventDate: "2026-02-01",
@@ -251,7 +251,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -270,7 +270,7 @@ describe("createNewAnimal", () => {
     const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const [createdCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Toro" })
+      .values({ farmId: seededFarmGroup.id, name: "Toro" })
       .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000066",
@@ -287,7 +287,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -304,10 +304,10 @@ describe("createNewAnimal", () => {
     const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
     const [category23] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
       .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000067",
@@ -324,7 +324,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),
@@ -354,7 +354,7 @@ describe("createNewAnimal", () => {
     const animalId = await testDb.transaction(async (tx) =>
       createNewAnimal(tx, {
         userId: user.id,
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         batchId: batch.id,
         row,
       }),

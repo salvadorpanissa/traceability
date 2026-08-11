@@ -37,8 +37,8 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function TransferForm({ farms }: { farms: { id: string; name: string }[] }) {
-  const [destinationFarmId, setDestinationFarmId] = useState("");
+export function TransferForm({ establishments }: { establishments: { id: string; name: string }[] }) {
+  const [destinationEstablishmentId, setDestinationEstablishmentId] = useState("");
   const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
   const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -49,19 +49,19 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const [mode, setMode] = useState<"excel" | "pdf">("excel");
   const [paddockLoadError, setPaddockLoadError] = useState("");
 
-  async function handleDestinationFarmChange(farmId: string) {
-    setDestinationFarmId(farmId);
+  async function handleDestinationEstablishmentChange(establishmentId: string) {
+    setDestinationEstablishmentId(establishmentId);
     setDestinationPaddockId(null);
     setEventDate("");
     setPreview(null);
     setRows([]);
     setPaddockLoadError("");
-    if (!farmId) {
+    if (!establishmentId) {
       setPaddocks([]);
       return;
     }
     try {
-      setPaddocks(await listPaddocksAction(farmId));
+      setPaddocks(await listPaddocksAction(establishmentId));
     } catch (err) {
       setPaddocks([]);
       setPaddockLoadError(err instanceof Error ? err.message : "No se pudieron cargar los potreros");
@@ -74,11 +74,11 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !destinationFarmId) return;
+    if (!file || !destinationEstablishmentId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
-    formData.set("farmId", destinationFarmId);
+    formData.set("establishmentId", destinationEstablishmentId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewTransferBatch(formData);
     setPreview(result);
@@ -93,7 +93,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
-    const created = await createPaddockAction(destinationFarmId, name);
+    const created = await createPaddockAction(destinationEstablishmentId, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -121,7 +121,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
     await confirmTransferBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
-      destinationFarmId,
+      destinationEstablishmentId,
       destinationPaddockId,
       rows,
     });
@@ -135,7 +135,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
   const pendingNames = pendingOwnerNames(rows);
   const hasConfirmableRow = rows.some(
     (r) =>
-      r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
+      r.status === "new" || r.status === "existing" || r.status === "wrong_establishment" || (r.status === "foreign" && r.forced)
   );
 
   return (
@@ -149,28 +149,28 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
         </Button>
       </div>
       {mode === "pdf" ? (
-        <PdfGuideTransferForm farms={farms} />
+        <PdfGuideTransferForm establishments={establishments} />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="destinationFarm">Campo destino</Label>
+            <Label htmlFor="destinationEstablishment">Campo destino</Label>
             <select
-              id="destinationFarm"
+              id="destinationEstablishment"
               aria-label="Campo destino"
-              value={destinationFarmId}
-              onChange={(e) => handleDestinationFarmChange(e.target.value)}
+              value={destinationEstablishmentId}
+              onChange={(e) => handleDestinationEstablishmentChange(e.target.value)}
               className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
             >
               <option value="">Elegir campo</option>
-              {farms.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
+              {establishments.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
                 </option>
               ))}
             </select>
           </div>
           {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
-          {destinationFarmId ? (
+          {destinationEstablishmentId ? (
             <PaddockSelector
               paddocks={paddocks}
               paddockId={destinationPaddockId}
@@ -182,7 +182,7 @@ export function TransferForm({ farms }: { farms: { id: string; name: string }[] 
             <Label htmlFor="file">Archivo</Label>
             <Input id="file" type="file" onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
           </div>
-          <Button type="button" disabled={!destinationFarmId || !file} onClick={() => runPreview()}>
+          <Button type="button" disabled={!destinationEstablishmentId || !file} onClick={() => runPreview()}>
             Subir
           </Button>
 

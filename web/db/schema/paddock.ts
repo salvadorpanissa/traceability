@@ -1,14 +1,14 @@
 import { pgTable, uuid, text, unique } from "drizzle-orm/pg-core";
-import { farm } from "./farm";
+import { establishment } from "./establishment";
 
 export const paddock = pgTable(
   "paddock",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    farmId: uuid("farm_id")
+    establishmentId: uuid("establishment_id")
       .notNull()
-      .references(() => farm.id),
+      .references(() => establishment.id),
     name: text("name").notNull(),
   },
-  (table) => [unique("paddock_farm_id_name_unique").on(table.farmId, table.name)]
+  (table) => [unique("paddock_establishment_id_name_unique").on(table.establishmentId, table.name)]
 );

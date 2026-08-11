@@ -4,9 +4,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -36,12 +36,12 @@ async function seedManagerFarmAndSale(opts: {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "San Antonio" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -54,13 +54,13 @@ async function seedManagerFarmAndSale(opts: {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
 
   const [batch] = await testDb
     .insert(batchOperation)
     .values({
       eventType: "sale",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: manager.id,
     })
@@ -75,7 +75,7 @@ async function seedManagerFarmAndSale(opts: {
       eventType: "sale",
       eventDate: "2026-07-11",
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: batch.id,
       createdBy: manager.id,
     })
@@ -258,7 +258,7 @@ describe("linkSaleSettlement", () => {
     ).rejects.toThrow("No se encontró ninguna venta");
   });
 
-  it("rejects when the user has no access to the venta's farm", async () => {
+  it("rejects when the user has no access to the venta's establishment", async () => {
     await seedManagerFarmAndSale({ buyer: null, price: null, weightKg: null });
     const [managerRole] = await testDb
       .select()

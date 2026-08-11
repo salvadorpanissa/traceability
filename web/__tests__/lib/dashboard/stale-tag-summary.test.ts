@@ -4,9 +4,9 @@ import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -31,12 +31,12 @@ async function seedManagerAndFarm() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -49,7 +49,7 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   return { manager, seededFarm };
 }
 
@@ -61,7 +61,7 @@ function daysAgoISODate(days: number): string {
 
 async function seedAnimalWithLastEvent(
   tag: string,
-  farmId: string,
+  establishmentId: string,
   createdBy: string,
   eventDate: string,
   validFrom: string = eventDate,
@@ -78,7 +78,7 @@ async function seedAnimalWithLastEvent(
   // Create self-retag event to make the tag appear in animal_current_state.current_tag
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "retag", farmId, animalCount: 1, createdBy })
+    .values({ eventType: "retag", establishmentId, animalCount: 1, createdBy })
     .returning();
   const [retagEvent] = await testDb
     .insert(event)
@@ -86,7 +86,7 @@ async function seedAnimalWithLastEvent(
       eventType: "retag",
       eventDate,
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batch.id,
       createdBy,
     })
@@ -98,7 +98,7 @@ async function seedAnimalWithLastEvent(
   // Then add transfer event
   const [transferBatch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "transfer", farmId, animalCount: 1, createdBy })
+    .values({ eventType: "transfer", establishmentId, animalCount: 1, createdBy })
     .returning();
   const [transferEvent] = await testDb
     .insert(event)
@@ -106,7 +106,7 @@ async function seedAnimalWithLastEvent(
       eventType: "transfer",
       eventDate,
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: transferBatch.id,
       createdBy,
     })
@@ -115,8 +115,8 @@ async function seedAnimalWithLastEvent(
     .insert(eventTransfer)
     .values({
       eventId: transferEvent.id,
-      originFarmId: farmId,
-      destinationFarmId: farmId,
+      originEstablishmentId: establishmentId,
+      destinationEstablishmentId: establishmentId,
       originPaddockId: null,
       destinationPaddockId: null,
     });
@@ -136,7 +136,7 @@ describe("findStaleTags", () => {
 
     // No event, no eventTransfer — this animal only exists via its tag
     // history row, so animal_current_state won't even list it as "alive"
-    // without a farm. Give it a farm via a raw insert into the materialized
+    // without a establishment. Give it a establishment via a raw insert into the materialized
     // view isn't possible (it's a view), so instead this test only checks
     // the SQL doesn't reference animal.created_at anymore by asserting the
     // query still runs without error for an animal with zero events, using
@@ -144,7 +144,7 @@ describe("findStaleTags", () => {
     // the past that it's the earliest signal we have.
     await refreshDerivedState();
 
-    // With no farm placement the animal never appears in animal_current_state
+    // With no establishment placement the animal never appears in animal_current_state
     // (status defaults to nothing alive), so this just proves the query
     // doesn't throw referencing a dropped column.
     await expect(
@@ -222,12 +222,12 @@ describe("findStaleTags", () => {
   it("scopes results to the manager's assigned campos", async () => {
     const { manager } = await seedManagerAndFarm();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     await seedAnimalWithLastEvent(
       "AR000000000924",
@@ -252,12 +252,12 @@ describe("findStaleTags", () => {
         validFrom: new Date(daysAgoISODate(150)),
       });
 
-    // An old transfer establishes the animal on the farm well past the threshold.
+    // An old transfer establishes the animal on the establishment well past the threshold.
     const [oldBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -268,15 +268,15 @@ describe("findStaleTags", () => {
         eventType: "transfer",
         eventDate: daysAgoISODate(150),
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: oldBatch.id,
         createdBy: manager.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: oldTransferEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       originPaddockId: null,
       destinationPaddockId: null,
     });
@@ -286,7 +286,7 @@ describe("findStaleTags", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -297,15 +297,15 @@ describe("findStaleTags", () => {
         eventType: "transfer",
         eventDate: daysAgoISODate(5),
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: recentBatch.id,
         createdBy: manager.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: recentTransferEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       originPaddockId: null,
       destinationPaddockId: null,
     });
@@ -315,7 +315,7 @@ describe("findStaleTags", () => {
       .insert(batchOperation)
       .values({
         eventType: "void",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -324,7 +324,7 @@ describe("findStaleTags", () => {
       eventType: "void",
       eventDate: daysAgoISODate(1),
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: voidBatch.id,
       createdBy: manager.id,
       voidsEventId: recentTransferEvent.id,
@@ -356,7 +356,7 @@ describe("findStaleTags", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -368,15 +368,15 @@ describe("findStaleTags", () => {
         eventType: "transfer",
         eventDate,
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: transferBatch.id,
         createdBy: manager.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: transferEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       originPaddockId: null,
       destinationPaddockId: null,
     });

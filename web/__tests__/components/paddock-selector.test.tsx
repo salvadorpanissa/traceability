@@ -6,7 +6,7 @@ import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 afterEach(cleanup);
 
-const paddocks: PaddockCatalogEntry[] = [{ id: "p1", name: "Potrero 1", farmId: "farm-1" }];
+const paddocks: PaddockCatalogEntry[] = [{ id: "p1", name: "Potrero 1", establishmentId: "establishment-1" }];
 
 describe("PaddockSelector", () => {
   it("defaults to 'Sin potrero' and lists the given paddocks", () => {
@@ -26,7 +26,7 @@ describe("PaddockSelector", () => {
 
   it("creates a new paddock inline and selects it", async () => {
     const onChange = vi.fn();
-    const onCreatePaddock = vi.fn(async (name: string) => ({ id: "p2", name, farmId: "farm-1" }));
+    const onCreatePaddock = vi.fn(async (name: string) => ({ id: "p2", name, establishmentId: "establishment-1" }));
     const user = userEvent.setup();
 
     render(

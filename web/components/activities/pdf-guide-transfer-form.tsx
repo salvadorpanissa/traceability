@@ -34,7 +34,7 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[] }) {
+export function PdfGuideTransferForm({}: { establishments: { id: string; name: string }[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PdfPreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
@@ -50,13 +50,13 @@ export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[]
     setPreview(result);
     if (result.ok) {
       setRows(result.rows);
-      setPaddocks(await listPaddocksAction(result.destinationFarmId));
+      setPaddocks(await listPaddocksAction(result.destinationEstablishmentId));
     }
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
     if (!preview?.ok) throw new Error("Subí una guía primero");
-    const created = await createPaddockAction(preview.destinationFarmId, name);
+    const created = await createPaddockAction(preview.destinationEstablishmentId, name);
     setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }
@@ -83,8 +83,8 @@ export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[]
     if (!preview?.ok || !file) return;
     const formData = new FormData();
     formData.set("file", file);
-    formData.set("originFarmId", preview.originFarmId);
-    formData.set("destinationFarmId", preview.destinationFarmId);
+    formData.set("originEstablishmentId", preview.originEstablishmentId);
+    formData.set("destinationEstablishmentId", preview.destinationEstablishmentId);
     if (destinationPaddockId) formData.set("destinationPaddockId", destinationPaddockId);
     formData.set("guideNumber", preview.guideNumber);
     formData.set("rows", JSON.stringify(rows));
@@ -99,7 +99,7 @@ export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[]
   const pendingNames = pendingOwnerNames(rows);
   const hasConfirmableRow = rows.some(
     (r) =>
-      r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
+      r.status === "new" || r.status === "existing" || r.status === "wrong_establishment" || (r.status === "foreign" && r.forced)
   );
 
   return (
@@ -131,9 +131,9 @@ export function PdfGuideTransferForm({}: { farms: { id: string; name: string }[]
             <dt className="text-muted-foreground">Fecha</dt>
             <dd>{preview.eventDate}</dd>
             <dt className="text-muted-foreground">Campo origen</dt>
-            <dd>{preview.originFarmName}</dd>
+            <dd>{preview.originEstablishmentName}</dd>
             <dt className="text-muted-foreground">Campo destino</dt>
-            <dd>{preview.destinationFarmName}</dd>
+            <dd>{preview.destinationEstablishmentName}</dd>
           </dl>
           <PaddockSelector
             paddocks={paddocks}

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { farmGroup, role, farm, userAccount } from "@/db/schema";
+import { farm, role, establishment, userAccount } from "@/db/schema";
 import type { MappedImportRow } from "@/lib/activities/bulk-import-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -54,19 +54,19 @@ describe("importChunkAction", () => {
   it("returns createdCount and errors for a mix of valid and invalid rows", async () => {
     await seedSession("admin");
     const [group1] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     await testDb
-      .insert(farm)
-      .values({ groupId: group1.id, name: "San Antonio" });
+      .insert(establishment)
+      .values({ farmId: group1.id, name: "San Antonio" });
 
     const rows: MappedImportRow[] = [
       {
         tag: "TAG1",
         secondaryTag: null,
         ownerName: "SASG",
-        farmName: "San Antonio",
+        establishmentName: "San Antonio",
         paddockName: "Arerunguá",
         categoryName: "Vaca de cría",
         breed: "Hereford",
@@ -78,7 +78,7 @@ describe("importChunkAction", () => {
         tag: "",
         secondaryTag: null,
         ownerName: null,
-        farmName: null,
+        establishmentName: null,
         paddockName: null,
         categoryName: null,
         breed: null,

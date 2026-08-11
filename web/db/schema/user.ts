@@ -26,8 +26,5 @@ export const userFarm = pgTable(
       .notNull()
       .references(() => farm.id, { onDelete: "cascade" }),
   },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.farmId] }),
-    index("user_farm_farm_id_idx").on(table.farmId),
-  ]
+  (table) => [primaryKey({ columns: [table.userId, table.farmId] }), index("user_farm_farm_id_idx").on(table.farmId)]
 );

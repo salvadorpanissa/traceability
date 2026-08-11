@@ -5,9 +5,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -34,12 +34,12 @@ async function seedManagerSession() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -52,21 +52,21 @@ async function seedManagerSession() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
   } as never);
   return { manager, seededFarm };
 }
 
-async function seedAliveAnimal(tag: string, farmId: string, createdBy: string) {
+async function seedAliveAnimal(tag: string, establishmentId: string, createdBy: string) {
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
   await testDb
     .insert(animalTagHistory)
     .values({ animalId: createdAnimal.id, tag });
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "transfer", farmId, animalCount: 1, createdBy })
+    .values({ eventType: "transfer", establishmentId, animalCount: 1, createdBy })
     .returning();
   const [placementEvent] = await testDb
     .insert(event)
@@ -74,7 +74,7 @@ async function seedAliveAnimal(tag: string, farmId: string, createdBy: string) {
       eventType: "transfer",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batch.id,
       createdBy,
     })
@@ -83,8 +83,8 @@ async function seedAliveAnimal(tag: string, farmId: string, createdBy: string) {
     .insert(eventTransfer)
     .values({
       eventId: placementEvent.id,
-      originFarmId: farmId,
-      destinationFarmId: farmId,
+      originEstablishmentId: establishmentId,
+      destinationEstablishmentId: establishmentId,
       originPaddockId: null,
       destinationPaddockId: null,
     });
@@ -99,7 +99,7 @@ describe("lookupDeathCandidateAction", () => {
 
     const result = await lookupDeathCandidateAction("AR000000000910");
     expect(result?.status).toBe("alive");
-    expect(result?.farmName).toBe("Campo Norte");
+    expect(result?.establishmentName).toBe("Campo Norte");
   });
 
   it("returns null for an unknown tag", async () => {

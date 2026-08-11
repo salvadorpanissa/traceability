@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -28,12 +28,12 @@ async function seedFarmUserAnimal() {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -49,7 +49,7 @@ async function seedFarmUserAnimal() {
     .insert(batchOperation)
     .values({
       eventType: "health",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: user.id,
     })
@@ -59,7 +59,7 @@ async function seedFarmUserAnimal() {
 
 async function seedHealthEvent(
   animalId: string,
-  farmId: string,
+  establishmentId: string,
   batchId: string,
   userId: string,
   productId: string,
@@ -73,7 +73,7 @@ async function seedHealthEvent(
       eventType: "health",
       eventDate,
       animalId,
-      farmId,
+      establishmentId,
       batchOperationId: batchId,
       createdBy: userId,
     })
@@ -91,7 +91,7 @@ async function seedHealthEvent(
       eventType: "void",
       eventDate,
       animalId,
-      farmId,
+      establishmentId,
       batchOperationId: batchId,
       createdBy: userId,
       voidsEventId: healthEvent.id,
@@ -106,7 +106,7 @@ describe("findPendingWithdrawals", () => {
       await seedFarmUserAnimal();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     await seedHealthEvent(
       createdAnimal.id,
@@ -137,7 +137,7 @@ describe("findPendingWithdrawals", () => {
       await seedFarmUserAnimal();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     await seedHealthEvent(
       createdAnimal.id,
@@ -162,7 +162,7 @@ describe("findPendingWithdrawals", () => {
       await seedFarmUserAnimal();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Vitamina" })
+      .values({ farmId: seededFarmGroup.id, name: "Vitamina" })
       .returning();
     await seedHealthEvent(
       createdAnimal.id,
@@ -187,7 +187,7 @@ describe("findPendingWithdrawals", () => {
       await seedFarmUserAnimal();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     await seedHealthEvent(
       createdAnimal.id,
@@ -213,11 +213,11 @@ describe("findPendingWithdrawals", () => {
       await seedFarmUserAnimal();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [productB] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .values({ farmId: seededFarmGroup.id, name: "Aftosa" })
       .returning();
     await seedHealthEvent(
       createdAnimal.id,

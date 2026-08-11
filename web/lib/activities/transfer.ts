@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, event, eventTransfer, paddock } from "@/db/schema";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
 import { requireTransferAuthorization } from "@/lib/dal/animal-access";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
@@ -18,19 +18,19 @@ export type GuideDocument = {
 export async function confirmTransferBatch(input: {
   userId: string;
   role: string | undefined;
-  operatingFarmId: string;
-  destinationFarmId: string;
+  operatingEstablishmentId: string;
+  destinationEstablishmentId: string;
   destinationPaddockId: string | null;
-  originFarmId?: string;
+  originEstablishmentId?: string;
   guideNumber?: string | null;
   guideDocument?: GuideDocument;
   rows: ResolvedRow[];
 }): Promise<void> {
-  const { userId, role, operatingFarmId, destinationFarmId, destinationPaddockId, rows } = input;
-  const newAnimalOriginFarmId = input.originFarmId ?? operatingFarmId;
+  const { userId, role, operatingEstablishmentId, destinationEstablishmentId, destinationPaddockId, rows } = input;
+  const newAnimalOriginEstablishmentId = input.originEstablishmentId ?? operatingEstablishmentId;
 
-  await requireFarmAccess(userId, role, operatingFarmId);
-  await requireTransferAuthorization(userId, role, newAnimalOriginFarmId, destinationFarmId);
+  await requireEstablishmentAccess(userId, role, operatingEstablishmentId);
+  await requireTransferAuthorization(userId, role, newAnimalOriginEstablishmentId, destinationEstablishmentId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
@@ -45,7 +45,7 @@ export async function confirmTransferBatch(input: {
 
   if (destinationPaddockId) {
     const [destinationPaddockRow] = await db.select().from(paddock).where(eq(paddock.id, destinationPaddockId));
-    if (!destinationPaddockRow || destinationPaddockRow.farmId !== destinationFarmId) {
+    if (!destinationPaddockRow || destinationPaddockRow.establishmentId !== destinationEstablishmentId) {
       throw new Error("El potrero destino no pertenece al campo destino");
     }
   }
@@ -55,7 +55,7 @@ export async function confirmTransferBatch(input: {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: operatingFarmId,
+        establishmentId: operatingEstablishmentId,
         animalCount: rows.length,
         createdBy: userId,
         guideFileName: input.guideDocument?.fileName ?? null,
@@ -69,23 +69,23 @@ export async function confirmTransferBatch(input: {
       if (row.status === "foreign" && !row.forced) continue;
 
       let animalId: string;
-      let originFarmId: string;
+      let originEstablishmentId: string;
       let originPaddockId: string | null;
 
       if (row.status === "existing") {
         animalId = row.animalId;
         await gapFillBreed(tx, animalId, row.breed);
         await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
-        originFarmId = row.currentFarmId ?? operatingFarmId;
+        originEstablishmentId = row.currentEstablishmentId ?? operatingEstablishmentId;
         originPaddockId = row.currentPaddockId;
       } else {
         animalId = await createNewAnimal(tx, {
           userId,
-          operatingFarmId,
+          operatingEstablishmentId,
           batchId: batch.id,
           row,
         });
-        originFarmId = newAnimalOriginFarmId;
+        originEstablishmentId = newAnimalOriginEstablishmentId;
         originPaddockId = null;
       }
 
@@ -95,7 +95,7 @@ export async function confirmTransferBatch(input: {
           eventType: "transfer",
           eventDate: row.eventDate,
           animalId,
-          farmId: operatingFarmId,
+          establishmentId: operatingEstablishmentId,
           batchOperationId: batch.id,
           createdBy: userId,
           notes: row.notes,
@@ -104,8 +104,8 @@ export async function confirmTransferBatch(input: {
 
       await tx.insert(eventTransfer).values({
         eventId: createdEvent.id,
-        originFarmId,
-        destinationFarmId,
+        originEstablishmentId,
+        destinationEstablishmentId,
         originPaddockId,
         destinationPaddockId,
         guideNumber: input.guideNumber ?? null,

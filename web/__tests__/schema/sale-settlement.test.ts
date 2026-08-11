@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   batchOperation,
   saleSettlement,
@@ -21,12 +21,12 @@ async function seedBatchAndUser() {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -41,7 +41,7 @@ async function seedBatchAndUser() {
     .insert(batchOperation)
     .values({
       eventType: "sale",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 2,
       createdBy: user.id,
     })

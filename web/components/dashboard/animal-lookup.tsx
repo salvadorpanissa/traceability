@@ -68,7 +68,7 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
               </p>
             ) : null}
             <p>
-              {translate(locale, "livestock.farm")}: {result.state.farmName ?? translate(locale, "livestock.noFarm")}
+              {translate(locale, "livestock.establishment")}: {result.state.establishmentName ?? translate(locale, "livestock.noEstablishment")}
             </p>
             <p>
               {translate(locale, "livestock.paddock")}:{" "}

@@ -1,11 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { event, eventSale, batchOperation, farm, animalTagHistory } from "@/db/schema";
+import { event, eventSale, batchOperation, establishment, animalTagHistory } from "@/db/schema";
 
 export type SaleBatchMatch = {
   batchOperationId: string;
-  farmId: string;
-  farmName: string;
+  establishmentId: string;
+  establishmentName: string;
   eventDate: string;
   animalTags: string[];
   buyer: string | null;
@@ -13,21 +13,23 @@ export type SaleBatchMatch = {
   weightKg: string | null;
 };
 
-// The search is always scoped to the campos the caller can actually see: an
-// admin passes "all", a manager passes their user_farm ids. A venta at a campo
-// the caller has no access to is invisible to the query, so it returns the same
-// null as a guide number that doesn't exist anywhere — no cross-campo leak, and
-// no two campos locking each other out over a reused guide number.
+// The search is always scoped to the establecimientos the caller can
+// actually see: an admin passes "all", a manager passes their
+// user_establishment ids. A venta at an establecimiento the caller has no
+// access to is invisible to the query, so it returns the same null as a
+// guide number that doesn't exist anywhere — no cross-establecimiento leak,
+// and no two establecimientos locking each other out over a reused guide
+// number.
 export async function findSaleBatchByGuideNumber(
   guideNumber: string,
-  accessibleFarmIds: string[] | "all"
+  accessibleEstablishmentIds: string[] | "all"
 ): Promise<SaleBatchMatch | null> {
-  if (accessibleFarmIds !== "all" && accessibleFarmIds.length === 0) return null;
+  if (accessibleEstablishmentIds !== "all" && accessibleEstablishmentIds.length === 0) return null;
 
   const scope =
-    accessibleFarmIds === "all"
+    accessibleEstablishmentIds === "all"
       ? eq(eventSale.guideNumber, guideNumber)
-      : and(eq(eventSale.guideNumber, guideNumber), inArray(batchOperation.farmId, accessibleFarmIds));
+      : and(eq(eventSale.guideNumber, guideNumber), inArray(batchOperation.establishmentId, accessibleEstablishmentIds));
 
   const rows = await db
     .select({
@@ -51,7 +53,7 @@ export async function findSaleBatchByGuideNumber(
   }
 
   const [batchRow] = await db.select().from(batchOperation).where(eq(batchOperation.id, rows[0].batchOperationId));
-  const [farmRow] = await db.select().from(farm).where(eq(farm.id, batchRow.farmId));
+  const [establishmentRow] = await db.select().from(establishment).where(eq(establishment.id, batchRow.establishmentId));
 
   const animalIds = rows.map((r) => r.animalId);
   const tagRows = await db
@@ -63,8 +65,8 @@ export async function findSaleBatchByGuideNumber(
 
   return {
     batchOperationId: rows[0].batchOperationId,
-    farmId: batchRow.farmId,
-    farmName: farmRow.name,
+    establishmentId: batchRow.establishmentId,
+    establishmentName: establishmentRow.name,
     eventDate: rows[0].eventDate,
     animalTags,
     buyer: rows[0].buyer,

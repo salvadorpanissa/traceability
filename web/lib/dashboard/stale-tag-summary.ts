@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
+import { isAdmin, userEstablishmentIds } from "@/lib/dal/farm-access";
 
 export type StaleTagRow = {
   animalId: string;
   currentTag: string | null;
-  farmName: string | null;
+  establishmentName: string | null;
   paddockName: string | null;
   lastEventType: string | null;
   lastEventDate: string;
@@ -15,7 +15,7 @@ export type StaleTagRow = {
 type StaleTagDbRow = {
   animal_id: string;
   current_tag: string | null;
-  farm_name: string | null;
+  establishment_name: string | null;
   paddock_name: string | null;
   last_event_type: string | null;
   last_event_date: string;
@@ -26,7 +26,7 @@ function toStaleTagRow(row: StaleTagDbRow): StaleTagRow {
   return {
     animalId: row.animal_id,
     currentTag: row.current_tag,
-    farmName: row.farm_name,
+    establishmentName: row.establishment_name,
     paddockName: row.paddock_name,
     lastEventType: row.last_event_type,
     lastEventDate: row.last_event_date,
@@ -54,22 +54,22 @@ export async function findStaleTags(
   role: string | undefined,
   thresholdDays: number
 ): Promise<StaleTagRow[]> {
-  const farmScope = isAdmin(role)
+  const establishmentScope = isAdmin(role)
     ? sql.empty()
-    : sql`and acs.current_farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
+    : sql`and acs.current_establishment_id in (${sql.join((await userEstablishmentIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<StaleTagDbRow>(sql`
     with candidate as (
       select
         acs.animal_id,
         cur_tag.tag as current_tag,
-        f.name as farm_name,
+        est.name as establishment_name,
         p.name as paddock_name,
         le.event_type as last_event_type,
         coalesce(le.event_date, earliest_tag.valid_from::date) as last_event_date,
         earliest_tag.valid_from::date as created_date
       from animal_current_state acs
-      left join farm f on f.id = acs.current_farm_id
+      left join establishment est on est.id = acs.current_establishment_id
       left join paddock p on p.id = acs.current_paddock_id
       left join lateral (
         select ath.tag
@@ -95,12 +95,12 @@ export async function findStaleTags(
         limit 1
       ) le on true
       where acs.status = 'alive'
-        ${farmScope}
+        ${establishmentScope}
     )
     select
       animal_id,
       current_tag,
-      farm_name,
+      establishment_name,
       paddock_name,
       last_event_type,
       last_event_date,

@@ -75,14 +75,14 @@ describe("loginAction", () => {
     const formData = buildFormData({
       email: "user@example.com",
       password: "correct-password",
-      returnTo: "/select-farm",
+      returnTo: "/select-establishment",
     });
 
     await loginAction({ error: null }, formData);
 
     expect(signInMock).toHaveBeenCalledWith(
       "credentials",
-      expect.objectContaining({ redirectTo: "/select-farm" }),
+      expect.objectContaining({ redirectTo: "/select-establishment" }),
     );
   });
 

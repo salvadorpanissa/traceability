@@ -13,7 +13,7 @@ describe("animal table", () => {
     expect(created.birthDate).toBeNull();
     expect(created.breed).toBeNull();
     expect(created).not.toHaveProperty("createdAt");
-    expect(created).not.toHaveProperty("currentFarmId");
+    expect(created).not.toHaveProperty("currentEstablishmentId");
     expect(created).not.toHaveProperty("status");
   });
 });

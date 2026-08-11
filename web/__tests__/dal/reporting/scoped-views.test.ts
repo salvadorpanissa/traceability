@@ -4,9 +4,9 @@ import { testReportingPool } from "../../../test/reporting-db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -35,20 +35,20 @@ async function seedTwoFarmsWithOneAnimalEach() {
     .values({ name: "admin" })
     .returning();
   const [farmNorteGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [farmNorte] = await testDb
-    .insert(farm)
-    .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
     .returning();
   const [farmSurGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Sur" })
     .returning();
   const [farmSur] = await testDb
-    .insert(farm)
-    .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+    .insert(establishment)
+    .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -70,7 +70,7 @@ async function seedTwoFarmsWithOneAnimalEach() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: farmNorte.id });
+    .values({ userId: manager.id, farmId: farmNorteGroup.id });
 
   for (const targetFarm of [farmNorte, farmSur]) {
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
@@ -78,7 +78,7 @@ async function seedTwoFarmsWithOneAnimalEach() {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: targetFarm.id,
+        establishmentId: targetFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -89,7 +89,7 @@ async function seedTwoFarmsWithOneAnimalEach() {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: targetFarm.id,
+        establishmentId: targetFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
@@ -98,8 +98,8 @@ async function seedTwoFarmsWithOneAnimalEach() {
       .insert(eventTransfer)
       .values({
         eventId: createdEvent.id,
-        originFarmId: targetFarm.id,
-        destinationFarmId: targetFarm.id,
+        originEstablishmentId: targetFarm.id,
+        destinationEstablishmentId: targetFarm.id,
       });
   }
 
@@ -112,7 +112,7 @@ async function seedTwoFarmsWithOneAnimalEach() {
 }
 
 describe("withScopedReportingViews", () => {
-  it("scopes my_animal_state and my_transfer_events to the manager's farm only", async () => {
+  it("scopes my_animal_state and my_transfer_events to the manager's establishment only", async () => {
     const { manager, farmNorte } = await seedTwoFarmsWithOneAnimalEach();
 
     const rows = await withScopedReportingViews(
@@ -128,12 +128,12 @@ describe("withScopedReportingViews", () => {
     );
 
     expect(rows.state).toHaveLength(1);
-    expect(rows.state[0].current_farm_id).toBe(farmNorte.id);
+    expect(rows.state[0].current_establishment_id).toBe(farmNorte.id);
     expect(rows.transfers).toHaveLength(1);
-    expect(rows.transfers[0].farm_id).toBe(farmNorte.id);
+    expect(rows.transfers[0].establishment_id).toBe(farmNorte.id);
   });
 
-  it("gives an admin every farm's rows with the same query", async () => {
+  it("gives an admin every establishment's rows with the same query", async () => {
     const { admin } = await seedTwoFarmsWithOneAnimalEach();
 
     const rows = await withScopedReportingViews(
@@ -152,7 +152,7 @@ describe("withScopedReportingViews", () => {
     expect([...REPORTING_VIEW_NAMES].sort()).toEqual(
       [
         "my_animal_state",
-        "my_farms",
+        "my_establishments",
         "my_paddocks",
         "my_categories",
         "my_products",

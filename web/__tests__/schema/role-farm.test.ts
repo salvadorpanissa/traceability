@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { farmGroup, role, farm } from "@/db/schema";
+import { farm, role, establishment } from "@/db/schema";
 
 beforeEach(async () => {
   await resetTestDb();
@@ -20,18 +20,18 @@ describe("role table", () => {
   });
 });
 
-describe("farm table", () => {
-  it("stores a farm belonging to a grupo", async () => {
+describe("establishment table", () => {
+  it("stores a establishment belonging to a grupo", async () => {
     const [group1] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     await testDb
-      .insert(farm)
-      .values({ groupId: group1.id, name: "Campo Norte" });
-    const rows = await testDb.select().from(farm);
+      .insert(establishment)
+      .values({ farmId: group1.id, name: "Campo Norte" });
+    const rows = await testDb.select().from(establishment);
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Campo Norte");
-    expect(rows[0].groupId).toBe(group1.id);
+    expect(rows[0].farmId).toBe(group1.id);
   });
 });

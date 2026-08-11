@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -23,24 +23,24 @@ beforeEach(async () => {
   await resetTestDb();
 });
 
-async function seedFarmAndUser(farmName: string) {
+async function seedFarmAndUser(establishmentName: string) {
   const [adminRole] = await testDb
     .insert(role)
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
-    .values({ name: farmName })
+    .insert(farm)
+    .values({ name: establishmentName })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: farmName })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: establishmentName })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
     .values({
       name: "Admin",
-      email: `admin-${farmName}@example.com`,
+      email: `admin-${establishmentName}@example.com`,
       passwordHash: "hashed",
       roleId: adminRole.id,
     })
@@ -49,7 +49,7 @@ async function seedFarmAndUser(farmName: string) {
 }
 
 async function seedSaleEvent(
-  farmId: string,
+  establishmentId: string,
   userId: string,
   batchId: string,
   tag: string,
@@ -69,7 +69,7 @@ async function seedSaleEvent(
       eventType: "sale",
       eventDate,
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batchId,
       createdBy: userId,
     })
@@ -92,7 +92,7 @@ describe("findSaleBatchByGuideNumber", () => {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 2,
         createdBy: user.id,
       })
@@ -124,7 +124,7 @@ describe("findSaleBatchByGuideNumber", () => {
 
     expect(result).not.toBeNull();
     expect(result!.batchOperationId).toBe(batch.id);
-    expect(result!.farmName).toBe("San Antonio");
+    expect(result!.establishmentName).toBe("San Antonio");
     expect(result!.eventDate).toBe("2026-07-11");
     expect(result!.animalTags.sort()).toEqual(["TAG001", "TAG002"]);
     expect(result!.buyer).toBe("Cledinor S.A.");
@@ -138,7 +138,7 @@ describe("findSaleBatchByGuideNumber", () => {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -168,7 +168,7 @@ describe("findSaleBatchByGuideNumber", () => {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -177,7 +177,7 @@ describe("findSaleBatchByGuideNumber", () => {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -210,26 +210,26 @@ describe("findSaleBatchByGuideNumber", () => {
     );
   });
 
-  it("does not find a venta at a campo outside the accessible farm ids", async () => {
+  it("does not find a venta at a campo outside the accessible establishment ids", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
       .returning();
     const [farmAGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo A" })
       .returning();
     const [farmA] = await testDb
-      .insert(farm)
-      .values({ groupId: farmAGroup.id, name: "Campo A" })
+      .insert(establishment)
+      .values({ farmId: farmAGroup.id, name: "Campo A" })
       .returning();
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo B" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Campo B" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -242,13 +242,13 @@ describe("findSaleBatchByGuideNumber", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmA.id });
+      .values({ userId: manager.id, farmId: farmAGroup.id });
 
     const [batchB] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: farmB.id,
+        establishmentId: farmB.id,
         animalCount: 1,
         createdBy: manager.id,
       })

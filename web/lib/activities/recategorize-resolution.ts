@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { animalTagHistory, category } from "@/db/schema";
 import { normalizeDate } from "@/lib/activities/date-normalization";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
-import { getFarmGroupId } from "@/lib/dal/farm-access";
+import { getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 
 export type UnresolvableDecision = "skip" | "assignTarget";
@@ -17,7 +17,7 @@ export type RecategorizeResolvedRow =
       breed?: string | null;
       status: "existing";
       animalId: string;
-      currentFarmId: string;
+      currentEstablishmentId: string;
       currentCategoryId: string;
       currentCategoryName: string | null;
       sex: "male" | "female" | null;
@@ -30,7 +30,7 @@ export type RecategorizeResolvedRow =
       breed?: string | null;
       status: "age-resolved";
       animalId: string;
-      currentFarmId: string;
+      currentEstablishmentId: string;
       resolvedCategoryId: string;
       resolvedCategoryName: string;
     }
@@ -42,7 +42,7 @@ export type RecategorizeResolvedRow =
       breed?: string | null;
       status: "age-unresolvable";
       animalId: string;
-      currentFarmId: string;
+      currentEstablishmentId: string;
       sex: "male" | "female" | null;
     }
   | {
@@ -64,7 +64,7 @@ function resolveEventDate(rowDate: string | null, formEventDate: string | null):
 }
 
 type CurrentStateRow = {
-  current_farm_id: string | null;
+  current_establishment_id: string | null;
   current_category_id: string | null;
   category_name: string | null;
   status: string;
@@ -75,7 +75,7 @@ type CurrentStateRow = {
 export async function resolveRecategorizeBatchRows(
   rows: MappedRow[],
   formEventDate: string | null,
-  farmId: string
+  establishmentId: string
 ): Promise<RecategorizeResolvedRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
@@ -111,12 +111,12 @@ export async function resolveRecategorizeBatchRows(
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const groupId = await getFarmGroupId(farmId);
-  const ageManagedCategories = groupId
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  const ageManagedCategories = farmId
     ? await db
         .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
         .from(category)
-        .where(and(isNotNull(category.minAgeMonths), eq(category.groupId, groupId)))
+        .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, farmId)))
     : [];
   const ageManagedCategoryNameById = new Map(ageManagedCategories.map((c) => [c.id, c.name]));
 
@@ -176,7 +176,7 @@ export async function resolveRecategorizeBatchRows(
     }
 
     const stateResult = await db.execute<CurrentStateRow>(sql`
-      select acs.current_farm_id, acs.current_category_id, c.name as category_name, acs.status,
+      select acs.current_establishment_id, acs.current_category_id, c.name as category_name, acs.status,
              a.birth_date, a.sex
       from animal_current_state acs
       left join category c on c.id = acs.current_category_id
@@ -189,11 +189,11 @@ export async function resolveRecategorizeBatchRows(
       result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
       continue;
     }
-    if (!state.current_farm_id) {
+    if (!state.current_establishment_id) {
       result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
       continue;
     }
-    if (state.current_farm_id !== farmId) {
+    if (state.current_establishment_id !== establishmentId) {
       result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no pertenece al campo elegido" });
       continue;
     }
@@ -211,7 +211,7 @@ export async function resolveRecategorizeBatchRows(
             breed,
             status: "age-resolved",
             animalId,
-            currentFarmId: state.current_farm_id,
+            currentEstablishmentId: state.current_establishment_id,
             resolvedCategoryId,
             resolvedCategoryName: ageManagedCategoryNameById.get(resolvedCategoryId) ?? "",
           });
@@ -226,7 +226,7 @@ export async function resolveRecategorizeBatchRows(
         breed,
         status: "age-unresolvable",
         animalId,
-        currentFarmId: state.current_farm_id,
+        currentEstablishmentId: state.current_establishment_id,
         sex: state.sex,
       });
       continue;
@@ -240,7 +240,7 @@ export async function resolveRecategorizeBatchRows(
       breed,
       status: "existing",
       animalId,
-      currentFarmId: state.current_farm_id,
+      currentEstablishmentId: state.current_establishment_id,
       currentCategoryId: state.current_category_id,
       currentCategoryName: state.category_name,
       sex: state.sex,

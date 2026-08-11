@@ -30,11 +30,11 @@ export function HealthByPlaceTable({
 
   const columns: DataTableColumn<HealthByPlaceRow>[] = [
     {
-      key: "farm",
-      header: translate(locale, "livestock.farm"),
-      render: (row) => row.farmName,
-      sortValue: (row) => row.farmName,
-      searchValue: (row) => row.farmName,
+      key: "establishment",
+      header: translate(locale, "livestock.establishment"),
+      render: (row) => row.establishmentName,
+      sortValue: (row) => row.establishmentName,
+      searchValue: (row) => row.establishmentName,
     },
     {
       key: "paddock",
@@ -75,7 +75,7 @@ export function HealthByPlaceTable({
       <DataTable
         columns={columns}
         rows={rows}
-        getRowId={(row) => `${row.farmName}-${row.paddockName ?? ""}`}
+        getRowId={(row) => `${row.establishmentName}-${row.paddockName ?? ""}`}
         locale={locale}
         searchable
         expandable

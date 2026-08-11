@@ -5,9 +5,9 @@ import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -31,12 +31,12 @@ async function seedManagerAndFarm() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -49,21 +49,21 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   return { manager, seededFarm };
 }
 
 // Mirrors how confirmHealthBatch/confirmSaleBatch place a brand-new animal:
-// an animal only shows up in animal_current_state with a farm once it has
+// an animal only shows up in animal_current_state with a establishment once it has
 // a transfer event.
-async function seedAliveAnimal(tag: string, farmId: string, createdBy: string) {
+async function seedAliveAnimal(tag: string, establishmentId: string, createdBy: string) {
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
   await testDb
     .insert(animalTagHistory)
     .values({ animalId: createdAnimal.id, tag });
   const [batch] = await testDb
     .insert((await import("@/db/schema")).batchOperation)
-    .values({ eventType: "transfer", farmId, animalCount: 1, createdBy })
+    .values({ eventType: "transfer", establishmentId, animalCount: 1, createdBy })
     .returning();
   const [placementEvent] = await testDb
     .insert(event)
@@ -71,15 +71,15 @@ async function seedAliveAnimal(tag: string, farmId: string, createdBy: string) {
       eventType: "transfer",
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId,
+      establishmentId,
       batchOperationId: batch.id,
       createdBy,
     })
     .returning();
   await testDb.insert(eventTransfer).values({
     eventId: placementEvent.id,
-    originFarmId: farmId,
-    destinationFarmId: farmId,
+    originEstablishmentId: establishmentId,
+    destinationEstablishmentId: establishmentId,
     originPaddockId: null,
     destinationPaddockId: null,
   });
@@ -166,15 +166,15 @@ describe("confirmDeathEvent", () => {
     );
   });
 
-  it("rejects a tag that belongs to a farm the manager doesn't have access to", async () => {
+  it("rejects a tag that belongs to a establishment the manager doesn't have access to", async () => {
     const { manager } = await seedManagerAndFarm();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     await seedAliveAnimal("AR000000000902", otherFarm.id, manager.id);
 
@@ -225,7 +225,7 @@ describe("confirmDeathEvent", () => {
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -236,7 +236,7 @@ describe("confirmDeathEvent", () => {
         eventType: "sale",
         eventDate: "2026-01-15",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: manager.id,
       })

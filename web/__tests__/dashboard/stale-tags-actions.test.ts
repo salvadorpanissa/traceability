@@ -4,9 +4,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -41,12 +41,12 @@ describe("getStaleTagsAction", () => {
       .values({ name: "manager" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -59,7 +59,7 @@ describe("getStaleTagsAction", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: seededFarm.id });
+      .values({ userId: manager.id, farmId: seededFarmGroup.id });
     vi.mocked(auth).mockResolvedValue({
       user: { id: manager.id, role: "manager" },
     } as never);
@@ -79,7 +79,7 @@ describe("getStaleTagsAction", () => {
       .insert(batchOperation)
       .values({
         eventType: "retag",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -90,7 +90,7 @@ describe("getStaleTagsAction", () => {
         eventType: "retag",
         eventDate: daysAgoISODate(150),
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: retagBatch.id,
         createdBy: manager.id,
       })
@@ -104,7 +104,7 @@ describe("getStaleTagsAction", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -115,7 +115,7 @@ describe("getStaleTagsAction", () => {
         eventType: "transfer",
         eventDate: daysAgoISODate(150),
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: transferBatch.id,
         createdBy: manager.id,
       })
@@ -124,8 +124,8 @@ describe("getStaleTagsAction", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: seededFarm.id,
-        destinationFarmId: seededFarm.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
         originPaddockId: null,
         destinationPaddockId: null,
       });

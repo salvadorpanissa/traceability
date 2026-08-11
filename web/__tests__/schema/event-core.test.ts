@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -21,12 +21,12 @@ async function seedFarmAndUser() {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -41,13 +41,13 @@ async function seedFarmAndUser() {
 }
 
 describe("batch_operation table", () => {
-  it("stores a batch operation tied to a farm and a creator", async () => {
+  it("stores a batch operation tied to a establishment and a creator", async () => {
     const { seededFarm, user } = await seedFarmAndUser();
     const [created] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -65,7 +65,7 @@ describe("event table", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -77,7 +77,7 @@ describe("event table", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       })
@@ -90,7 +90,7 @@ describe("event table", () => {
         eventType: "not-a-real-type",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       }),
@@ -104,7 +104,7 @@ describe("event table", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: user.id,
       })
@@ -116,7 +116,7 @@ describe("event table", () => {
         eventType: "void",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       }),
@@ -129,7 +129,7 @@ describe("event table", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
       })
@@ -140,7 +140,7 @@ describe("event table", () => {
         eventType: "transfer",
         eventDate: "2026-01-02",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: user.id,
         voidsEventId: firstEvent.id,

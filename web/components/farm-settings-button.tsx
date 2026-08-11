@@ -12,7 +12,7 @@ export function FarmSettingsButton({ onNavigate }: { onNavigate?: () => void }) 
   return (
     <Link
       href="/settings"
-      aria-label={t("appShell.navFarmSettings")}
+      aria-label={t("appShell.navEstablishmentSettings")}
       onClick={onNavigate}
       className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "px-2")}
     >

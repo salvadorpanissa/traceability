@@ -22,8 +22,8 @@ function sampleRow(): GuideDocumentSummary {
     createdAt: new Date("2026-07-23T22:00:00Z"),
     animalCount: 64,
     guideNumber: "D838153",
-    originFarmName: "Campo San Antonio",
-    destinationFarmName: "Cuatro Cerros",
+    originEstablishmentName: "Campo San Antonio",
+    destinationEstablishmentName: "Cuatro Cerros",
   };
 }
 

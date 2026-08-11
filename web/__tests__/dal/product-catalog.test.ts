@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
-import { farmGroup, product } from "@/db/schema";
+import { farm, product } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listProductsByGroup, listProductsForGroups, createProduct, updateProduct } = await import(
+const { listProductsByFarm, listProductsForFarms, createProduct, updateProduct } = await import(
   "@/lib/dal/product-catalog"
 );
 
@@ -15,24 +15,24 @@ beforeEach(async () => {
 });
 
 async function seedGroup(name = "Grupo") {
-  const [group] = await testDb.insert(farmGroup).values({ name }).returning();
+  const [group] = await testDb.insert(farm).values({ name }).returning();
   return group;
 }
 
-describe("listProductsByGroup", () => {
+describe("listProductsByFarm", () => {
   it("lists every product in the grupo ordered by name, with defaults", async () => {
     const group = await seedGroup();
     await testDb.insert(product).values([
-      { groupId: group.id, name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
-      { groupId: group.id, name: "Aftosa" },
+      { farmId: group.id, name: "Ivermectina 1%", defaultDoseUnit: "ml", defaultWithdrawalDays: 21 },
+      { farmId: group.id, name: "Aftosa" },
     ]);
 
-    const products = await listProductsByGroup(group.id);
+    const products = await listProductsByFarm(group.id);
 
     expect(products).toEqual([
       {
         id: expect.any(String),
-        groupId: group.id,
+        farmId: group.id,
         name: "Aftosa",
         defaultDose: null,
         defaultDoseUnit: null,
@@ -41,7 +41,7 @@ describe("listProductsByGroup", () => {
       },
       {
         id: expect.any(String),
-        groupId: group.id,
+        farmId: group.id,
         name: "Ivermectina 1%",
         defaultDose: null,
         defaultDoseUnit: "ml",
@@ -54,22 +54,22 @@ describe("listProductsByGroup", () => {
   it("does not include a product from a different grupo", async () => {
     const groupA = await seedGroup("A");
     const groupB = await seedGroup("B");
-    await testDb.insert(product).values({ groupId: groupB.id, name: "Aftosa" });
+    await testDb.insert(product).values({ farmId: groupB.id, name: "Aftosa" });
 
-    expect(await listProductsByGroup(groupA.id)).toEqual([]);
+    expect(await listProductsByFarm(groupA.id)).toEqual([]);
   });
 });
 
-describe("listProductsForGroups", () => {
+describe("listProductsForFarms", () => {
   it("lists products across every grupo given", async () => {
     const groupA = await seedGroup("A");
     const groupB = await seedGroup("B");
     await testDb.insert(product).values([
-      { groupId: groupA.id, name: "Aftosa" },
-      { groupId: groupB.id, name: "Ivermectina 1%" },
+      { farmId: groupA.id, name: "Aftosa" },
+      { farmId: groupB.id, name: "Ivermectina 1%" },
     ]);
 
-    const products = await listProductsForGroups([groupA.id, groupB.id]);
+    const products = await listProductsForFarms([groupA.id, groupB.id]);
 
     expect(products.map((p) => p.name)).toEqual(["Aftosa", "Ivermectina 1%"]);
   });
@@ -81,7 +81,7 @@ describe("createProduct", () => {
     const created = await createProduct(group.id, "Ivermectina 1%");
 
     expect(created.name).toBe("Ivermectina 1%");
-    expect(created.groupId).toBe(group.id);
+    expect(created.farmId).toBe(group.id);
     expect(created.defaultDose).toBeNull();
     expect(created.defaultDoseUnit).toBeNull();
     expect(created.defaultRoute).toBeNull();
@@ -102,7 +102,7 @@ describe("createProduct", () => {
 
     expect(created).toEqual({
       id: expect.any(String),
-      groupId: group.id,
+      farmId: group.id,
       name: "Aftosa",
       defaultDose: "10",
       defaultDoseUnit: "cc",
@@ -147,7 +147,7 @@ describe("updateProduct", () => {
 
     expect(updated).toEqual({
       id: created.id,
-      groupId: group.id,
+      farmId: group.id,
       name: "Ivermectina 1% inyectable",
       defaultDose: "10",
       defaultDoseUnit: "cc",

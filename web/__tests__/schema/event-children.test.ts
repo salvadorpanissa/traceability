@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -29,12 +29,12 @@ async function seedEvent(eventType: string) {
     .values({ name: "admin" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [user] = await testDb
     .insert(userAccount)
@@ -50,7 +50,7 @@ async function seedEvent(eventType: string) {
     .insert(batchOperation)
     .values({
       eventType,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: user.id,
     })
@@ -61,7 +61,7 @@ async function seedEvent(eventType: string) {
       eventType,
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: batch.id,
       createdBy: user.id,
     })
@@ -76,8 +76,8 @@ describe("event_transfer table", () => {
       .insert(eventTransfer)
       .values({
         eventId: createdEvent.id,
-        originFarmId: seededFarm.id,
-        destinationFarmId: seededFarm.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
       })
       .returning();
     expect(row.guideNumber).toBeNull();
@@ -89,7 +89,7 @@ describe("event_health table", () => {
     const { createdEvent, seededFarmGroup } = await seedEvent("health");
     const [createdProduct] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [row] = await testDb
       .insert(eventHealth)
@@ -126,11 +126,11 @@ describe("event_recategorize table", () => {
     const { createdEvent, seededFarmGroup } = await seedEvent("recategorize");
     const [oldCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Ternero" })
+      .values({ farmId: seededFarmGroup.id, name: "Ternero" })
       .returning();
     const [newCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Novillo" })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
       .returning();
     const [row] = await testDb
       .insert(eventRecategorize)

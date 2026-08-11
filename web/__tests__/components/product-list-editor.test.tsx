@@ -11,7 +11,7 @@ afterEach(cleanup);
 const catalog: ProductCatalogEntry[] = [
   {
     id: "p1",
-    groupId: "g1",
+    farmId: "g1",
     name: "Ivermectina 1%",
     defaultDose: "10",
     defaultDoseUnit: "ml",
@@ -26,7 +26,7 @@ describe("ProductListEditor", () => {
     const onChange = vi.fn();
     const onCreateProduct = vi.fn(async (name: string) => ({
       id: "p2",
-      groupId: "g1",
+      farmId: "g1",
       name,
       defaultDose: null,
       defaultDoseUnit: null,

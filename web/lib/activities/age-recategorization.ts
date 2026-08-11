@@ -41,14 +41,14 @@ type CandidateRow = {
   birth_date: string;
   sex: "male" | "female";
   current_category_id: string;
-  current_category_group_id: string;
-  current_farm_id: string | null;
+  current_category_farm_id: string;
+  current_establishment_id: string | null;
   current_category_source: string | null;
 };
 
 export type AgeRecategorizationCandidate = {
   animalId: string;
-  farmId: string;
+  establishmentId: string;
   currentCategoryId: string;
   targetCategoryId: string;
 };
@@ -65,7 +65,7 @@ export async function findAnimalsNeedingAgeRecategorization(
   asOfDate: string
 ): Promise<AgeRecategorizationCandidate[]> {
   const ageManagedCategories = await db
-    .select({ id: category.id, groupId: category.groupId, sex: category.sex, minAgeMonths: category.minAgeMonths })
+    .select({ id: category.id, farmId: category.farmId, sex: category.sex, minAgeMonths: category.minAgeMonths })
     .from(category)
     .where(isNotNull(category.minAgeMonths));
   if (ageManagedCategories.length === 0) return [];
@@ -76,8 +76,8 @@ export async function findAnimalsNeedingAgeRecategorization(
       a.birth_date,
       a.sex,
       acs.current_category_id,
-      c.group_id as current_category_group_id,
-      acs.current_farm_id,
+      c.farm_id as current_category_farm_id,
+      acs.current_establishment_id,
       lr.source as current_category_source
     from animal a
     join animal_current_state acs on acs.animal_id = a.id
@@ -103,11 +103,11 @@ export async function findAnimalsNeedingAgeRecategorization(
   const candidates: AgeRecategorizationCandidate[] = [];
   for (const row of result.rows) {
     if (row.current_category_source === "manual") continue;
-    if (!row.current_farm_id) continue;
+    if (!row.current_establishment_id) continue;
 
-    const ownGroupCategories = ageManagedCategories.filter((c) => c.groupId === row.current_category_group_id);
+    const ownFarmCategories = ageManagedCategories.filter((c) => c.farmId === row.current_category_farm_id);
     const ageMonths = computeAgeMonths(row.birth_date, asOfDate);
-    const targetCategoryId = resolveCategoryForAge(ownGroupCategories, row.sex, ageMonths);
+    const targetCategoryId = resolveCategoryForAge(ownFarmCategories, row.sex, ageMonths);
     if (!targetCategoryId || targetCategoryId === row.current_category_id) continue;
 
     // Only ever move an animal UP into a bracket with a higher minAgeMonths
@@ -129,7 +129,7 @@ export async function findAnimalsNeedingAgeRecategorization(
 
     candidates.push({
       animalId: row.animal_id,
-      farmId: row.current_farm_id,
+      establishmentId: row.current_establishment_id,
       currentCategoryId: row.current_category_id,
       targetCategoryId,
     });
@@ -145,24 +145,24 @@ export async function runAgeBasedRecategorization(input?: {
   const candidates = await findAnimalsNeedingAgeRecategorization(asOfDate);
   if (candidates.length === 0) return { recategorized: 0 };
 
-  const byFarm = new Map<string, AgeRecategorizationCandidate[]>();
+  const byEstablishment = new Map<string, AgeRecategorizationCandidate[]>();
   for (const candidate of candidates) {
-    const list = byFarm.get(candidate.farmId) ?? [];
+    const list = byEstablishment.get(candidate.establishmentId) ?? [];
     list.push(candidate);
-    byFarm.set(candidate.farmId, list);
+    byEstablishment.set(candidate.establishmentId, list);
   }
 
-  // Each farm gets its own transaction so a failure in one farm (e.g. a
-  // constraint violation on a single animal) can't roll back every other
-  // farm's already-succeeded writes — critical for the first "big-bang" run
-  // against years of historical data across many farms.
+  // Each establecimiento gets its own transaction so a failure in one (e.g.
+  // a constraint violation on a single animal) can't roll back every other
+  // establecimiento's already-succeeded writes — critical for the first
+  // "big-bang" run against years of historical data across many campos.
   let recategorized = 0;
-  for (const [farmId, animals] of byFarm) {
+  for (const [establishmentId, animals] of byEstablishment) {
     try {
       await db.transaction(async (tx) => {
         const [batch] = await tx
           .insert(batchOperation)
-          .values({ eventType: "recategorize", farmId, animalCount: animals.length, createdBy: systemUserId })
+          .values({ eventType: "recategorize", establishmentId, animalCount: animals.length, createdBy: systemUserId })
           .returning();
 
         for (const candidate of animals) {
@@ -172,7 +172,7 @@ export async function runAgeBasedRecategorization(input?: {
               eventType: "recategorize",
               eventDate: asOfDate,
               animalId: candidate.animalId,
-              farmId,
+              establishmentId,
               batchOperationId: batch.id,
               createdBy: systemUserId,
             })
@@ -187,13 +187,13 @@ export async function runAgeBasedRecategorization(input?: {
       });
       recategorized += animals.length;
     } catch (error) {
-      logError("runAgeBasedRecategorization.farmFailed", error, { farmId });
+      logError("runAgeBasedRecategorization.establishmentFailed", error, { establishmentId });
     }
   }
 
-  // Runs once outside any transaction, after all farms have been attempted,
-  // so successfully-written farms' data becomes visible even if other farms
-  // failed above.
+  // Runs once outside any transaction, after all establecimientos have been
+  // attempted, so successfully-written ones' data becomes visible even if
+  // others failed above.
   await db.execute(sql`refresh materialized view concurrently animal_current_state`);
 
   return { recategorized };

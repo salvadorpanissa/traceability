@@ -9,7 +9,7 @@ import { setCategoryActive } from "@/lib/dal/category-catalog";
 // nothing write. Chunked, each slice commits independently.
 const CHUNK_SIZE = 200;
 
-type CandidateAnimal = { animal_id: string; farm_id: string };
+type CandidateAnimal = { animal_id: string; establishment_id: string };
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -20,10 +20,11 @@ function chunk<T>(items: T[], size: number): T[][] {
 // Moves every currently-alive animal out of `categoryId` and into
 // `targetCategoryId` (one real recategorize event per animal, source
 // 'manual' since a human triggered this, not the scheduled age job), then
-// archives the category. Grouped by farm and chunked within each farm so a
-// category with hundreds of animals doesn't become one giant transaction.
-// Any failure aborts before the category is archived — a partial move would
-// leave animals sitting in a category no longer offered anywhere.
+// archives the category. Grouped by establecimiento and chunked within each
+// one so a category with hundreds of animals doesn't become one giant
+// transaction. Any failure aborts before the category is archived — a
+// partial move would leave animals sitting in a category no longer offered
+// anywhere.
 export async function archiveCategory(input: {
   userId: string;
   categoryId: string;
@@ -34,9 +35,9 @@ export async function archiveCategory(input: {
   const { userId, categoryId, targetCategoryId } = input;
 
   const result = await db.execute<CandidateAnimal>(sql`
-    select acs.animal_id, acs.current_farm_id as farm_id
+    select acs.animal_id, acs.current_establishment_id as establishment_id
     from animal_current_state acs
-    where acs.status = 'alive' and acs.current_category_id = ${categoryId} and acs.current_farm_id is not null
+    where acs.status = 'alive' and acs.current_category_id = ${categoryId} and acs.current_establishment_id is not null
   `);
 
   if (result.rows.length > 0) {
@@ -48,31 +49,31 @@ export async function archiveCategory(input: {
     const [target] = await db.select().from(category).where(eq(category.id, targetCategoryId));
     if (!target) throw new Error("La categoría destino no existe");
     if (!target.active) throw new Error("La categoría destino está archivada");
-    if (!source || target.groupId !== source.groupId) {
+    if (!source || target.farmId !== source.farmId) {
       throw new Error("La categoría destino tiene que ser del mismo grupo de campos");
     }
   }
 
-  const byFarm = new Map<string, string[]>();
+  const byEstablishment = new Map<string, string[]>();
   for (const row of result.rows) {
-    const list = byFarm.get(row.farm_id) ?? [];
+    const list = byEstablishment.get(row.establishment_id) ?? [];
     list.push(row.animal_id);
-    byFarm.set(row.farm_id, list);
+    byEstablishment.set(row.establishment_id, list);
   }
 
-  // Validated above: byFarm is only non-empty when targetCategoryId passed
-  // the "required and valid" checks, so it's never null by the time it's
-  // actually used below.
+  // Validated above: byEstablishment is only non-empty when targetCategoryId
+  // passed the "required and valid" checks, so it's never null by the time
+  // it's actually used below.
   const resolvedTargetCategoryId = targetCategoryId as string;
   const eventDate = new Date().toISOString().slice(0, 10);
   let reassigned = 0;
 
-  for (const [farmId, animalIds] of byFarm) {
+  for (const [establishmentId, animalIds] of byEstablishment) {
     for (const batchAnimalIds of chunk(animalIds, CHUNK_SIZE)) {
       await db.transaction(async (tx) => {
         const [batch] = await tx
           .insert(batchOperation)
-          .values({ eventType: "recategorize", farmId, animalCount: batchAnimalIds.length, createdBy: userId })
+          .values({ eventType: "recategorize", establishmentId, animalCount: batchAnimalIds.length, createdBy: userId })
           .returning();
 
         for (const animalId of batchAnimalIds) {
@@ -82,7 +83,7 @@ export async function archiveCategory(input: {
               eventType: "recategorize",
               eventDate,
               animalId,
-              farmId,
+              establishmentId,
               batchOperationId: batch.id,
               createdBy: userId,
             })

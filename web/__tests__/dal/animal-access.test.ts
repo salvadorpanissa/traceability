@@ -3,9 +3,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -36,7 +36,7 @@ beforeEach(async () => {
 });
 
 describe("requireTransferAuthorization", () => {
-  it("allows a same-farm transfer for a manager", async () => {
+  it("allows a same-establishment transfer for a manager", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
@@ -52,30 +52,30 @@ describe("requireTransferAuthorization", () => {
       .returning();
 
     await expect(
-      requireTransferAuthorization(manager.id, "manager", "farm-a", "farm-a"),
+      requireTransferAuthorization(manager.id, "manager", "establishment-a", "establishment-a"),
     ).resolves.not.toThrow();
   });
 
-  it("allows a cross-farm transfer for a manager assigned to both farms", async () => {
+  it("allows a cross-establishment transfer for a manager assigned to both farms", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
       .returning();
     const [farmAGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo A" })
       .returning();
     const [farmA] = await testDb
-      .insert(farm)
-      .values({ groupId: farmAGroup.id, name: "Campo A" })
+      .insert(establishment)
+      .values({ farmId: farmAGroup.id, name: "Campo A" })
       .returning();
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo B" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Campo B" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -87,8 +87,8 @@ describe("requireTransferAuthorization", () => {
       })
       .returning();
     await testDb.insert(userFarm).values([
-      { userId: manager.id, farmId: farmA.id },
-      { userId: manager.id, farmId: farmB.id },
+      { userId: manager.id, farmId: farmAGroup.id },
+      { userId: manager.id, farmId: farmBGroup.id },
     ]);
 
     await expect(
@@ -96,26 +96,26 @@ describe("requireTransferAuthorization", () => {
     ).resolves.not.toThrow();
   });
 
-  it("rejects a cross-farm transfer for a manager assigned to only one of the two farms", async () => {
+  it("rejects a cross-establishment transfer for a manager assigned to only one of the two farms", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
       .returning();
     const [farmAGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo A" })
       .returning();
     const [farmA] = await testDb
-      .insert(farm)
-      .values({ groupId: farmAGroup.id, name: "Campo A" })
+      .insert(establishment)
+      .values({ farmId: farmAGroup.id, name: "Campo A" })
       .returning();
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo B" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Campo B" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -128,14 +128,14 @@ describe("requireTransferAuthorization", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmA.id });
+      .values({ userId: manager.id, farmId: farmAGroup.id });
 
     await expect(
       requireTransferAuthorization(manager.id, "manager", farmA.id, farmB.id),
     ).rejects.toThrow();
   });
 
-  it("rejects a cross-farm transfer for a manager assigned to neither farm", async () => {
+  it("rejects a cross-establishment transfer for a manager assigned to neither establishment", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
@@ -151,11 +151,11 @@ describe("requireTransferAuthorization", () => {
       .returning();
 
     await expect(
-      requireTransferAuthorization(manager.id, "manager", "farm-a", "farm-b"),
+      requireTransferAuthorization(manager.id, "manager", "establishment-a", "establishment-b"),
     ).rejects.toThrow();
   });
 
-  it("allows a cross-farm transfer for an admin regardless of farm assignment", async () => {
+  it("allows a cross-establishment transfer for an admin regardless of establishment assignment", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
@@ -171,7 +171,7 @@ describe("requireTransferAuthorization", () => {
       .returning();
 
     await expect(
-      requireTransferAuthorization(admin.id, "admin", "farm-a", "farm-b"),
+      requireTransferAuthorization(admin.id, "admin", "establishment-a", "establishment-b"),
     ).resolves.not.toThrow();
   });
 });
@@ -187,20 +187,20 @@ describe("visibleCurrentState", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -222,7 +222,7 @@ describe("visibleCurrentState", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
 
     for (const targetFarm of [farmNorte, farmSur]) {
       const [createdAnimal] = await testDb
@@ -233,7 +233,7 @@ describe("visibleCurrentState", () => {
         .insert(batchOperation)
         .values({
           eventType: "transfer",
-          farmId: targetFarm.id,
+          establishmentId: targetFarm.id,
           animalCount: 1,
           createdBy: admin.id,
         })
@@ -244,7 +244,7 @@ describe("visibleCurrentState", () => {
           eventType: "transfer",
           eventDate: "2026-01-01",
           animalId: createdAnimal.id,
-          farmId: targetFarm.id,
+          establishmentId: targetFarm.id,
           batchOperationId: batch.id,
           createdBy: admin.id,
         })
@@ -253,8 +253,8 @@ describe("visibleCurrentState", () => {
         .insert(eventTransfer)
         .values({
           eventId: createdEvent.id,
-          originFarmId: targetFarm.id,
-          destinationFarmId: targetFarm.id,
+          originEstablishmentId: targetFarm.id,
+          destinationEstablishmentId: targetFarm.id,
         });
     }
     await refreshDerivedState();
@@ -262,14 +262,14 @@ describe("visibleCurrentState", () => {
     return { manager, admin, farmNorte, farmSur };
   }
 
-  it("scopes results to the manager's assigned farm", async () => {
+  it("scopes results to the manager's assigned establishment", async () => {
     const { manager, farmNorte } = await seedTwoFarmsWithOneAnimalEach();
     const rows = await visibleCurrentState(manager.id, "manager");
     expect(rows).toHaveLength(1);
-    expect(rows[0].currentFarmId).toBe(farmNorte.id);
+    expect(rows[0].currentEstablishmentId).toBe(farmNorte.id);
   });
 
-  it("returns every farm's animals for an admin", async () => {
+  it("returns every establishment's animals for an admin", async () => {
     const { admin } = await seedTwoFarmsWithOneAnimalEach();
     const rows = await visibleCurrentState(admin.id, "admin");
     expect(rows).toHaveLength(2);
@@ -295,26 +295,26 @@ describe("visibleCurrentState", () => {
 });
 
 describe("visibleCurrentStateWithNames", () => {
-  it("resolves farm, paddock, and category names for an animal with all three set", async () => {
+  it("resolves establishment, paddock, and category names for an animal with all three set", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [seededPaddock] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero 1" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero 1" })
       .returning();
     const [seededCategory] = await testDb
       .insert(category)
-      .values({ groupId: seededFarmGroup.id, name: "Vaca" })
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -334,7 +334,7 @@ describe("visibleCurrentStateWithNames", () => {
       .insert(batchOperation)
       .values({
         eventType: "retag",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -345,7 +345,7 @@ describe("visibleCurrentStateWithNames", () => {
         eventType: "retag",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: retagBatch.id,
         createdBy: admin.id,
       })
@@ -362,7 +362,7 @@ describe("visibleCurrentStateWithNames", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -373,15 +373,15 @@ describe("visibleCurrentStateWithNames", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: transferEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       destinationPaddockId: seededPaddock.id,
     });
 
@@ -389,7 +389,7 @@ describe("visibleCurrentStateWithNames", () => {
       .insert(batchOperation)
       .values({
         eventType: "recategorize",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -400,7 +400,7 @@ describe("visibleCurrentStateWithNames", () => {
         eventType: "recategorize",
         eventDate: "2026-01-02",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: recatBatch.id,
         createdBy: admin.id,
       })
@@ -419,8 +419,8 @@ describe("visibleCurrentStateWithNames", () => {
       {
         animalId: createdAnimal.id,
         currentTag: "AR000000000040",
-        currentFarmId: seededFarm.id,
-        farmName: "Campo Norte",
+        currentEstablishmentId: seededFarm.id,
+        establishmentName: "Campo Norte",
         currentPaddockId: seededPaddock.id,
         paddockName: "Potrero 1",
         currentCategoryId: seededCategory.id,
@@ -436,12 +436,12 @@ describe("visibleCurrentStateWithNames", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Sur" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -458,7 +458,7 @@ describe("visibleCurrentStateWithNames", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -469,7 +469,7 @@ describe("visibleCurrentStateWithNames", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
@@ -478,8 +478,8 @@ describe("visibleCurrentStateWithNames", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: seededFarm.id,
-        destinationFarmId: seededFarm.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
       });
     await refreshDerivedState();
 
@@ -488,7 +488,7 @@ describe("visibleCurrentStateWithNames", () => {
     expect(rows[0].categoryName).toBeNull();
   });
 
-  it("scopes results to the manager's assigned farm", async () => {
+  it("scopes results to the manager's assigned establishment", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
@@ -498,20 +498,20 @@ describe("visibleCurrentStateWithNames", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -533,7 +533,7 @@ describe("visibleCurrentStateWithNames", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
 
     for (const targetFarm of [farmNorte, farmSur]) {
       const [createdAnimal] = await testDb
@@ -544,7 +544,7 @@ describe("visibleCurrentStateWithNames", () => {
         .insert(batchOperation)
         .values({
           eventType: "transfer",
-          farmId: targetFarm.id,
+          establishmentId: targetFarm.id,
           animalCount: 1,
           createdBy: admin.id,
         })
@@ -555,7 +555,7 @@ describe("visibleCurrentStateWithNames", () => {
           eventType: "transfer",
           eventDate: "2026-01-01",
           animalId: createdAnimal.id,
-          farmId: targetFarm.id,
+          establishmentId: targetFarm.id,
           batchOperationId: batch.id,
           createdBy: admin.id,
         })
@@ -564,21 +564,21 @@ describe("visibleCurrentStateWithNames", () => {
         .insert(eventTransfer)
         .values({
           eventId: createdEvent.id,
-          originFarmId: targetFarm.id,
-          destinationFarmId: targetFarm.id,
+          originEstablishmentId: targetFarm.id,
+          destinationEstablishmentId: targetFarm.id,
         });
     }
     await refreshDerivedState();
 
     const rows = await visibleCurrentStateWithNames(manager.id, "manager");
     expect(rows).toHaveLength(1);
-    expect(rows[0].farmName).toBe("Campo Norte");
+    expect(rows[0].establishmentName).toBe("Campo Norte");
   });
 });
 
 describe("findAnimalLocationByTag", () => {
   async function seedAnimalAtFarm(
-    farmId: string,
+    establishmentId: string,
     adminId: string,
     tag: string,
   ) {
@@ -591,7 +591,7 @@ describe("findAnimalLocationByTag", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -602,7 +602,7 @@ describe("findAnimalLocationByTag", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
       })
@@ -611,15 +611,15 @@ describe("findAnimalLocationByTag", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmId,
-        destinationFarmId: farmId,
+        originEstablishmentId: establishmentId,
+        destinationEstablishmentId: establishmentId,
       });
 
     const [retagBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "retag",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -630,7 +630,7 @@ describe("findAnimalLocationByTag", () => {
         eventType: "retag",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: retagBatch.id,
         createdBy: adminId,
       })
@@ -649,12 +649,12 @@ describe("findAnimalLocationByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -679,7 +679,7 @@ describe("findAnimalLocationByTag", () => {
     expect(result).toMatchObject({
       animalId: createdAnimal.id,
       currentTag: "AR000000000050",
-      farmName: "Campo Norte",
+      establishmentName: "Campo Norte",
     });
   });
 
@@ -689,12 +689,12 @@ describe("findAnimalLocationByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -717,7 +717,7 @@ describe("findAnimalLocationByTag", () => {
       .insert(batchOperation)
       .values({
         eventType: "retag",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: admin.id,
       })
@@ -728,7 +728,7 @@ describe("findAnimalLocationByTag", () => {
         eventType: "retag",
         eventDate: "2026-02-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: retagBatch.id,
         createdBy: admin.id,
       })
@@ -780,20 +780,20 @@ describe("findAnimalLocationByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -815,7 +815,7 @@ describe("findAnimalLocationByTag", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
     await seedAnimalAtFarm(farmSur.id, admin.id, "AR000000000052");
 
     expect(
@@ -823,7 +823,7 @@ describe("findAnimalLocationByTag", () => {
     ).toBeNull();
   });
 
-  it("finds a tag on the manager's own assigned farm", async () => {
+  it("finds a tag on the manager's own assigned establishment", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
@@ -833,12 +833,12 @@ describe("findAnimalLocationByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -860,7 +860,7 @@ describe("findAnimalLocationByTag", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
     await seedAnimalAtFarm(farmNorte.id, admin.id, "AR000000000053");
 
     const result = await findAnimalLocationByTag(
@@ -868,13 +868,13 @@ describe("findAnimalLocationByTag", () => {
       "manager",
       "AR000000000053",
     );
-    expect(result?.farmName).toBe("Campo Norte");
+    expect(result?.establishmentName).toBe("Campo Norte");
   });
 });
 
 describe("findAnimalDetailByTag", () => {
   async function seedDetailedAnimalAtFarm(
-    farmId: string,
+    establishmentId: string,
     adminId: string,
     tag: string,
     details: {
@@ -906,7 +906,7 @@ describe("findAnimalDetailByTag", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -917,7 +917,7 @@ describe("findAnimalDetailByTag", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
       })
@@ -926,15 +926,15 @@ describe("findAnimalDetailByTag", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmId,
-        destinationFarmId: farmId,
+        originEstablishmentId: establishmentId,
+        destinationEstablishmentId: establishmentId,
       });
 
     const [retagBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "retag",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -945,7 +945,7 @@ describe("findAnimalDetailByTag", () => {
         eventType: "retag",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: retagBatch.id,
         createdBy: adminId,
       })
@@ -958,18 +958,18 @@ describe("findAnimalDetailByTag", () => {
     return createdAnimal;
   }
 
-  it("resolves owner, sex, breed, birth date, and secondary tag alongside farm/paddock/category", async () => {
+  it("resolves owner, sex, breed, birth date, and secondary tag alongside establishment/paddock/category", async () => {
     const [adminRole] = await testDb
       .insert(role)
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [seededOwner] = await testDb
       .insert(owner)
@@ -1005,7 +1005,7 @@ describe("findAnimalDetailByTag", () => {
 
     expect(result).toMatchObject({
       animalId: createdAnimal.id,
-      farmName: "Campo Norte",
+      establishmentName: "Campo Norte",
       sex: "female",
       breed: "Hereford",
       birthDate: "2021-01-01",
@@ -1020,12 +1020,12 @@ describe("findAnimalDetailByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -1063,20 +1063,20 @@ describe("findAnimalDetailByTag", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -1098,7 +1098,7 @@ describe("findAnimalDetailByTag", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
     await seedDetailedAnimalAtFarm(farmSur.id, admin.id, "AR000000000062");
 
     expect(
@@ -1109,7 +1109,7 @@ describe("findAnimalDetailByTag", () => {
 
 describe("visibleAnimalDetails", () => {
   async function seedDetailedAnimalAtFarm(
-    farmId: string,
+    establishmentId: string,
     adminId: string,
     tag: string,
     details: {
@@ -1141,7 +1141,7 @@ describe("visibleAnimalDetails", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId,
+        establishmentId,
         animalCount: 1,
         createdBy: adminId,
       })
@@ -1152,7 +1152,7 @@ describe("visibleAnimalDetails", () => {
         eventType: "transfer",
         eventDate: "2026-01-01",
         animalId: createdAnimal.id,
-        farmId,
+        establishmentId,
         batchOperationId: batch.id,
         createdBy: adminId,
       })
@@ -1161,8 +1161,8 @@ describe("visibleAnimalDetails", () => {
       .insert(eventTransfer)
       .values({
         eventId: transferEvent.id,
-        originFarmId: farmId,
-        destinationFarmId: farmId,
+        originEstablishmentId: establishmentId,
+        destinationEstablishmentId: establishmentId,
       });
 
     await refreshDerivedState();
@@ -1175,12 +1175,12 @@ describe("visibleAnimalDetails", () => {
       .values({ name: "admin" })
       .returning();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
       .returning();
     const [seededOwner] = await testDb
       .insert(owner)
@@ -1207,7 +1207,7 @@ describe("visibleAnimalDetails", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      farmName: "Campo Norte",
+      establishmentName: "Campo Norte",
       sex: "female",
       breed: "Hereford",
       birthDate: "2021-01-01",
@@ -1216,7 +1216,7 @@ describe("visibleAnimalDetails", () => {
     });
   });
 
-  it("scopes results to the manager's assigned farm", async () => {
+  it("scopes results to the manager's assigned establishment", async () => {
     const [managerRole] = await testDb
       .insert(role)
       .values({ name: "manager" })
@@ -1226,20 +1226,20 @@ describe("visibleAnimalDetails", () => {
       .values({ name: "admin" })
       .returning();
     const [farmNorteGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Norte" })
       .returning();
     const [farmNorte] = await testDb
-      .insert(farm)
-      .values({ groupId: farmNorteGroup.id, name: "Campo Norte" })
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
       .returning();
     const [farmSurGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [farmSur] = await testDb
-      .insert(farm)
-      .values({ groupId: farmSurGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
       .returning();
     const [manager] = await testDb
       .insert(userAccount)
@@ -1261,14 +1261,14 @@ describe("visibleAnimalDetails", () => {
       .returning();
     await testDb
       .insert(userFarm)
-      .values({ userId: manager.id, farmId: farmNorte.id });
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
     await seedDetailedAnimalAtFarm(farmNorte.id, admin.id, "AR000000000071");
     await seedDetailedAnimalAtFarm(farmSur.id, admin.id, "AR000000000072");
 
     const rows = await visibleAnimalDetails(manager.id, "manager");
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].farmName).toBe("Campo Norte");
+    expect(rows[0].establishmentName).toBe("Campo Norte");
   });
 
   it("returns an empty array for a manager with no assigned farms", async () => {

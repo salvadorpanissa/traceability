@@ -3,8 +3,8 @@ import { db } from "@/db";
 import {
   ownTag,
   category,
-  dicoseRegistration,
-  farm,
+  dicose,
+  establishment,
   paddock,
   batchOperation,
   event,
@@ -29,13 +29,13 @@ export type OwnTagImportResult = {
 
 const CARAVAN_PATTERN = /^\d+$/;
 
-async function registrationGroupId(dicoseRegistrationId: string): Promise<string | null> {
+async function registrationFarmId(dicoseId: string): Promise<string | null> {
   const [row] = await db
-    .select({ groupId: farm.groupId })
-    .from(dicoseRegistration)
-    .innerJoin(farm, eq(farm.id, dicoseRegistration.farmId))
-    .where(eq(dicoseRegistration.id, dicoseRegistrationId));
-  return row?.groupId ?? null;
+    .select({ farmId: establishment.farmId })
+    .from(dicose)
+    .innerJoin(establishment, eq(establishment.id, dicose.establishmentId))
+    .where(eq(dicose.id, dicoseId));
+  return row?.farmId ?? null;
 }
 
 function today(): string {
@@ -61,17 +61,18 @@ function hasAnimalSignal(details: OwnTagRowDetails): boolean {
 }
 
 // Names referenced by a "paddock"-mapped column that don't exist yet for the
-// registration's farm — the caller should let the user create them (or fix a
-// typo) before confirming, since paddocks are never auto-created silently.
-export async function findMissingPaddockNames(dicoseRegistrationId: string, paddockNames: string[]): Promise<string[]> {
+// registration's establecimiento — the caller should let the user create
+// them (or fix a typo) before confirming, since paddocks are never
+// auto-created silently.
+export async function findMissingPaddockNames(dicoseId: string, paddockNames: string[]): Promise<string[]> {
   const distinctNames = [...new Set(paddockNames.map((n) => n.trim()).filter(Boolean))];
   if (distinctNames.length === 0) return [];
 
-  const [registration] = await db
-    .select()
-    .from(dicoseRegistration)
-    .where(eq(dicoseRegistration.id, dicoseRegistrationId));
-  const existingPaddocks = await db.select({ name: paddock.name }).from(paddock).where(eq(paddock.farmId, registration.farmId));
+  const [registration] = await db.select().from(dicose).where(eq(dicose.id, dicoseId));
+  const existingPaddocks = await db
+    .select({ name: paddock.name })
+    .from(paddock)
+    .where(eq(paddock.establishmentId, registration.establishmentId));
   const existingNames = new Set(existingPaddocks.map((p) => p.name.trim().toLowerCase()));
 
   return distinctNames.filter((name) => !existingNames.has(name.toLowerCase()));
@@ -80,18 +81,15 @@ export async function findMissingPaddockNames(dicoseRegistrationId: string, padd
 // Same idea as findMissingPaddockNames, but for the "category" column — an
 // unrecognized name silently resolved to null instead of ever landing on the
 // tag. Exact match, matching how category names are matched everywhere else,
-// scoped to the registration's farm's grupo — a name that exists only in a
-// different grupo's catalog still counts as missing here.
-export async function findMissingCategoryNames(
-  dicoseRegistrationId: string,
-  categoryNames: string[]
-): Promise<string[]> {
+// scoped to the registration's establecimiento's farm — a name that exists
+// only in a different farm's catalog still counts as missing here.
+export async function findMissingCategoryNames(dicoseId: string, categoryNames: string[]): Promise<string[]> {
   const distinctNames = [...new Set(categoryNames.map((n) => n.trim()).filter(Boolean))];
   if (distinctNames.length === 0) return [];
 
-  const groupId = await registrationGroupId(dicoseRegistrationId);
-  const existingCategories = groupId
-    ? await db.select({ name: category.name }).from(category).where(eq(category.groupId, groupId))
+  const farmId = await registrationFarmId(dicoseId);
+  const existingCategories = farmId
+    ? await db.select({ name: category.name }).from(category).where(eq(category.farmId, farmId))
     : [];
   const existingNames = new Set(existingCategories.map((c) => c.name));
 
@@ -99,13 +97,13 @@ export async function findMissingCategoryNames(
 }
 
 export async function importOwnTags(
-  dicoseRegistrationId: string,
+  dicoseId: string,
   userId: string,
   rawRows: MappedOwnTagRow[]
 ): Promise<OwnTagImportResult> {
-  const groupId = await registrationGroupId(dicoseRegistrationId);
-  const categoryRows = groupId
-    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.groupId, groupId))
+  const farmId = await registrationFarmId(dicoseId);
+  const categoryRows = farmId
+    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.farmId, farmId))
     : [];
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
 
@@ -148,15 +146,12 @@ export async function importOwnTags(
     .where(inArray(animalTagHistory.tag, candidateTags));
   const animalIdByTag = new Map(historyRows.map((r) => [r.tag, r.animalId]));
 
-  const [registration] = await db
-    .select()
-    .from(dicoseRegistration)
-    .where(eq(dicoseRegistration.id, dicoseRegistrationId));
+  const [registration] = await db.select().from(dicose).where(eq(dicose.id, dicoseId));
 
   const needsPaddockLookup = candidateTags.some((tag) => rowByTag.get(tag)!.paddockName);
   let paddockIdByName: Map<string, string> | undefined;
   if (needsPaddockLookup) {
-    const existingPaddocks = await db.select().from(paddock).where(eq(paddock.farmId, registration.farmId));
+    const existingPaddocks = await db.select().from(paddock).where(eq(paddock.establishmentId, registration.establishmentId));
     paddockIdByName = new Map(existingPaddocks.map((p) => [p.name.trim().toLowerCase(), p.id]));
   }
 
@@ -167,7 +162,7 @@ export async function importOwnTags(
 
   await db.transaction(async (tx) => {
     if (brandNewOwnTags.length > 0) {
-      await tx.insert(ownTag).values(brandNewOwnTags.map((tag) => ({ tag, dicoseRegistrationId })));
+      await tx.insert(ownTag).values(brandNewOwnTags.map((tag) => ({ tag, dicoseId })));
       registered = brandNewOwnTags.length;
       brandNewOwnTags.forEach((tag) => productiveTags.add(tag));
     }
@@ -176,7 +171,8 @@ export async function importOwnTags(
 
     // Tags with no animal yet: a bare registration stays that way, but any
     // biological or location data means there's a real animal to create now
-    // (placed on the registration's farm, in a paddock if one was given).
+    // (placed on the registration's establecimiento, in a paddock if one was
+    // given).
     const tagsNeedingCreation = candidateTags.filter(
       (tag) => !animalIdByTag.has(tag) && hasAnimalSignal(rowByTag.get(tag)!)
     );
@@ -186,7 +182,7 @@ export async function importOwnTags(
         .insert(batchOperation)
         .values({
           eventType: "transfer",
-          farmId: registration.farmId,
+          establishmentId: registration.establishmentId,
           animalCount: tagsNeedingCreation.length,
           createdBy: userId,
         })
@@ -202,7 +198,7 @@ export async function importOwnTags(
 
         const animalId = await createNewAnimal(tx, {
           userId,
-          operatingFarmId: registration.farmId,
+          operatingEstablishmentId: registration.establishmentId,
           batchId: batch.id,
           row: {
             tag,
@@ -225,15 +221,15 @@ export async function importOwnTags(
             eventType: "transfer",
             eventDate,
             animalId,
-            farmId: registration.farmId,
+            establishmentId: registration.establishmentId,
             batchOperationId: batch.id,
             createdBy: userId,
           })
           .returning();
         await tx.insert(eventTransfer).values({
           eventId: placementEvent.id,
-          originFarmId: registration.farmId,
-          destinationFarmId: registration.farmId,
+          originEstablishmentId: registration.establishmentId,
+          destinationEstablishmentId: registration.establishmentId,
           originPaddockId: null,
           destinationPaddockId,
         });
@@ -313,7 +309,7 @@ export async function importOwnTags(
           .insert(batchOperation)
           .values({
             eventType: "recategorize",
-            farmId: registration.farmId,
+            establishmentId: registration.establishmentId,
             animalCount: plansNeedingCategory.length,
             createdBy: userId,
           })
@@ -340,7 +336,7 @@ export async function importOwnTags(
               eventType: "recategorize",
               eventDate,
               animalId: plan.animalId,
-              farmId: registration.farmId,
+              establishmentId: registration.establishmentId,
               batchOperationId: recategorizeBatchId,
               createdBy: userId,
             })
@@ -369,16 +365,16 @@ export async function importOwnTags(
 }
 
 export async function countOwnTagsByRegistration(): Promise<
-  { dicoseRegistrationId: string; count: number; lastUploadedAt: Date | null }[]
+  { dicoseId: string; count: number; lastUploadedAt: Date | null }[]
 > {
   const rows = await db
     .select({
-      dicoseRegistrationId: ownTag.dicoseRegistrationId,
+      dicoseId: ownTag.dicoseId,
       count: sql<number>`count(*)::int`,
       lastUploadedAt: sql<string | null>`max(${ownTag.createdAt})`,
     })
     .from(ownTag)
-    .groupBy(ownTag.dicoseRegistrationId);
+    .groupBy(ownTag.dicoseId);
 
   return rows.map((row) => ({
     ...row,
@@ -386,36 +382,36 @@ export async function countOwnTagsByRegistration(): Promise<
   }));
 }
 
-// How many currently-alive animals belong to each owner+campo pair — the
-// own-tags settings page shows this per DICOSE registration (owner+campo),
-// not the count of uploaded own-tag rows.
-export async function countAliveAnimalsByOwnerFarm(): Promise<
-  { ownerId: string; farmId: string; count: number }[]
+// How many currently-alive animals belong to each owner+establecimiento pair
+// — the own-tags settings page shows this per DICOSE registration
+// (owner+establecimiento), not the count of uploaded own-tag rows.
+export async function countAliveAnimalsByOwnerEstablishment(): Promise<
+  { ownerId: string; establishmentId: string; count: number }[]
 > {
-  const result = await db.execute<{ owner_id: string; farm_id: string; count: number }>(sql`
-    select a.owner_id, acs.current_farm_id as farm_id, count(*)::int as count
+  const result = await db.execute<{ owner_id: string; establishment_id: string; count: number }>(sql`
+    select a.owner_id, acs.current_establishment_id as establishment_id, count(*)::int as count
     from animal_current_state acs
     join animal a on a.id = acs.animal_id
-    where acs.status = 'alive' and acs.current_farm_id is not null
-    group by a.owner_id, acs.current_farm_id
+    where acs.status = 'alive' and acs.current_establishment_id is not null
+    group by a.owner_id, acs.current_establishment_id
   `);
-  return result.rows.map((row) => ({ ownerId: row.owner_id, farmId: row.farm_id, count: row.count }));
+  return result.rows.map((row) => ({ ownerId: row.owner_id, establishmentId: row.establishment_id, count: row.count }));
 }
 
 // Own-tag rows with no animal behind them yet (a bare caravana upload — see
-// hasAnimalSignal) don't show up in countAliveAnimalsByOwnerFarm at all,
-// since no animal was created. The settings page adds this in per
+// hasAnimalSignal) don't show up in countAliveAnimalsByOwnerEstablishment at
+// all, since no animal was created. The settings page adds this in per
 // registration so a bare caravana still counts as a head.
 export async function countBareOwnTagsByRegistration(): Promise<
-  { dicoseRegistrationId: string; count: number }[]
+  { dicoseId: string; count: number }[]
 > {
   return db
     .select({
-      dicoseRegistrationId: ownTag.dicoseRegistrationId,
+      dicoseId: ownTag.dicoseId,
       count: sql<number>`count(*)::int`,
     })
     .from(ownTag)
     .leftJoin(animalTagHistory, eq(animalTagHistory.tag, ownTag.tag))
     .where(sql`${animalTagHistory.animalId} is null`)
-    .groupBy(ownTag.dicoseRegistrationId);
+    .groupBy(ownTag.dicoseId);
 }

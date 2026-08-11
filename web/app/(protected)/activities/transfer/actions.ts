@@ -9,10 +9,10 @@ import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
 import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
-import { findFarmByDicoseCode } from "@/lib/dal/dicose-registration";
+import { findEstablishmentByDicoseCode } from "@/lib/dal/dicose";
 import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 
@@ -33,8 +33,8 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
 
 export async function previewTransferBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
-  const operatingFarmId = formData.get("farmId") as string;
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  const operatingEstablishmentId = formData.get("establishmentId") as string;
+  await requireEstablishmentAccess(session.user.id, session.user.role, operatingEstablishmentId);
 
   const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -66,7 +66,7 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId, {
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingEstablishmentId, {
     autoForceForeignWithoutOwner: true,
   });
 
@@ -76,12 +76,12 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
 export async function confirmTransferBatchAction(input: {
   headerSignature: string;
   mapping: ColumnMapping[];
-  destinationFarmId: string;
+  destinationEstablishmentId: string;
   destinationPaddockId: string | null;
   rows: ResolvedRow[];
 }): Promise<void> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.destinationFarmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, input.destinationEstablishmentId);
 
   await db
     .insert(columnMapping)
@@ -90,14 +90,15 @@ export async function confirmTransferBatchAction(input: {
 
   // Rows for animals already tracked keep their real current location
   // (resolveBatchRows/confirmTransferBatch derive it from animal_current_state);
-  // this only stands in as the batch's own farm and as the placement farm for
-  // rows with no known location yet (new/foreign) — there's no separate
-  // "origin" to ask for since the destination is already what's being marked.
+  // this only stands in as the batch's own establecimiento and as the
+  // placement establecimiento for rows with no known location yet
+  // (new/foreign) — there's no separate "origin" to ask for since the
+  // destination is already what's being marked.
   await confirmTransferBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: input.destinationFarmId,
-    destinationFarmId: input.destinationFarmId,
+    operatingEstablishmentId: input.destinationEstablishmentId,
+    destinationEstablishmentId: input.destinationEstablishmentId,
     destinationPaddockId: input.destinationPaddockId,
     rows: input.rows,
   });
@@ -109,10 +110,10 @@ export type PdfPreviewResult =
       ok: true;
       guideNumber: string;
       eventDate: string;
-      originFarmId: string;
-      originFarmName: string;
-      destinationFarmId: string;
-      destinationFarmName: string;
+      originEstablishmentId: string;
+      originEstablishmentName: string;
+      destinationEstablishmentId: string;
+      destinationEstablishmentName: string;
       rows: ResolvedRow[];
     };
 
@@ -128,16 +129,16 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo leer el PDF" };
   }
 
-  const origin = await findFarmByDicoseCode(guide.originDicoseCode);
+  const origin = await findEstablishmentByDicoseCode(guide.originDicoseCode);
   if (!origin) {
     return { ok: false, error: `No hay ningún campo registrado con DICOSE ${guide.originDicoseCode}` };
   }
-  const destination = await findFarmByDicoseCode(guide.destinationDicoseCode);
+  const destination = await findEstablishmentByDicoseCode(guide.destinationDicoseCode);
   if (!destination) {
     return { ok: false, error: `No hay ningún campo registrado con DICOSE ${guide.destinationDicoseCode}` };
   }
 
-  await requireFarmAccess(session.user.id, session.user.role, destination.farmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, destination.establishmentId);
 
   const mappedRows: MappedRow[] = guide.animals.map((a) => ({
     tag: a.tag,
@@ -149,7 +150,7 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
     birthDate: a.ageMonths !== null ? estimateBirthDateFromAge(guide.eventDate, a.ageMonths) : null,
   }));
 
-  const rows = await resolveBatchRows(mappedRows, guide.eventDate, destination.farmId, {
+  const rows = await resolveBatchRows(mappedRows, guide.eventDate, destination.establishmentId, {
     autoForceForeignWithoutOwner: true,
   });
 
@@ -157,10 +158,10 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
     ok: true,
     guideNumber: guide.guideNumber,
     eventDate: guide.eventDate,
-    originFarmId: origin.farmId,
-    originFarmName: origin.farmName,
-    destinationFarmId: destination.farmId,
-    destinationFarmName: destination.farmName,
+    originEstablishmentId: origin.establishmentId,
+    originEstablishmentName: origin.establishmentName,
+    destinationEstablishmentId: destination.establishmentId,
+    destinationEstablishmentName: destination.establishmentName,
     rows,
   };
 }
@@ -171,8 +172,8 @@ export async function previewTransferBatchFromPdf(formData: FormData): Promise<P
 // persisted on the batch as the guide's source document.
 export async function confirmTransferBatchFromPdfAction(formData: FormData): Promise<void> {
   const session = await requireSession();
-  const destinationFarmId = formData.get("destinationFarmId") as string;
-  await requireFarmAccess(session.user.id, session.user.role, destinationFarmId);
+  const destinationEstablishmentId = formData.get("destinationEstablishmentId") as string;
+  await requireEstablishmentAccess(session.user.id, session.user.role, destinationEstablishmentId);
 
   const file = requireFile(formData, "file");
   const destinationPaddockId = (formData.get("destinationPaddockId") as string | null) || null;
@@ -181,10 +182,10 @@ export async function confirmTransferBatchFromPdfAction(formData: FormData): Pro
   await confirmTransferBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: destinationFarmId,
-    destinationFarmId,
+    operatingEstablishmentId: destinationEstablishmentId,
+    destinationEstablishmentId,
     destinationPaddockId,
-    originFarmId: formData.get("originFarmId") as string,
+    originEstablishmentId: formData.get("originEstablishmentId") as string,
     guideNumber: formData.get("guideNumber") as string,
     guideDocument: {
       fileName: file.name,
@@ -200,14 +201,14 @@ export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry
   return createOwner(name);
 }
 
-export async function listPaddocksAction(farmId: string): Promise<PaddockCatalogEntry[]> {
+export async function listPaddocksAction(establishmentId: string): Promise<PaddockCatalogEntry[]> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return listPaddocksByFarm(farmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  return listPaddocksByEstablishment(establishmentId);
 }
 
-export async function createPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
+export async function createPaddockAction(establishmentId: string, name: string): Promise<PaddockCatalogEntry> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return createPaddock(farmId, name);
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  return createPaddock(establishmentId, name);
 }

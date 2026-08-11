@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { event, eventSale, saleSettlement } from "@/db/schema";
-import { isAdmin, requireFarmAccess, userFarmIds } from "@/lib/dal/farm-access";
+import { isAdmin, requireEstablishmentAccess, userEstablishmentIds } from "@/lib/dal/farm-access";
 import { findSaleBatchByGuideNumber } from "@/lib/dal/sale-batch";
 
 export async function linkSaleSettlement(input: {
@@ -17,15 +17,15 @@ export async function linkSaleSettlement(input: {
 }): Promise<void> {
   const { userId, role, guideNumber, frigorifico, weighDate, totalAmount, weightKg, pricePerKg, guideDocument } = input;
 
-  const accessibleFarmIds = isAdmin(role) ? "all" : await userFarmIds(userId);
+  const accessibleEstablishmentIds = isAdmin(role) ? "all" : await userEstablishmentIds(userId);
 
-  const match = await findSaleBatchByGuideNumber(guideNumber, accessibleFarmIds);
+  const match = await findSaleBatchByGuideNumber(guideNumber, accessibleEstablishmentIds);
   if (!match) {
     throw new Error(`No se encontró ninguna venta con la guía ${guideNumber}`);
   }
 
   // Redundant now that the search itself is scoped, but kept as defense in depth.
-  await requireFarmAccess(userId, role, match.farmId);
+  await requireEstablishmentAccess(userId, role, match.establishmentId);
 
   await db.transaction(async (tx) => {
     const [existing] = await tx

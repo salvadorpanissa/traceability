@@ -41,8 +41,8 @@ describe("ImportForm", () => {
     await waitFor(() => expect(screen.getByText(/2 filas creadas/)).toBeInTheDocument());
     expect(importChunkAction).toHaveBeenCalledTimes(1);
     expect(importChunkAction).toHaveBeenCalledWith([
-      expect.objectContaining({ tag: "TAG1", farmName: "San Antonio" }),
-      expect.objectContaining({ tag: "TAG2", farmName: "San Antonio" }),
+      expect.objectContaining({ tag: "TAG1", establishmentName: "San Antonio" }),
+      expect.objectContaining({ tag: "TAG2", establishmentName: "San Antonio" }),
     ]);
   });
 

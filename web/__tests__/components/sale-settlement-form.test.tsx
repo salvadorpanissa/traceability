@@ -14,7 +14,7 @@ vi.mock("@/app/(protected)/activities/sale-settlement/actions", () => ({
     weightKg: "255.52",
     pricePerKg: "5.2189",
     match: {
-      farmName: "San Antonio",
+      establishmentName: "San Antonio",
       eventDate: "2026-07-11",
       animalTags: ["858000064429766", "858000064423859"],
       buyer: null,

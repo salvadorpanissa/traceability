@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { farmGroup, role, farm, userAccount, userFarm, category } from "@/db/schema";
+import { farm, role, establishment, userAccount, userFarm, category } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -24,12 +24,12 @@ async function seedManagerSession() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -40,7 +40,7 @@ async function seedManagerSession() {
       roleId: managerRole.id,
     })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
+  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarmGroup.id });
 
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
@@ -53,13 +53,13 @@ describe("createCategoryAction", () => {
   it("creates a category and returns it", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
 
-    const result = await createCategoryAction({ farmId: seededFarm.id, name: "Vaca" });
+    const result = await createCategoryAction({ establishmentId: seededFarm.id, name: "Vaca" });
 
     expect(result).toEqual({
       ok: true,
       entry: {
         id: expect.any(String),
-        groupId: seededFarmGroup.id,
+        farmId: seededFarmGroup.id,
         name: "Vaca",
         sex: null,
         minAgeMonths: null,
@@ -75,19 +75,19 @@ describe("createCategoryAction", () => {
 
   it("rejects a category for a campo the manager doesn't have access to", async () => {
     await seedManagerSession();
-    const [otherGroup] = await testDb.insert(farmGroup).values({ name: "Otro grupo" }).returning();
-    const [otherFarm] = await testDb.insert(farm).values({ groupId: otherGroup.id, name: "Campo Ajeno" }).returning();
+    const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
+    const [otherFarm] = await testDb.insert(establishment).values({ farmId: otherGroup.id, name: "Campo Ajeno" }).returning();
 
-    await expect(createCategoryAction({ farmId: otherFarm.id, name: "Vaca" })).rejects.toThrow(
+    await expect(createCategoryAction({ establishmentId: otherFarm.id, name: "Vaca" })).rejects.toThrow(
       "No tenés acceso a este campo"
     );
   });
 
   it("rejects a duplicate name with a friendly error instead of throwing", async () => {
     const { seededFarm } = await seedManagerSession();
-    await createCategoryAction({ farmId: seededFarm.id, name: "Vaca" });
+    await createCategoryAction({ establishmentId: seededFarm.id, name: "Vaca" });
 
-    const result = await createCategoryAction({ farmId: seededFarm.id, name: "Vaca" });
+    const result = await createCategoryAction({ establishmentId: seededFarm.id, name: "Vaca" });
 
     expect(result).toEqual({
       ok: false,
@@ -99,8 +99,8 @@ describe("createCategoryAction", () => {
 describe("updateCategoryAction", () => {
   it("rejects renaming into a name that already exists with a friendly error instead of throwing", async () => {
     const { seededFarm } = await seedManagerSession();
-    await createCategoryAction({ farmId: seededFarm.id, name: "Vaca" });
-    const created = await createCategoryAction({ farmId: seededFarm.id, name: "Toro" });
+    await createCategoryAction({ establishmentId: seededFarm.id, name: "Vaca" });
+    const created = await createCategoryAction({ establishmentId: seededFarm.id, name: "Toro" });
     if (!created.ok) throw new Error("setup failed");
 
     const result = await updateCategoryAction({
@@ -116,17 +116,17 @@ describe("updateCategoryAction", () => {
 
   it("rejects updating a category outside the caller's grupo", async () => {
     const { seededFarm } = await seedManagerSession();
-    const created = await createCategoryAction({ farmId: seededFarm.id, name: "Vaca" });
+    const created = await createCategoryAction({ establishmentId: seededFarm.id, name: "Vaca" });
     if (!created.ok) throw new Error("setup failed");
 
     const [otherRole] = await testDb.select().from(role).where(eq(role.name, "manager"));
-    const [otherGroup] = await testDb.insert(farmGroup).values({ name: "Otro grupo" }).returning();
-    const [otherFarm] = await testDb.insert(farm).values({ groupId: otherGroup.id, name: "Campo Ajeno" }).returning();
+    const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
+    const [otherFarm] = await testDb.insert(establishment).values({ farmId: otherGroup.id, name: "Campo Ajeno" }).returning();
     const [otherManager] = await testDb
       .insert(userAccount)
       .values({ name: "Otro manager", email: "otro@example.com", passwordHash: "hashed", roleId: otherRole.id })
       .returning();
-    await testDb.insert(userFarm).values({ userId: otherManager.id, farmId: otherFarm.id });
+    await testDb.insert(userFarm).values({ userId: otherManager.id, farmId: otherGroup.id });
     vi.mocked(auth).mockResolvedValue({ user: { id: otherManager.id, role: "manager" } } as never);
 
     await expect(updateCategoryAction({ id: created.entry.id, name: "Otro nombre" })).rejects.toThrow(

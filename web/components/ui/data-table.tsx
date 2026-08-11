@@ -19,6 +19,15 @@ export type DataTableColumn<T> = {
   exportValue?: (row: T) => string | number | null;
 };
 
+// An extra Excel sheet exported alongside the main table — e.g. the
+// animal-level detail behind each summary row, so the download isn't
+// limited to whatever's currently expanded on screen.
+export type DataTableExtraSheet = {
+  name: string;
+  headers: string[];
+  rows: (string | number | null)[][];
+};
+
 type SortState = { key: string; direction: "asc" | "desc" };
 
 function compareValues(a: string | number | null, b: string | number | null): number {
@@ -43,6 +52,7 @@ export function DataTable<T>({
   exportable = false,
   exportFileName = "tabla",
   exportSheetName = "Datos",
+  extraSheets,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -57,6 +67,7 @@ export function DataTable<T>({
   exportable?: boolean;
   exportFileName?: string;
   exportSheetName?: string;
+  extraSheets?: DataTableExtraSheet[];
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
@@ -120,6 +131,11 @@ export function DataTable<T>({
       sheet.addRow(
         columns.map((column) => column.exportValue?.(row) ?? column.sortValue?.(row) ?? column.searchValue?.(row) ?? "")
       );
+    }
+    for (const extraSheet of extraSheets ?? []) {
+      const worksheet = workbook.addWorksheet(extraSheet.name);
+      worksheet.addRow(extraSheet.headers);
+      for (const row of extraSheet.rows) worksheet.addRow(row);
     }
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

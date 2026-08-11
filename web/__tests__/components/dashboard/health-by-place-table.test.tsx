@@ -16,12 +16,12 @@ vi.mock("@/app/(protected)/dashboard/health-summary-actions", () => ({
 
 const initialRows: HealthByPlaceRow[] = [
   {
-    farmName: "Campo Norte",
+    establishmentName: "Campo Norte",
     paddockName: "Potrero 1",
     count: 2,
     events: [
-      { eventId: "e1", eventDate: "2026-06-01", animalTag: "AR1", farmId: "f1", farmName: "Campo Norte", paddockId: "p1", paddockName: "Potrero 1", productName: "Ivermectina 1%" },
-      { eventId: "e2", eventDate: "2026-06-02", animalTag: "AR2", farmId: "f1", farmName: "Campo Norte", paddockId: "p1", paddockName: "Potrero 1", productName: "Aftosa" },
+      { eventId: "e1", eventDate: "2026-06-01", animalTag: "AR1", establishmentId: "f1", establishmentName: "Campo Norte", paddockId: "p1", paddockName: "Potrero 1", productName: "Ivermectina 1%" },
+      { eventId: "e2", eventDate: "2026-06-02", animalTag: "AR2", establishmentId: "f1", establishmentName: "Campo Norte", paddockId: "p1", paddockName: "Potrero 1", productName: "Aftosa" },
     ],
   },
 ];
@@ -49,7 +49,7 @@ describe("HealthByPlaceTable", () => {
 
   it("reloads the table when the months selector changes", async () => {
     const updatedRows: HealthByPlaceRow[] = [
-      { farmName: "Cuatro Cerros", paddockName: null, count: 1, events: [] },
+      { establishmentName: "Cuatro Cerros", paddockName: null, count: 1, events: [] },
     ];
     vi.mocked(loadHealthByPlaceAction).mockResolvedValue(updatedRows);
 

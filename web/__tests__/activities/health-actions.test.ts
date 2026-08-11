@@ -7,15 +7,15 @@ import ExcelJS from "exceljs";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   product,
   columnMapping,
   owner,
-  dicoseRegistration,
+  dicose,
   ownTag,
 } from "@/db/schema";
 
@@ -52,12 +52,12 @@ async function seedManagerSession() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -70,7 +70,7 @@ async function seedManagerSession() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
 
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
@@ -79,18 +79,18 @@ async function seedManagerSession() {
   return { manager, seededFarm, seededFarmGroup };
 }
 
-async function seedOwnTag(tag: string, farmId: string, ownerName: string) {
+async function seedOwnTag(tag: string, establishmentId: string, ownerName: string) {
   const [createdOwner] = await testDb
     .insert(owner)
     .values({ name: ownerName })
     .returning();
   const [registration] = await testDb
-    .insert(dicoseRegistration)
-    .values({ ownerId: createdOwner.id, farmId, dicoseCode: "999999999" })
+    .insert(dicose)
+    .values({ ownerId: createdOwner.id, establishmentId, dicoseCode: "999999999" })
     .returning();
   await testDb
     .insert(ownTag)
-    .values({ tag, dicoseRegistrationId: registration.id });
+    .values({ tag, dicoseId: registration.id });
   return createdOwner;
 }
 
@@ -100,7 +100,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000080"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -113,7 +113,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
@@ -144,7 +144,7 @@ describe("previewHealthBatch", () => {
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -169,7 +169,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
@@ -180,7 +180,7 @@ describe("previewHealthBatch", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [matchedProduct] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .values({ farmId: seededFarmGroup.id, name: "Aftosa" })
       .returning();
 
     const buffer = await buildWorkbookBuffer(
@@ -189,7 +189,7 @@ describe("previewHealthBatch", () => {
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
@@ -218,7 +218,7 @@ describe("previewHealthBatch", () => {
     );
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -242,7 +242,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000112"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set(
       "mapping",
       JSON.stringify([{ header: "IDE", meaning: "tag" }]),
@@ -260,7 +260,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000113"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
@@ -282,7 +282,7 @@ describe("previewHealthBatch", () => {
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000299"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("farmId", seededFarm.id);
+    formData.set("establishmentId", seededFarm.id);
     formData.set("eventDate", "2026-02-01");
     formData.set(
       "mapping",
@@ -302,7 +302,7 @@ describe("confirmHealthBatchAction", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
 
     await confirmHealthBatchAction({
@@ -332,7 +332,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
     });
 
     const [savedMapping] = await testDb
@@ -346,7 +346,7 @@ describe("confirmHealthBatchAction", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const headerSignature = JSON.stringify(["IDE", "NOTA"]);
 
@@ -391,7 +391,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
     });
 
     const [savedMapping] = await testDb
@@ -413,7 +413,7 @@ describe("confirmHealthBatchAction", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
 
     await confirmHealthBatchAction({
@@ -444,7 +444,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
     });
 
     const { animal } = await import("@/db/schema");
@@ -456,7 +456,7 @@ describe("confirmHealthBatchAction", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
 
     await confirmHealthBatchAction({
@@ -487,7 +487,7 @@ describe("confirmHealthBatchAction", () => {
         },
       ],
       paddockId: null,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
     });
 
     const { animal, animalTagHistory } = await import("@/db/schema");
@@ -500,30 +500,30 @@ describe("confirmHealthBatchAction", () => {
     expect(tagRows[0].tag).toBe("AR000000000085");
   });
 
-  it("confirms a wrong_farm row, creating the animal with its DICOSE-inferred owner", async () => {
+  it("confirms a wrong_establishment row, creating the animal with its DICOSE-inferred owner", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     const [createdOwner] = await testDb
       .insert(owner)
       .values({ name: "AIP" })
       .returning();
     await testDb
-      .insert(dicoseRegistration)
+      .insert(dicose)
       .values({
         ownerId: createdOwner.id,
-        farmId: otherFarm.id,
+        establishmentId: otherFarm.id,
         dicoseCode: "151518192",
       });
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
 
     await confirmHealthBatchAction({
@@ -544,17 +544,17 @@ describe("confirmHealthBatchAction", () => {
           tag: "AR000000000086",
           eventDate: "2026-02-01",
           notes: null,
-          status: "wrong_farm",
+          status: "wrong_establishment",
           categoryId: null,
           sex: null,
           birthDate: null,
           ownerId: createdOwner.id,
-          registeredFarmId: otherFarm.id,
-          registeredFarmName: "Cuatro Cerros",
+          registeredEstablishmentId: otherFarm.id,
+          registeredEstablishmentName: "Cuatro Cerros",
         },
       ],
       paddockId: null,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
     });
 
     const { animal } = await import("@/db/schema");
@@ -567,17 +567,17 @@ describe("confirmHealthBatchAction", () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const { paddock, animal, animalTagHistory, event, eventTransfer } =
       await import("@/db/schema");
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroB] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero B" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -604,12 +604,12 @@ describe("confirmHealthBatchAction", () => {
           notes: null,
           status: "existing",
           animalId: createdAnimal.id,
-          currentFarmId: seededFarm.id,
+          currentEstablishmentId: seededFarm.id,
           currentPaddockId: potreroB.id,
         },
       ],
       paddockId: potreroA.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       transferMismatchedToPaddock: true,
     });
 

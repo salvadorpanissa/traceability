@@ -4,13 +4,13 @@ import { friendlyColumnLabel } from "@/lib/dal/reporting/column-labels";
 describe("friendlyColumnLabel", () => {
   it("translates a known column to Spanish", () => {
     expect(friendlyColumnLabel("animal_tag", "es")).toBe("Caravana");
-    expect(friendlyColumnLabel("farm_name", "es")).toBe("Campo");
+    expect(friendlyColumnLabel("establishment_name", "es")).toBe("Campo");
     expect(friendlyColumnLabel("event_date", "es")).toBe("Fecha");
   });
 
   it("distinguishes origin/destination variants", () => {
-    expect(friendlyColumnLabel("origin_farm_name", "es")).toBe("Campo origen");
-    expect(friendlyColumnLabel("destination_farm_name", "es")).toBe("Campo destino");
+    expect(friendlyColumnLabel("origin_establishment_name", "es")).toBe("Campo origen");
+    expect(friendlyColumnLabel("destination_establishment_name", "es")).toBe("Campo destino");
   });
 
   it("humanizes an unrecognized snake_case column instead of leaving it raw", () => {

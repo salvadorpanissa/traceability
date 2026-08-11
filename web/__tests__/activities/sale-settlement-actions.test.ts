@@ -4,9 +4,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -39,12 +39,12 @@ async function seedManagerFarmAndSale() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "San Antonio" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -57,7 +57,7 @@ async function seedManagerFarmAndSale() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   vi.mocked(auth).mockResolvedValue({
     user: { id: manager.id, role: "manager" },
   } as never);
@@ -66,7 +66,7 @@ async function seedManagerFarmAndSale() {
     .insert(batchOperation)
     .values({
       eventType: "sale",
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       animalCount: 1,
       createdBy: manager.id,
     })
@@ -81,7 +81,7 @@ async function seedManagerFarmAndSale() {
       eventType: "sale",
       eventDate: "2026-07-11",
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: batch.id,
       createdBy: manager.id,
     })
@@ -123,7 +123,7 @@ describe("previewSaleSettlement", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.match.farmName).toBe("San Antonio");
+      expect(result.match.establishmentName).toBe("San Antonio");
       expect(result.match.animalTags).toEqual(["858000064429766"]);
     }
   });
@@ -145,18 +145,18 @@ describe("previewSaleSettlement", () => {
     const { manager } = await seedManagerFarmAndSale();
     // A second campo the manager is NOT assigned to, with its own venta.
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Ajeno" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Campo Ajeno" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Campo Ajeno" })
       .returning();
     const [otherBatch] = await testDb
       .insert(batchOperation)
       .values({
         eventType: "sale",
-        farmId: otherFarm.id,
+        establishmentId: otherFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -171,7 +171,7 @@ describe("previewSaleSettlement", () => {
         eventType: "sale",
         eventDate: "2026-07-12",
         animalId: otherAnimal.id,
-        farmId: otherFarm.id,
+        establishmentId: otherFarm.id,
         batchOperationId: otherBatch.id,
         createdBy: manager.id,
       })

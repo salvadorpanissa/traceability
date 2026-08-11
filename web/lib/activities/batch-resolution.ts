@@ -1,6 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animalTagHistory, category, owner, ownTag, dicoseRegistration, farm } from "@/db/schema";
+import { animalTagHistory, category, owner, ownTag, dicose, establishment } from "@/db/schema";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 import { normalizeDate } from "@/lib/activities/date-normalization";
@@ -12,7 +12,7 @@ export type ResolvedRow = {
   secondaryTag?: string | null;
   breed?: string | null;
 } & (
-  | { status: "existing"; animalId: string; currentFarmId: string | null; currentPaddockId: string | null }
+  | { status: "existing"; animalId: string; currentEstablishmentId: string | null; currentPaddockId: string | null }
   | {
       status: "new";
       categoryId: string | null;
@@ -22,13 +22,13 @@ export type ResolvedRow = {
       pendingOwnerName: string | null;
     }
   | {
-      status: "wrong_farm";
+      status: "wrong_establishment";
       categoryId: string | null;
       sex: "male" | "female" | null;
       birthDate: string | null;
       ownerId: string;
-      registeredFarmId: string;
-      registeredFarmName: string;
+      registeredEstablishmentId: string;
+      registeredEstablishmentName: string;
     }
   | {
       status: "foreign";
@@ -42,7 +42,7 @@ export type ResolvedRow = {
   | { status: "error"; reason: string }
 );
 
-export type CreatableRow = Extract<ResolvedRow, { status: "new" | "wrong_farm" | "foreign" }>;
+export type CreatableRow = Extract<ResolvedRow, { status: "new" | "wrong_establishment" | "foreign" }>;
 
 function resolveEventDate(rowDate: string | null, formEventDate: string | null): string | null {
   if (rowDate) {
@@ -52,12 +52,12 @@ function resolveEventDate(rowDate: string | null, formEventDate: string | null):
   return formEventDate;
 }
 
-type CurrentStateRow = { current_farm_id: string | null; current_paddock_id: string | null; status: string };
+type CurrentStateRow = { current_establishment_id: string | null; current_paddock_id: string | null; status: string };
 
 export async function resolveBatchRows(
   rows: MappedRow[],
   formEventDate: string | null,
-  operatingFarmId: string,
+  operatingEstablishmentId: string,
   options?: { autoForceForeignWithoutOwner?: boolean }
 ): Promise<ResolvedRow[]> {
   const autoForceForeignWithoutOwner = options?.autoForceForeignWithoutOwner ?? false;
@@ -95,9 +95,12 @@ export async function resolveBatchRows(
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const [operatingFarm] = await db.select({ groupId: farm.groupId }).from(farm).where(eq(farm.id, operatingFarmId));
-  const categoryRows = operatingFarm
-    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.groupId, operatingFarm.groupId))
+  const [operatingEstablishment] = await db
+    .select({ farmId: establishment.farmId })
+    .from(establishment)
+    .where(eq(establishment.id, operatingEstablishmentId));
+  const categoryRows = operatingEstablishment
+    ? await db.select({ id: category.id, name: category.name }).from(category).where(eq(category.farmId, operatingEstablishment.farmId))
     : [];
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
 
@@ -109,13 +112,13 @@ export async function resolveBatchRows(
       ? await db
           .select({
             tag: ownTag.tag,
-            ownerId: dicoseRegistration.ownerId,
-            farmId: dicoseRegistration.farmId,
-            farmName: farm.name,
+            ownerId: dicose.ownerId,
+            establishmentId: dicose.establishmentId,
+            establishmentName: establishment.name,
           })
           .from(ownTag)
-          .innerJoin(dicoseRegistration, eq(dicoseRegistration.id, ownTag.dicoseRegistrationId))
-          .innerJoin(farm, eq(farm.id, dicoseRegistration.farmId))
+          .innerJoin(dicose, eq(dicose.id, ownTag.dicoseId))
+          .innerJoin(establishment, eq(establishment.id, dicose.establishmentId))
           .where(inArray(ownTag.tag, nonEmptyTags))
       : [];
   const ownTagByTag = new Map(ownTagRows.map((r) => [r.tag, r]));
@@ -173,7 +176,7 @@ export async function resolveBatchRows(
 
     if (animalId) {
       const stateResult = await db.execute<CurrentStateRow>(
-        sql`select current_farm_id, current_paddock_id, status from animal_current_state where animal_id = ${animalId}`
+        sql`select current_establishment_id, current_paddock_id, status from animal_current_state where animal_id = ${animalId}`
       );
       const state = stateResult.rows[0];
       if (state && state.status !== "alive") {
@@ -188,7 +191,7 @@ export async function resolveBatchRows(
         breed,
         status: "existing",
         animalId,
-        currentFarmId: state?.current_farm_id ?? null,
+        currentEstablishmentId: state?.current_establishment_id ?? null,
         currentPaddockId: state?.current_paddock_id ?? null,
       });
       continue;
@@ -243,7 +246,7 @@ export async function resolveBatchRows(
       continue;
     }
 
-    if (ownTagMatch.farmId === operatingFarmId) {
+    if (ownTagMatch.establishmentId === operatingEstablishmentId) {
       result.push({
         tag: row.tag,
         eventDate,
@@ -264,13 +267,13 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
-        status: "wrong_farm",
+        status: "wrong_establishment",
         categoryId,
         sex,
         birthDate,
         ownerId: ownTagMatch.ownerId,
-        registeredFarmId: ownTagMatch.farmId,
-        registeredFarmName: ownTagMatch.farmName,
+        registeredEstablishmentId: ownTagMatch.establishmentId,
+        registeredEstablishmentName: ownTagMatch.establishmentName,
       });
     }
   }

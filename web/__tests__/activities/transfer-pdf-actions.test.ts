@@ -4,12 +4,12 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { buildSnigGuideFixturePdf } from "../../test/snig-guide-fixture";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   owner,
-  dicoseRegistration,
+  dicose,
   ownTag,
   eventTransfer,
   animal,
@@ -64,34 +64,34 @@ describe("previewTransferBatchFromPdf", () => {
       .values({ name: "AIP" })
       .returning();
     const [originFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo San Antonio" })
       .returning();
     const [originFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: originFarmGroup.id, name: "Campo San Antonio" })
+      .insert(establishment)
+      .values({ farmId: originFarmGroup.id, name: "Campo San Antonio" })
       .returning();
     const [destinationFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [destinationFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: destinationFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: destinationFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     const [originRegistration] = await testDb
-      .insert(dicoseRegistration)
+      .insert(dicose)
       .values({
         ownerId: seededOwner.id,
-        farmId: originFarm.id,
+        establishmentId: originFarm.id,
         dicoseCode: "151400442",
       })
       .returning();
     const [destinationRegistration] = await testDb
-      .insert(dicoseRegistration)
+      .insert(dicose)
       .values({
         ownerId: seededOwner.id,
-        farmId: destinationFarm.id,
+        establishmentId: destinationFarm.id,
         dicoseCode: "151518192",
       })
       .returning();
@@ -99,7 +99,7 @@ describe("previewTransferBatchFromPdf", () => {
       .insert(ownTag)
       .values({
         tag: "858000031330866",
-        dicoseRegistrationId: destinationRegistration.id,
+        dicoseId: destinationRegistration.id,
       });
 
     const buffer = await buildSnigGuideFixturePdf({
@@ -118,10 +118,10 @@ describe("previewTransferBatchFromPdf", () => {
       ok: true,
       guideNumber: "D838153",
       eventDate: "2026-07-11",
-      originFarmId: originFarm.id,
-      originFarmName: "Campo San Antonio",
-      destinationFarmId: destinationFarm.id,
-      destinationFarmName: "Cuatro Cerros",
+      originEstablishmentId: originFarm.id,
+      originEstablishmentName: "Campo San Antonio",
+      destinationEstablishmentId: destinationFarm.id,
+      destinationEstablishmentName: "Cuatro Cerros",
       rows: [
         {
           tag: "858000031330866",
@@ -138,10 +138,10 @@ describe("previewTransferBatchFromPdf", () => {
         },
       ],
     });
-    expect(originRegistration.farmId).toBe(originFarm.id); // sanity: the seeded fixture is coherent
+    expect(originRegistration.establishmentId).toBe(originFarm.id); // sanity: the seeded fixture is coherent
   });
 
-  it("returns a friendly error when a DICOSE code has no registered farm", async () => {
+  it("returns a friendly error when a DICOSE code has no registered establishment", async () => {
     await seedAdminSession();
     const buffer = await buildSnigGuideFixturePdf({
       guideNumber: "D838153",
@@ -174,33 +174,33 @@ describe("previewTransferBatchFromPdf", () => {
 });
 
 describe("confirmTransferBatchFromPdfAction", () => {
-  it("confirms the batch with the explicit origin farm and guide number, and persists the uploaded guide document", async () => {
+  it("confirms the batch with the explicit origin establishment and guide number, and persists the uploaded guide document", async () => {
     await seedAdminSession();
     const [seededOwner] = await testDb
       .insert(owner)
       .values({ name: "AIP" })
       .returning();
     const [originFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo San Antonio" })
       .returning();
     const [originFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: originFarmGroup.id, name: "Campo San Antonio" })
+      .insert(establishment)
+      .values({ farmId: originFarmGroup.id, name: "Campo San Antonio" })
       .returning();
     const [destinationFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [destinationFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: destinationFarmGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: destinationFarmGroup.id, name: "Cuatro Cerros" })
       .returning();
     const [destinationRegistration] = await testDb
-      .insert(dicoseRegistration)
+      .insert(dicose)
       .values({
         ownerId: seededOwner.id,
-        farmId: destinationFarm.id,
+        establishmentId: destinationFarm.id,
         dicoseCode: "151518192",
       })
       .returning();
@@ -208,7 +208,7 @@ describe("confirmTransferBatchFromPdfAction", () => {
       .insert(ownTag)
       .values({
         tag: "858000031330866",
-        dicoseRegistrationId: destinationRegistration.id,
+        dicoseId: destinationRegistration.id,
       });
 
     const buffer = await buildSnigGuideFixturePdf({
@@ -225,8 +225,8 @@ describe("confirmTransferBatchFromPdfAction", () => {
       "file",
       new File([buffer], "guide.pdf", { type: "application/pdf" }),
     );
-    formData.set("originFarmId", originFarm.id);
-    formData.set("destinationFarmId", destinationFarm.id);
+    formData.set("originEstablishmentId", originFarm.id);
+    formData.set("destinationEstablishmentId", destinationFarm.id);
     formData.set("guideNumber", "D838153");
     formData.set(
       "rows",
@@ -248,8 +248,8 @@ describe("confirmTransferBatchFromPdfAction", () => {
     await confirmTransferBatchFromPdfAction(formData);
 
     const [createdEventTransfer] = await testDb.select().from(eventTransfer);
-    expect(createdEventTransfer.originFarmId).toBe(originFarm.id);
-    expect(createdEventTransfer.destinationFarmId).toBe(destinationFarm.id);
+    expect(createdEventTransfer.originEstablishmentId).toBe(originFarm.id);
+    expect(createdEventTransfer.destinationEstablishmentId).toBe(destinationFarm.id);
     expect(createdEventTransfer.guideNumber).toBe("D838153");
     const [createdAnimal] = await testDb.select().from(animal);
     expect(createdAnimal.birthDate).toBe("2019-01-01");

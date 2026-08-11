@@ -3,9 +3,9 @@ import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   product,
@@ -34,12 +34,12 @@ async function seedManagerAndFarm() {
     .values({ name: "manager" })
     .returning();
   const [seededFarmGroup] = await testDb
-    .insert(farmGroup)
+    .insert(farm)
     .values({ name: "Campo Norte" })
     .returning();
   const [seededFarm] = await testDb
-    .insert(farm)
-    .values({ groupId: seededFarmGroup.id, name: "Campo Norte" })
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
     .returning();
   const [manager] = await testDb
     .insert(userAccount)
@@ -52,7 +52,7 @@ async function seedManagerAndFarm() {
     .returning();
   await testDb
     .insert(userFarm)
-    .values({ userId: manager.id, farmId: seededFarm.id });
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
   return { manager, seededFarm, seededFarmGroup };
 }
 
@@ -68,11 +68,11 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [productB] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .values({ farmId: seededFarmGroup.id, name: "Aftosa" })
       .returning();
 
     const rows: ResolvedRow[] = [
@@ -110,7 +110,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: null,
@@ -138,8 +138,8 @@ describe("confirmHealthBatch", () => {
       .select()
       .from(eventTransfer)
       .where(eq(eventTransfer.eventId, transferEvent.id));
-    expect(transfer.originFarmId).toBe(seededFarm.id);
-    expect(transfer.destinationFarmId).toBe(seededFarm.id);
+    expect(transfer.originEstablishmentId).toBe(seededFarm.id);
+    expect(transfer.destinationEstablishmentId).toBe(seededFarm.id);
     expect(transfer.destinationPaddockId).toBeNull();
 
     const healthEvents = animalEvents.filter((e) => e.eventType === "health");
@@ -161,7 +161,7 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -175,7 +175,7 @@ describe("confirmHealthBatch", () => {
         notes: null,
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: seededFarm.id,
+        currentEstablishmentId: seededFarm.id,
         currentPaddockId: null,
       },
     ];
@@ -193,7 +193,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: null,
@@ -211,7 +211,7 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -227,7 +227,7 @@ describe("confirmHealthBatch", () => {
         secondaryTag: "CHIP-081",
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: seededFarm.id,
+        currentEstablishmentId: seededFarm.id,
         currentPaddockId: null,
       },
     ];
@@ -245,7 +245,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: null,
@@ -267,7 +267,7 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [createdAnimal] = await testDb
       .insert(animal)
@@ -285,7 +285,7 @@ describe("confirmHealthBatch", () => {
         breed: "Angus",
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: seededFarm.id,
+        currentEstablishmentId: seededFarm.id,
         currentPaddockId: null,
       },
     ];
@@ -303,7 +303,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: null,
@@ -336,7 +336,7 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         products: [],
         rows,
         paddockId: null,
@@ -348,7 +348,7 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -374,7 +374,7 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         products,
         rows,
         paddockId: null,
@@ -389,7 +389,7 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -419,7 +419,7 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         products,
         rows,
         paddockId: null,
@@ -431,11 +431,11 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [productB] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Aftosa" })
+      .values({ farmId: seededFarmGroup.id, name: "Aftosa" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -472,7 +472,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: null,
@@ -496,11 +496,11 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [createdPaddock] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero 1" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero 1" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -529,7 +529,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: createdPaddock.id,
@@ -552,23 +552,23 @@ describe("confirmHealthBatch", () => {
     expect(healthRow.paddockId).toBe(createdPaddock.id);
   });
 
-  it("rejects a paddock that belongs to a different farm", async () => {
+  it("rejects a paddock that belongs to a different establishment", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Campo Sur" })
       .returning();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [foreignPaddock] = await testDb
       .insert(paddock)
-      .values({ farmId: otherFarm.id, name: "Potrero Ajeno" })
+      .values({ establishmentId: otherFarm.id, name: "Potrero Ajeno" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -598,7 +598,7 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         products,
         rows,
         paddockId: foreignPaddock.id,
@@ -608,10 +608,10 @@ describe("confirmHealthBatch", () => {
 
   it("rejects a product that belongs to a different grupo", async () => {
     const { manager, seededFarm } = await seedManagerAndFarm();
-    const [otherGroup] = await testDb.insert(farmGroup).values({ name: "Otro grupo" }).returning();
+    const [otherGroup] = await testDb.insert(farm).values({ name: "Otro grupo" }).returning();
     const [foreignProduct] = await testDb
       .insert(product)
-      .values({ groupId: otherGroup.id, name: "Producto ajeno" })
+      .values({ farmId: otherGroup.id, name: "Producto ajeno" })
       .returning();
     const rows: ResolvedRow[] = [
       {
@@ -641,7 +641,7 @@ describe("confirmHealthBatch", () => {
       confirmHealthBatch({
         userId: manager.id,
         role: "manager",
-        operatingFarmId: seededFarm.id,
+        operatingEstablishmentId: seededFarm.id,
         products,
         rows,
         paddockId: null,
@@ -649,19 +649,19 @@ describe("confirmHealthBatch", () => {
     ).rejects.toThrow("Uno de los productos no pertenece al grupo del campo activo");
   });
 
-  it("creates a same-farm traslado for an existing animal whose current potrero differs, when transferMismatchedToPaddock is true", async () => {
+  it("creates a same-establishment traslado for an existing animal whose current potrero differs, when transferMismatchedToPaddock is true", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroB] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero B" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -674,7 +674,7 @@ describe("confirmHealthBatch", () => {
       .insert(batchOperation)
       .values({
         eventType: "transfer",
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         animalCount: 1,
         createdBy: manager.id,
       })
@@ -685,15 +685,15 @@ describe("confirmHealthBatch", () => {
         eventType: "transfer",
         eventDate: "2026-06-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: seedBatch.id,
         createdBy: manager.id,
       })
       .returning();
     await testDb.insert(eventTransfer).values({
       eventId: seedTransferEvent.id,
-      originFarmId: seededFarm.id,
-      destinationFarmId: seededFarm.id,
+      originEstablishmentId: seededFarm.id,
+      destinationEstablishmentId: seededFarm.id,
       originPaddockId: null,
       destinationPaddockId: potreroB.id,
     });
@@ -705,7 +705,7 @@ describe("confirmHealthBatch", () => {
         notes: null,
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: seededFarm.id,
+        currentEstablishmentId: seededFarm.id,
         currentPaddockId: potreroB.id,
       },
     ];
@@ -723,7 +723,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: potreroA.id,
@@ -746,8 +746,8 @@ describe("confirmHealthBatch", () => {
       .select()
       .from(eventTransfer)
       .where(eq(eventTransfer.eventId, transferEvent!.id));
-    expect(transfer.originFarmId).toBe(seededFarm.id);
-    expect(transfer.destinationFarmId).toBe(seededFarm.id);
+    expect(transfer.originEstablishmentId).toBe(seededFarm.id);
+    expect(transfer.destinationEstablishmentId).toBe(seededFarm.id);
     expect(transfer.originPaddockId).toBe(potreroB.id);
     expect(transfer.destinationPaddockId).toBe(potreroA.id);
 
@@ -759,27 +759,27 @@ describe("confirmHealthBatch", () => {
     expect(await currentPaddockIdFor(createdAnimal.id)).toBe(potreroA.id);
   });
 
-  it("does not create a traslado for an animal currently at a different farm, even when transferMismatchedToPaddock is true", async () => {
+  it("does not create a traslado for an animal currently at a different establishment, even when transferMismatchedToPaddock is true", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [otherFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Campo Sur" })
       .returning();
     const [otherFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: otherFarmGroup.id, name: "Campo Sur" })
+      .insert(establishment)
+      .values({ farmId: otherFarmGroup.id, name: "Campo Sur" })
       .returning();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroAjeno] = await testDb
       .insert(paddock)
-      .values({ farmId: otherFarm.id, name: "Potrero Ajeno" })
+      .values({ establishmentId: otherFarm.id, name: "Potrero Ajeno" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -793,7 +793,7 @@ describe("confirmHealthBatch", () => {
         notes: null,
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: otherFarm.id,
+        currentEstablishmentId: otherFarm.id,
         currentPaddockId: potreroAjeno.id,
       },
     ];
@@ -811,7 +811,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: potreroA.id,
@@ -833,15 +833,15 @@ describe("confirmHealthBatch", () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
-      .values({ groupId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
     const [potreroA] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero A" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero A" })
       .returning();
     const [potreroB] = await testDb
       .insert(paddock)
-      .values({ farmId: seededFarm.id, name: "Potrero B" })
+      .values({ establishmentId: seededFarm.id, name: "Potrero B" })
       .returning();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb
@@ -855,7 +855,7 @@ describe("confirmHealthBatch", () => {
         notes: null,
         status: "existing",
         animalId: createdAnimal.id,
-        currentFarmId: seededFarm.id,
+        currentEstablishmentId: seededFarm.id,
         currentPaddockId: potreroB.id,
       },
     ];
@@ -873,7 +873,7 @@ describe("confirmHealthBatch", () => {
     await confirmHealthBatch({
       userId: manager.id,
       role: "manager",
-      operatingFarmId: seededFarm.id,
+      operatingEstablishmentId: seededFarm.id,
       products,
       rows,
       paddockId: potreroA.id,

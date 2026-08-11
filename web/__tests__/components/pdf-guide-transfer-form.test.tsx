@@ -29,10 +29,10 @@ describe("PdfGuideTransferForm", () => {
       ok: true,
       guideNumber: "D838153",
       eventDate: "2026-07-11",
-      originFarmId: "farm-origin",
-      originFarmName: "Campo San Antonio",
-      destinationFarmId: "farm-destination",
-      destinationFarmName: "Cuatro Cerros",
+      originEstablishmentId: "establishment-origin",
+      originEstablishmentName: "Campo San Antonio",
+      destinationEstablishmentId: "establishment-destination",
+      destinationEstablishmentName: "Cuatro Cerros",
       rows: [
         {
           tag: "858000031330866",
@@ -49,7 +49,7 @@ describe("PdfGuideTransferForm", () => {
     });
     vi.mocked(confirmTransferBatchFromPdfAction).mockResolvedValue(undefined);
 
-    render(<PdfGuideTransferForm farms={[]} />);
+    render(<PdfGuideTransferForm establishments={[]} />);
 
     const user = userEvent.setup();
     const fileInput = screen.getByLabelText("Archivo");
@@ -67,8 +67,8 @@ describe("PdfGuideTransferForm", () => {
     const submittedFormData = vi.mocked(confirmTransferBatchFromPdfAction).mock.calls[0][0];
     expect(submittedFormData.get("file")).toBeInstanceOf(File);
     expect((submittedFormData.get("file") as File).name).toBe("guide.pdf");
-    expect(submittedFormData.get("originFarmId")).toBe("farm-origin");
-    expect(submittedFormData.get("destinationFarmId")).toBe("farm-destination");
+    expect(submittedFormData.get("originEstablishmentId")).toBe("establishment-origin");
+    expect(submittedFormData.get("destinationEstablishmentId")).toBe("establishment-destination");
     expect(submittedFormData.get("destinationPaddockId")).toBeNull();
     expect(submittedFormData.get("guideNumber")).toBe("D838153");
     expect(JSON.parse(submittedFormData.get("rows") as string)).toHaveLength(1);
@@ -81,7 +81,7 @@ describe("PdfGuideTransferForm", () => {
       error: "No hay ningún campo registrado con DICOSE 999999999",
     });
 
-    render(<PdfGuideTransferForm farms={[]} />);
+    render(<PdfGuideTransferForm establishments={[]} />);
 
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText("Archivo"), samplePdfFile());

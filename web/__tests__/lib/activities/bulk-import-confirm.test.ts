@@ -3,9 +3,9 @@ import { eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  farmGroup,
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   paddock,
   category,
@@ -45,7 +45,7 @@ async function seedAdmin() {
 }
 
 function validRow(
-  farmId: string,
+  establishmentId: string,
   overrides: Partial<Extract<ResolvedImportRow, { status: "valid" }>> = {},
 ) {
   return {
@@ -53,7 +53,7 @@ function validRow(
     tag: "858000048233520",
     secondaryTag: null,
     ownerName: "SASG",
-    farmId,
+    establishmentId,
     paddockName: "Arerunguá",
     categoryName: "Vaca de cría",
     breed: "Hereford",
@@ -68,12 +68,12 @@ describe("confirmImportChunk", () => {
   it("creates the animal, its tag history with breed/secondaryTag, and the three initial events", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     const result = await confirmImportChunk({
@@ -111,12 +111,12 @@ describe("confirmImportChunk", () => {
   it("creates a new owner by name and links it to the animal", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     await confirmImportChunk({
@@ -143,12 +143,12 @@ describe("confirmImportChunk", () => {
   it("reuses an existing owner instead of creating a duplicate", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
     const [existingOwner] = await testDb
       .insert(owner)
@@ -176,15 +176,15 @@ describe("confirmImportChunk", () => {
     expect(createdAnimal.ownerId).toBe(existingOwner.id);
   });
 
-  it("creates a new paddock scoped to the row's farm, and a new category, reusing them across rows in the same chunk", async () => {
+  it("creates a new paddock scoped to the row's establishment, and a new category, reusing them across rows in the same chunk", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     await confirmImportChunk({
@@ -200,7 +200,7 @@ describe("confirmImportChunk", () => {
       .from(paddock)
       .where(eq(paddock.name, "Arerunguá"));
     expect(paddocks).toHaveLength(1);
-    expect(paddocks[0].farmId).toBe(seededFarm.id);
+    expect(paddocks[0].establishmentId).toBe(seededFarm.id);
 
     const categories = await testDb
       .select()
@@ -214,20 +214,20 @@ describe("confirmImportChunk", () => {
     const [transfer] = await testDb
       .select()
       .from(eventTransfer)
-      .where(eq(eventTransfer.destinationFarmId, seededFarm.id));
+      .where(eq(eventTransfer.destinationEstablishmentId, seededFarm.id));
     expect(transfer.destinationPaddockId).toBe(paddocks[0].id);
-    expect(transfer.originFarmId).toBe(seededFarm.id);
+    expect(transfer.originEstablishmentId).toBe(seededFarm.id);
   });
 
   it("reuses an existing paddock when the row's paddock name differs only in case/whitespace", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     await confirmImportChunk({
@@ -241,7 +241,7 @@ describe("confirmImportChunk", () => {
     const paddocks = await testDb
       .select()
       .from(paddock)
-      .where(eq(paddock.farmId, seededFarm.id));
+      .where(eq(paddock.establishmentId, seededFarm.id));
     expect(paddocks).toHaveLength(1);
     expect(paddocks[0].name).toBe("Arerunguá");
   });
@@ -249,12 +249,12 @@ describe("confirmImportChunk", () => {
   it("does not create a recategorize event when the row has no category name", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     await confirmImportChunk({
@@ -276,20 +276,20 @@ describe("confirmImportChunk", () => {
   it("groups rows from different farms into separate batch_operation rows", async () => {
     const admin = await seedAdmin();
     const [farmAGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [farmA] = await testDb
-      .insert(farm)
-      .values({ groupId: farmAGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: farmAGroup.id, name: "San Antonio" })
       .returning();
     const [farmBGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "Cuatro Cerros" })
       .returning();
     const [farmB] = await testDb
-      .insert(farm)
-      .values({ groupId: farmBGroup.id, name: "Cuatro Cerros" })
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Cuatro Cerros" })
       .returning();
 
     await confirmImportChunk({
@@ -302,7 +302,7 @@ describe("confirmImportChunk", () => {
 
     const batches = await testDb.select().from(batchOperation);
     expect(batches).toHaveLength(2);
-    expect(batches.map((b) => b.farmId).sort()).toEqual(
+    expect(batches.map((b) => b.establishmentId).sort()).toEqual(
       [farmA.id, farmB.id].sort(),
     );
   });
@@ -310,12 +310,12 @@ describe("confirmImportChunk", () => {
   it("leaves animal_current_state reflecting the imported tag, category, and paddock", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
-      .insert(farmGroup)
+      .insert(farm)
       .values({ name: "San Antonio" })
       .returning();
     const [seededFarm] = await testDb
-      .insert(farm)
-      .values({ groupId: seededFarmGroup.id, name: "San Antonio" })
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
     await confirmImportChunk({
@@ -329,11 +329,11 @@ describe("confirmImportChunk", () => {
       .where(eq(animalTagHistory.tag, "858000048233520"));
     const stateResult = await testDb.execute<{
       current_tag: string | null;
-      current_farm_id: string | null;
+      current_establishment_id: string | null;
     }>(
-      sql`select current_tag, current_farm_id from animal_current_state where animal_id = ${tagRow.animalId}`,
+      sql`select current_tag, current_establishment_id from animal_current_state where animal_id = ${tagRow.animalId}`,
     );
     expect(stateResult.rows[0].current_tag).toBe("858000048233520");
-    expect(stateResult.rows[0].current_farm_id).toBe(seededFarm.id);
+    expect(stateResult.rows[0].current_establishment_id).toBe(seededFarm.id);
   });
 });

@@ -6,7 +6,7 @@ import { Client } from "pg";
 // REVOKE statement — keep in sync if that list ever changes.
 const REVOKED_BASE_OBJECTS = [
   "animal",
-  "farm",
+  "establishment",
   "paddock",
   "category",
   "product",
@@ -33,7 +33,7 @@ const NAMED_VIEWS = [
   "recategorize_events_named",
   "sale_events_named",
   "death_events_named",
-  "farm_named",
+  "establishment_named",
   "paddock_named",
   "category_named",
   "product_named",
@@ -56,7 +56,7 @@ describe("reporting_ro role", () => {
         client.query("SELECT * FROM reporting_named.animal_current_state_named LIMIT 1")
       ).resolves.toBeDefined();
       await expect(client.query("SELECT * FROM reporting_named.health_events_named LIMIT 1")).resolves.toBeDefined();
-      await expect(client.query("INSERT INTO farm (name) VALUES ('Should Fail')")).rejects.toThrow(
+      await expect(client.query("INSERT INTO establishment (name) VALUES ('Should Fail')")).rejects.toThrow(
         /permission denied/i
       );
     } finally {
@@ -64,11 +64,11 @@ describe("reporting_ro role", () => {
     }
   });
 
-  it("cannot read any base table or the materialized view directly (cross-farm leak fix)", async () => {
+  it("cannot read any base table or the materialized view directly (cross-establishment leak fix)", async () => {
     // Before the 0018 migration, reporting_ro held direct SELECT on every
     // base table (and animal_current_state) so it could CREATE the my_*
     // temp views — but that same grant let any query text read every
-    // farm's rows directly, bypassing the farm-scoped my_* views entirely.
+    // establishment's rows directly, bypassing the establishment-scoped my_* views entirely.
     // This is the exact exploit the reviewer confirmed; all 14 objects must
     // now reject with permission denied.
     const client = new Client({ connectionString: requireReportingTestUrl() });
@@ -87,7 +87,7 @@ describe("reporting_ro role", () => {
 
   it("can read all 12 named views through the reporting_named schema (legitimate path)", async () => {
     // The legitimate path — reading through the named views used to build
-    // the farm-scoped my_* temp views — must still work when schema-qualified.
+    // the establishment-scoped my_* temp views — must still work when schema-qualified.
     const client = new Client({ connectionString: requireReportingTestUrl() });
     await client.connect();
     try {
@@ -106,8 +106,8 @@ describe("reporting_ro role", () => {
     // This is the actual security property migration 0019 hardens: the 12
     // named views moved out of `public` into `reporting_named`, a schema
     // that is never added to reporting_ro's search_path. An LLM-generated
-    // query referencing e.g. `farm_named` unqualified must now fail to
-    // resolve at all — not just be blocked by the SQL validator's
+    // query referencing e.g. `establishment_named` unqualified must now fail
+    // to resolve at all — not just be blocked by the SQL validator's
     // whitelist, but be genuinely unreachable at the database level.
     const client = new Client({ connectionString: requireReportingTestUrl() });
     await client.connect();
