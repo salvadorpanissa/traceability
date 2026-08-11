@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { parseExcelFile } from "@/lib/activities/excel-parsing";
+import { cellText, parseExcelFile } from "@/lib/activities/excel-parsing";
 
 async function buildWorkbookBuffer(headers: string[], rows: (string | number)[][]): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
@@ -46,5 +46,21 @@ describe("parseExcelFile", () => {
     const { rows } = await parseExcelFile(buffer);
 
     expect(rows[0][1]).toBe("2026-06-11");
+  });
+});
+
+describe("cellText", () => {
+  it("converts a numeric cell with a date-like numFmt to an ISO date", () => {
+    // Reproduces the case where a workbook's styles reference a numFmt
+    // ExcelJS itself failed to resolve on load, so the cell stayed a plain
+    // Excel serial number instead of being converted to a Date upstream —
+    // same date column, some rows converted fine, this one didn't.
+    const cell = { value: 46211, numFmt: "dd/mm/yyyy", text: "46211" } as ExcelJS.Cell;
+    expect(cellText(cell)).toBe("2026-07-08");
+  });
+
+  it("leaves a plain number without a date numFmt as its literal text", () => {
+    const cell = { value: 42, numFmt: "0", text: "42" } as ExcelJS.Cell;
+    expect(cellText(cell)).toBe("42");
   });
 });
