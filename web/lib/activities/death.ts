@@ -18,8 +18,8 @@ export async function confirmDeathEvent(input: {
   const { userId, role, tag, eventDate, cause } = input;
 
   // findAnimalLocationByTag already scopes by the caller's campos — a tag
-  // on a farm the user can't see comes back null, same as an unknown tag,
-  // so there is no separate farm-access check to run here.
+  // on a campo the user can't see comes back null, same as an unknown tag,
+  // so there is no separate establecimiento-access check to run here.
   const state = await findAnimalLocationByTag(userId, role, tag);
   if (!state) {
     throw new Error("No se encontró esa caravana o no tenés acceso a su campo");
@@ -27,14 +27,14 @@ export async function confirmDeathEvent(input: {
   if (state.status !== "alive") {
     throw new Error(`La caravana ya está registrada como ${STATUS_LABEL[state.status] ?? state.status}`);
   }
-  if (!state.currentFarmId) {
+  if (!state.currentEstablishmentId) {
     throw new Error("La caravana no tiene un campo asignado; no se puede registrar la muerte");
   }
 
   await db.transaction(async (tx) => {
     const [batch] = await tx
       .insert(batchOperation)
-      .values({ eventType: "death", farmId: state.currentFarmId!, animalCount: 1, createdBy: userId })
+      .values({ eventType: "death", establishmentId: state.currentEstablishmentId!, animalCount: 1, createdBy: userId })
       .returning();
 
     const [deathEvent] = await tx
@@ -43,7 +43,7 @@ export async function confirmDeathEvent(input: {
         eventType: "death",
         eventDate,
         animalId: state.animalId,
-        farmId: state.currentFarmId!,
+        establishmentId: state.currentEstablishmentId!,
         batchOperationId: batch.id,
         createdBy: userId,
       })

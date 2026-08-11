@@ -4,11 +4,12 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
-  dicoseRegistration,
+  dicose,
   owner,
   ownTag,
   event,
@@ -26,9 +27,11 @@ vi.mock("@/lib/activities/snig-guide-parsing", () => ({
   parseSnigGuide: vi.fn(),
 }));
 
-const { previewSaleBatchFromPdf, confirmSaleBatchFromPdfAction, createOwnerAction } = await import(
-  "../../app/(protected)/activities/sale/actions"
-);
+const {
+  previewSaleBatchFromPdf,
+  confirmSaleBatchFromPdfAction,
+  createOwnerAction,
+} = await import("../../app/(protected)/activities/sale/actions");
 const { auth } = await import("@/auth");
 const { parseSnigGuide } = await import("@/lib/activities/snig-guide-parsing");
 
@@ -37,35 +40,66 @@ beforeEach(async () => {
 });
 
 async function seedManagerAndFarm() {
-  const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [managerRole] = await testDb
+    .insert(role)
+    .values({ name: "manager" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farm)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [manager] = await testDb
     .insert(userAccount)
-    .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+    .values({
+      name: "Manager",
+      email: "manager@example.com",
+      passwordHash: "hashed",
+      roleId: managerRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
-  // dicose_registration.owner_id is NOT NULL in this schema — the brief's
+  await testDb
+    .insert(userFarm)
+    .values({ userId: manager.id, farmId: seededFarmGroup.id });
+  // dicose.owner_id is NOT NULL in this schema — the brief's
   // seed omitted it; seed a placeholder owner to satisfy the constraint
   // (same class of fix applied in prior tasks' test seeds).
-  const [seededOwner] = await testDb.insert(owner).values({ name: "Dueño Sembrado" }).returning();
+  const [seededOwner] = await testDb
+    .insert(owner)
+    .values({ name: "Dueño Sembrado" })
+    .returning();
   const [seededRegistration] = await testDb
-    .insert(dicoseRegistration)
-    .values({ ownerId: seededOwner.id, farmId: seededFarm.id, dicoseCode: "111111111" })
+    .insert(dicose)
+    .values({
+      ownerId: seededOwner.id,
+      establishmentId: seededFarm.id,
+      dicoseCode: "111111111",
+    })
     .returning();
   // resolveBatchRows only reports "new" (vs "foreign") for tags already
-  // registered as own_tag on the operating farm — the brief's seed omitted
+  // registered as own_tag on the operating establishment — the brief's seed omitted
   // this, which made the fakeGuide's tag resolve as "foreign" instead of the
   // expected "new". Seed it to match the guide fixture's tag.
   await testDb
     .insert(ownTag)
-    .values({ tag: "AR000000000300", dicoseRegistrationId: seededRegistration.id });
+    .values({
+      tag: "AR000000000300",
+      dicoseId: seededRegistration.id,
+    });
 
-  vi.mocked(auth).mockResolvedValue({ user: { id: manager.id, role: "manager" } } as never);
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: manager.id, role: "manager" },
+  } as never);
 
-  return { manager, seededFarm, seededRegistration };
+  return { manager, seededFarm, seededFarmGroup, seededRegistration };
 }
 
-function fakeGuide(overrides: Partial<Awaited<ReturnType<typeof parseSnigGuide>>> = {}) {
+function fakeGuide(
+  overrides: Partial<Awaited<ReturnType<typeof parseSnigGuide>>> = {},
+) {
   return {
     guideNumber: "D963691",
     eventDate: "2026-02-01",
@@ -77,7 +111,7 @@ function fakeGuide(overrides: Partial<Awaited<ReturnType<typeof parseSnigGuide>>
 }
 
 describe("previewSaleBatchFromPdf", () => {
-  it("resolves the origin farm from the guide's origin DICOSE and does not error when the destination DICOSE matches no farm", async () => {
+  it("resolves the origin establishment from the guide's origin DICOSE and does not error when the destination DICOSE matches no establishment", async () => {
     await seedManagerAndFarm();
     vi.mocked(parseSnigGuide).mockResolvedValue(fakeGuide());
     const formData = new FormData();
@@ -87,7 +121,7 @@ describe("previewSaleBatchFromPdf", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.originFarmName).toBe("Campo Norte");
+      expect(result.originEstablishmentName).toBe("Campo Norte");
       expect(result.guideNumber).toBe("D963691");
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].status).toBe("new");
@@ -96,14 +130,30 @@ describe("previewSaleBatchFromPdf", () => {
   });
 
   it("maps a pending withdrawal back to its caravana in withdrawalWarnings", async () => {
-    const { manager, seededFarm, seededRegistration } = await seedManagerAndFarm();
+    const { manager, seededFarm, seededFarmGroup, seededRegistration } =
+      await seedManagerAndFarm();
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000302" });
-    await testDb.insert(ownTag).values({ tag: "AR000000000302", dicoseRegistrationId: seededRegistration.id });
-    const [productA] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR000000000302" });
+    await testDb
+      .insert(ownTag)
+      .values({
+        tag: "AR000000000302",
+        dicoseId: seededRegistration.id,
+      });
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const [healthBatch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "health", farmId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .values({
+        eventType: "health",
+        establishmentId: seededFarm.id,
+        animalCount: 1,
+        createdBy: manager.id,
+      })
       .returning();
     const [healthEvent] = await testDb
       .insert(event)
@@ -111,7 +161,7 @@ describe("previewSaleBatchFromPdf", () => {
         eventType: "health",
         eventDate: "2026-02-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: healthBatch.id,
         createdBy: manager.id,
       })
@@ -126,7 +176,10 @@ describe("previewSaleBatchFromPdf", () => {
     });
 
     vi.mocked(parseSnigGuide).mockResolvedValue(
-      fakeGuide({ eventDate: "2026-02-10", animals: [{ tag: "AR000000000302", sex: "H", ageMonths: 36 }] })
+      fakeGuide({
+        eventDate: "2026-02-10",
+        animals: [{ tag: "AR000000000302", sex: "H", ageMonths: 36 }],
+      }),
     );
     const formData = new FormData();
     formData.set("file", new Blob([Buffer.from("fake")]), "guia.pdf");
@@ -137,14 +190,20 @@ describe("previewSaleBatchFromPdf", () => {
     if (result.ok) {
       expect(result.rows[0].status).toBe("existing");
       expect(result.withdrawalWarnings).toEqual([
-        { tag: "AR000000000302", productName: "Ivermectina 1%", restrictionEndDate: "2026-02-22" },
+        {
+          tag: "AR000000000302",
+          productName: "Ivermectina 1%",
+          restrictionEndDate: "2026-02-22",
+        },
       ]);
     }
   });
 
-  it("returns an error when the origin DICOSE has no registered farm", async () => {
+  it("returns an error when the origin DICOSE has no registered establishment", async () => {
     await seedManagerAndFarm();
-    vi.mocked(parseSnigGuide).mockResolvedValue(fakeGuide({ originDicoseCode: "000000000" }));
+    vi.mocked(parseSnigGuide).mockResolvedValue(
+      fakeGuide({ originDicoseCode: "000000000" }),
+    );
     const formData = new FormData();
     formData.set("file", new Blob([Buffer.from("fake")]), "guia.pdf");
 
@@ -155,14 +214,17 @@ describe("previewSaleBatchFromPdf", () => {
 
   it("returns an error surfaced by parseSnigGuide when the PDF isn't a recognizable guide", async () => {
     await seedManagerAndFarm();
-    vi.mocked(parseSnigGuide).mockRejectedValue(new Error("No se encontró el número de guía en el PDF"));
+    vi.mocked(parseSnigGuide).mockRejectedValue(
+      new Error("No se encontró el número de guía en el PDF"),
+    );
     const formData = new FormData();
     formData.set("file", new Blob([Buffer.from("fake")]), "guia.pdf");
 
     const result = await previewSaleBatchFromPdf(formData);
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBe("No se encontró el número de guía en el PDF");
+    if (!result.ok)
+      expect(result.error).toBe("No se encontró el número de guía en el PDF");
   });
 });
 
@@ -171,7 +233,7 @@ describe("confirmSaleBatchFromPdfAction", () => {
     const { seededFarm } = await seedManagerAndFarm();
 
     const formData = new FormData();
-    formData.set("originFarmId", seededFarm.id);
+    formData.set("originEstablishmentId", seededFarm.id);
     formData.set("guideNumber", "D963691");
     formData.set("buyer", "Cledinor S.A.");
     formData.set("price", "5.27");
@@ -191,15 +253,21 @@ describe("confirmSaleBatchFromPdfAction", () => {
           ownerId: null,
           pendingOwnerName: null,
         },
-      ])
+      ]),
     );
     formData.set("file", new Blob([Buffer.from("fake-pdf")]), "guia.pdf");
 
     await confirmSaleBatchFromPdfAction(formData);
 
-    const saleEvents = await testDb.select().from(event).where(eq(event.eventType, "sale"));
+    const saleEvents = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.eventType, "sale"));
     expect(saleEvents).toHaveLength(1);
-    const [saleRow] = await testDb.select().from(eventSale).where(eq(eventSale.eventId, saleEvents[0].id));
+    const [saleRow] = await testDb
+      .select()
+      .from(eventSale)
+      .where(eq(eventSale.eventId, saleEvents[0].id));
     expect(saleRow.guideNumber).toBe("D963691");
     expect(saleRow.buyer).toBe("Cledinor S.A.");
   });
@@ -212,7 +280,10 @@ describe("createOwnerAction", () => {
     const created = await createOwnerAction("AIP");
 
     expect(created.name).toBe("AIP");
-    const [stored] = await testDb.select().from(owner).where(eq(owner.name, "AIP"));
+    const [stored] = await testDb
+      .select()
+      .from(owner)
+      .where(eq(owner.name, "AIP"));
     expect(stored).toBeDefined();
   });
 });

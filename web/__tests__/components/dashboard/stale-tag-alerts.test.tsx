@@ -16,7 +16,7 @@ vi.mock("@/app/(protected)/dashboard/stale-tags-actions", () => ({
 const ROW = {
   animalId: "a1",
   currentTag: "AR001",
-  farmName: "Campo Norte",
+  establishmentName: "Campo Norte",
   paddockName: "Potrero 1",
   lastEventType: "health",
   lastEventDate: "2025-09-01",

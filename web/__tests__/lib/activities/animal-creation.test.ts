@@ -3,8 +3,9 @@ import { eq } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   category,
   owner,
@@ -26,22 +27,42 @@ beforeEach(async () => {
 });
 
 async function seedFarmAndUser() {
-  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [adminRole] = await testDb
+    .insert(role)
+    .values({ name: "admin" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farm)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [user] = await testDb
     .insert(userAccount)
-    .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+    .values({
+      name: "Admin",
+      email: "admin@example.com",
+      passwordHash: "hashed",
+      roleId: adminRole.id,
+    })
     .returning();
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "health", farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+    .values({
+      eventType: "health",
+      establishmentId: seededFarm.id,
+      animalCount: 1,
+      createdBy: user.id,
+    })
     .returning();
-  return { seededFarm, user, batch };
+  return { seededFarm, seededFarmGroup, user, batch };
 }
 
 describe("createNewAnimal", () => {
   it("creates the animal, its tag history, and a self-retag event", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000060",
       eventDate: "2026-02-01",
@@ -55,24 +76,41 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, animalId));
     expect(tagRow.tag).toBe("AR000000000060");
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
+    const events = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, animalId));
     expect(events).toHaveLength(1);
     expect(events[0].eventType).toBe("retag");
 
-    const [retag] = await testDb.select().from(eventRetag).where(eq(eventRetag.eventId, events[0].id));
+    const [retag] = await testDb
+      .select()
+      .from(eventRetag)
+      .where(eq(eventRetag.eventId, events[0].id));
     expect(retag.oldTag).toBe("AR000000000060");
     expect(retag.newTag).toBe("AR000000000060");
   });
 
   it("also creates a self-recategorize event when the row carries a category", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
-    const [createdCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    const [createdCategory] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Ternero" })
+      .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000061",
       eventDate: "2026-02-01",
@@ -86,13 +124,26 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, animalId));
-    expect(events.map((e) => e.eventType).sort()).toEqual(["recategorize", "retag"]);
+    const events = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, animalId));
+    expect(events.map((e) => e.eventType).sort()).toEqual([
+      "recategorize",
+      "retag",
+    ]);
 
-    const recategorizeEvent = events.find((e) => e.eventType === "recategorize")!;
+    const recategorizeEvent = events.find(
+      (e) => e.eventType === "recategorize",
+    )!;
     const [recategorize] = await testDb
       .select()
       .from(eventRecategorize)
@@ -101,8 +152,11 @@ describe("createNewAnimal", () => {
   });
 
   it("writes sex and ownerId onto the created animal", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
-    const [createdOwner] = await testDb.insert(owner).values({ name: "Pérez" }).returning();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    const [createdOwner] = await testDb
+      .insert(owner)
+      .values({ name: "Pérez" })
+      .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000062",
       eventDate: "2026-02-01",
@@ -116,16 +170,24 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.sex).toBe("female");
     expect(createdAnimal.ownerId).toBe(createdOwner.id);
   });
 
   it("writes breed onto the created animal and secondaryTag onto its tag history row", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000063",
       eventDate: "2026-02-01",
@@ -141,24 +203,39 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.breed).toBe("Angus");
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, animalId));
     expect(tagRow.secondaryTag).toBe("CHIP-063");
   });
 
   it("deduces a birth date from the category's age bracket when the row has none", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
-    await testDb.insert(category).values({ name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
     const [category23] = await testDb
       .insert(category)
-      .values({ name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
       .returning();
-    await testDb.insert(category).values({ name: "Novillo +3 años", sex: "male", minAgeMonths: 36 });
+    await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo +3 años", sex: "male", minAgeMonths: 36 });
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000065",
       eventDate: "2026-02-01",
@@ -172,18 +249,29 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
     // Midpoint between the 24- and 36-month thresholds is 30 months before
     // the row's event date (2026-02-01), approximated to the 1st.
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.birthDate).toBe("2023-08-01");
   });
 
   it("doesn't deduce a birth date when the category has no minAgeMonths", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
-    const [createdCategory] = await testDb.insert(category).values({ name: "Toro" }).returning();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    const [createdCategory] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Toro" })
+      .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000066",
       eventDate: "2026-02-01",
@@ -197,19 +285,29 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.birthDate).toBeNull();
   });
 
   it("keeps the row's own birth date instead of deducing one from the category", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
-    await testDb.insert(category).values({ name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 1-2 años", sex: "male", minAgeMonths: 12 });
     const [category23] = await testDb
       .insert(category)
-      .values({ name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
+      .values({ farmId: seededFarmGroup.id, name: "Novillo 2-3 años", sex: "male", minAgeMonths: 24 })
       .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000067",
@@ -224,15 +322,23 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.birthDate).toBe("2020-05-15");
   });
 
   it("leaves breed and secondaryTag null when the row doesn't carry them", async () => {
-    const { seededFarm, user, batch } = await seedFarmAndUser();
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000064",
       eventDate: "2026-02-01",
@@ -246,13 +352,24 @@ describe("createNewAnimal", () => {
     };
 
     const animalId = await testDb.transaction(async (tx) =>
-      createNewAnimal(tx, { userId: user.id, operatingFarmId: seededFarm.id, batchId: batch.id, row })
+      createNewAnimal(tx, {
+        userId: user.id,
+        operatingEstablishmentId: seededFarm.id,
+        batchId: batch.id,
+        row,
+      }),
     );
 
-    const [createdAnimal] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    const [createdAnimal] = await testDb
+      .select()
+      .from(animal)
+      .where(eq(animal.id, animalId));
     expect(createdAnimal.breed).toBeNull();
 
-    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.animalId, animalId));
+    const [tagRow] = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, animalId));
     expect(tagRow.secondaryTag).toBeNull();
   });
 });

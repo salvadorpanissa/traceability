@@ -6,8 +6,8 @@ function row(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail {
   return {
     animalId: "a1",
     currentTag: "AR1",
-    currentFarmId: "f1",
-    farmName: "Campo Norte",
+    currentEstablishmentId: "f1",
+    establishmentName: "Campo Norte",
     currentPaddockId: null,
     paddockName: null,
     currentCategoryId: "c1",
@@ -39,12 +39,12 @@ function groupAnimal(overrides: {
 }
 
 describe("summarizeLivestockByPaddock", () => {
-  it("groups alive animals by farm and paddock, counting each group and listing its animals", () => {
+  it("groups alive animals by establishment and paddock, counting each group and listing its animals", () => {
     const rows = [
-      row({ animalId: "a1", currentTag: "AR1", farmName: "Campo Norte", paddockName: "Potrero 1" }),
-      row({ animalId: "a2", currentTag: "AR2", farmName: "Campo Norte", paddockName: "Potrero 1" }),
-      row({ animalId: "a3", currentTag: "AR3", farmName: "Campo Norte", paddockName: "Potrero 2" }),
-      row({ animalId: "a4", currentTag: "AR4", farmName: "Campo Sur", paddockName: "Potrero 1" }),
+      row({ animalId: "a1", currentTag: "AR1", establishmentName: "Campo Norte", paddockName: "Potrero 1" }),
+      row({ animalId: "a2", currentTag: "AR2", establishmentName: "Campo Norte", paddockName: "Potrero 1" }),
+      row({ animalId: "a3", currentTag: "AR3", establishmentName: "Campo Norte", paddockName: "Potrero 2" }),
+      row({ animalId: "a4", currentTag: "AR4", establishmentName: "Campo Sur", paddockName: "Potrero 1" }),
     ];
 
     const summary = summarizeLivestockByPaddock(rows);
@@ -52,7 +52,7 @@ describe("summarizeLivestockByPaddock", () => {
     expect(summary).toEqual(
       expect.arrayContaining([
         {
-          farmName: "Campo Norte",
+          establishmentName: "Campo Norte",
           paddockName: "Potrero 1",
           count: 2,
           animals: [
@@ -61,13 +61,13 @@ describe("summarizeLivestockByPaddock", () => {
           ],
         },
         {
-          farmName: "Campo Norte",
+          establishmentName: "Campo Norte",
           paddockName: "Potrero 2",
           count: 1,
           animals: [groupAnimal({ animalId: "a3", tag: "AR3", categoryName: "Vaca" })],
         },
         {
-          farmName: "Campo Sur",
+          establishmentName: "Campo Sur",
           paddockName: "Potrero 1",
           count: 1,
           animals: [groupAnimal({ animalId: "a4", tag: "AR4", categoryName: "Vaca" })],
@@ -96,7 +96,7 @@ describe("summarizeLivestockByPaddock", () => {
 
     expect(summary).toEqual([
       {
-        farmName: "Campo Norte",
+        establishmentName: "Campo Norte",
         paddockName: "Potrero 1",
         count: 1,
         animals: [
@@ -126,7 +126,7 @@ describe("summarizeLivestockByPaddock", () => {
 
     expect(summary).toEqual([
       {
-        farmName: "Campo Norte",
+        establishmentName: "Campo Norte",
         paddockName: "Potrero 1",
         count: 1,
         animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" })],
@@ -134,14 +134,14 @@ describe("summarizeLivestockByPaddock", () => {
     ]);
   });
 
-  it("groups animals with no farm or no paddock under a null bucket", () => {
-    const rows = [row({ animalId: "a1", farmName: null, paddockName: null })];
+  it("groups animals with no establishment or no paddock under a null bucket", () => {
+    const rows = [row({ animalId: "a1", establishmentName: null, paddockName: null })];
 
     const summary = summarizeLivestockByPaddock(rows);
 
     expect(summary).toEqual([
       {
-        farmName: null,
+        establishmentName: null,
         paddockName: null,
         count: 1,
         animals: [groupAnimal({ animalId: "a1", tag: "AR1", categoryName: "Vaca" })],

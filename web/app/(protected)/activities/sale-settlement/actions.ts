@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseCledinorSettlement } from "@/lib/activities/cledinor-settlement-parsing";
 import { findSaleBatchByGuideNumber } from "@/lib/dal/sale-batch";
-import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
+import { isAdmin, userEstablishmentIds } from "@/lib/dal/farm-access";
 import { linkSaleSettlement } from "@/lib/activities/sale-settlement";
 
 const FRIGORIFICO = "Cledinor S.A.";
@@ -19,7 +19,7 @@ export type SettlementPreviewResult =
       weightKg: string | null;
       pricePerKg: string | null;
       match: {
-        farmName: string;
+        establishmentName: string;
         eventDate: string;
         animalTags: string[];
         buyer: string | null;
@@ -42,11 +42,11 @@ export async function previewSaleSettlement(formData: FormData): Promise<Settlem
 
   // Scope the lookup to the caller's campos so a venta they can't access is
   // simply not found, rather than previewed back to them.
-  const accessibleFarmIds = isAdmin(session.user.role) ? "all" : await userFarmIds(session.user.id);
+  const accessibleEstablishmentIds = isAdmin(session.user.role) ? "all" : await userEstablishmentIds(session.user.id);
 
   let match;
   try {
-    match = await findSaleBatchByGuideNumber(settlement.guideNumber, accessibleFarmIds);
+    match = await findSaleBatchByGuideNumber(settlement.guideNumber, accessibleEstablishmentIds);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "No se pudo buscar la venta" };
   }
@@ -62,7 +62,7 @@ export async function previewSaleSettlement(formData: FormData): Promise<Settlem
     weightKg: settlement.weightKg,
     pricePerKg: settlement.pricePerKg,
     match: {
-      farmName: match.farmName,
+      establishmentName: match.establishmentName,
       eventDate: match.eventDate,
       animalTags: match.animalTags,
       buyer: match.buyer,

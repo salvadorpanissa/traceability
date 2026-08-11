@@ -239,6 +239,41 @@
       "when": 1786405351983,
       "tag": "0033_wonderful_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786414630530,
+      "tag": "0034_equal_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786415129879,
+      "tag": "0035_nosy_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786415554170,
+      "tag": "0036_same_the_captain",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786500000000,
+      "tag": "0037_rename_farm_to_establishment",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786510000000,
+      "tag": "0038_user_farm_assignment",
+      "breakpoints": true
     }
   ]
 }

@@ -5,11 +5,11 @@ import {
   animalTagHistory,
   batchOperation,
   category,
+  establishment,
   event,
   eventRecategorize,
   eventRetag,
   eventTransfer,
-  farm,
   owner,
   paddock,
 } from "@/db/schema";
@@ -24,7 +24,7 @@ export type ResolvedImportRow =
       tag: string;
       secondaryTag: string | null;
       ownerName: string | null;
-      farmId: string;
+      establishmentId: string;
       paddockName: string | null;
       categoryName: string | null;
       breed: string | null;
@@ -66,8 +66,8 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const farmRows = await db.select({ id: farm.id, name: farm.name }).from(farm);
-  const farmIdByName = new Map(farmRows.map((f) => [f.name.trim(), f.id]));
+  const establishmentRows = await db.select({ id: establishment.id, name: establishment.name }).from(establishment);
+  const establishmentIdByName = new Map(establishmentRows.map((f) => [f.name.trim(), f.id]));
 
   const result: ResolvedImportRow[] = [];
   for (const row of rows) {
@@ -84,9 +84,9 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
       continue;
     }
 
-    const farmName = row.farmName?.trim();
-    const farmId = farmName ? farmIdByName.get(farmName) : undefined;
-    if (!farmId) {
+    const establishmentName = row.establishmentName?.trim();
+    const establishmentId = establishmentName ? establishmentIdByName.get(establishmentName) : undefined;
+    if (!establishmentId) {
       result.push({ status: "error", tag: row.tag, reason: "Estancia no reconocida" });
       continue;
     }
@@ -114,7 +114,7 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
       tag: row.tag,
       secondaryTag: row.secondaryTag,
       ownerName: row.ownerName,
-      farmId,
+      establishmentId,
       paddockName: row.paddockName,
       categoryName: row.categoryName,
       breed: row.breed,
@@ -147,30 +147,32 @@ async function resolveOwnerId(
 
 async function resolveCategoryId(
   tx: Transaction,
-  categoryIdByName: Map<string, string>,
+  categoryIdByFarmAndName: Map<string, string>,
+  farmId: string,
   name: string | null
 ): Promise<string | null> {
   if (!name) return null;
-  const existing = categoryIdByName.get(name);
+  const key = `${farmId}:${name.trim().toLowerCase()}`;
+  const existing = categoryIdByFarmAndName.get(key);
   if (existing) return existing;
-  const [created] = await tx.insert(category).values({ name }).returning();
-  categoryIdByName.set(name, created.id);
+  const [created] = await tx.insert(category).values({ farmId, name }).returning();
+  categoryIdByFarmAndName.set(key, created.id);
   return created.id;
 }
 
 async function resolvePaddockId(
   tx: Transaction,
-  paddockIdByFarmAndName: Map<string, string>,
-  farmId: string,
+  paddockIdByEstablishmentAndName: Map<string, string>,
+  establishmentId: string,
   name: string | null
 ): Promise<string | null> {
   if (!name) return null;
   const trimmedName = name.trim();
-  const key = `${farmId}:${trimmedName.toLowerCase()}`;
-  const existing = paddockIdByFarmAndName.get(key);
+  const key = `${establishmentId}:${trimmedName.toLowerCase()}`;
+  const existing = paddockIdByEstablishmentAndName.get(key);
   if (existing) return existing;
-  const [created] = await tx.insert(paddock).values({ farmId, name: trimmedName }).returning();
-  paddockIdByFarmAndName.set(key, created.id);
+  const [created] = await tx.insert(paddock).values({ establishmentId, name: trimmedName }).returning();
+  paddockIdByEstablishmentAndName.set(key, created.id);
   return created.id;
 }
 
@@ -187,37 +189,46 @@ export async function confirmImportChunk(input: {
       const existingOwners = await tx.select({ id: owner.id, name: owner.name }).from(owner);
       for (const o of existingOwners) ownerIdByName.set(o.name.trim().toLowerCase(), o.id);
 
-      const categoryIdByName = new Map<string, string>();
-      const existingCategories = await tx.select({ id: category.id, name: category.name }).from(category);
-      for (const c of existingCategories) categoryIdByName.set(c.name, c.id);
+      const categoryIdByFarmAndName = new Map<string, string>();
+      const existingCategories = await tx.select({ id: category.id, name: category.name, farmId: category.farmId }).from(category);
+      for (const c of existingCategories) categoryIdByFarmAndName.set(`${c.farmId}:${c.name.trim().toLowerCase()}`, c.id);
 
-      const paddockIdByFarmAndName = new Map<string, string>();
-      const existingPaddocks = await tx.select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId }).from(paddock);
-      for (const p of existingPaddocks) paddockIdByFarmAndName.set(`${p.farmId}:${p.name.trim().toLowerCase()}`, p.id);
+      const paddockIdByEstablishmentAndName = new Map<string, string>();
+      const existingPaddocks = await tx.select({ id: paddock.id, name: paddock.name, establishmentId: paddock.establishmentId }).from(paddock);
+      for (const p of existingPaddocks) paddockIdByEstablishmentAndName.set(`${p.establishmentId}:${p.name.trim().toLowerCase()}`, p.id);
 
-      const rowsByFarm = new Map<string, typeof rows>();
+      const farmIdByEstablishmentId = new Map<string, string>();
+      const involvedEstablishments = await tx
+        .select({ id: establishment.id, farmId: establishment.farmId })
+        .from(establishment)
+        .where(inArray(establishment.id, [...new Set(rows.map((r) => r.establishmentId))]));
+      for (const e of involvedEstablishments) farmIdByEstablishmentId.set(e.id, e.farmId);
+
+      const rowsByEstablishment = new Map<string, typeof rows>();
       for (const row of rows) {
-        const group = rowsByFarm.get(row.farmId) ?? [];
+        const group = rowsByEstablishment.get(row.establishmentId) ?? [];
         group.push(row);
-        rowsByFarm.set(row.farmId, group);
+        rowsByEstablishment.set(row.establishmentId, group);
       }
 
       let createdCount = 0;
-      for (const [farmId, farmRows] of rowsByFarm) {
+      for (const [establishmentId, establishmentRows] of rowsByEstablishment) {
+        const farmId = farmIdByEstablishmentId.get(establishmentId);
+        if (!farmId) throw new Error("Campo no encontrado");
         const [batch] = await tx
           .insert(batchOperation)
           .values({
             eventType: "transfer",
-            farmId,
-            animalCount: farmRows.length,
+            establishmentId,
+            animalCount: establishmentRows.length,
             createdBy: userId,
           })
           .returning();
 
-        for (const row of farmRows) {
+        for (const row of establishmentRows) {
           const ownerId = await resolveOwnerId(tx, ownerIdByName, row.ownerName);
-          const categoryId = await resolveCategoryId(tx, categoryIdByName, row.categoryName);
-          const paddockId = await resolvePaddockId(tx, paddockIdByFarmAndName, farmId, row.paddockName);
+          const categoryId = await resolveCategoryId(tx, categoryIdByFarmAndName, farmId, row.categoryName);
+          const paddockId = await resolvePaddockId(tx, paddockIdByEstablishmentAndName, establishmentId, row.paddockName);
 
           const [createdAnimal] = await tx
             .insert(animal)
@@ -233,7 +244,7 @@ export async function confirmImportChunk(input: {
               eventType: "retag",
               eventDate: row.eventDate,
               animalId: createdAnimal.id,
-              farmId,
+              establishmentId,
               batchOperationId: batch.id,
               createdBy: userId,
             })
@@ -247,7 +258,7 @@ export async function confirmImportChunk(input: {
                 eventType: "recategorize",
                 eventDate: row.eventDate,
                 animalId: createdAnimal.id,
-                farmId,
+                establishmentId,
                 batchOperationId: batch.id,
                 createdBy: userId,
               })
@@ -263,15 +274,15 @@ export async function confirmImportChunk(input: {
               eventType: "transfer",
               eventDate: row.eventDate,
               animalId: createdAnimal.id,
-              farmId,
+              establishmentId,
               batchOperationId: batch.id,
               createdBy: userId,
             })
             .returning();
           await tx.insert(eventTransfer).values({
             eventId: transferEvent.id,
-            originFarmId: farmId,
-            destinationFarmId: farmId,
+            originEstablishmentId: establishmentId,
+            destinationEstablishmentId: establishmentId,
             destinationPaddockId: paddockId,
           });
 

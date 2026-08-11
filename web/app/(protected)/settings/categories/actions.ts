@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { createCategory, updateCategory, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import { requireEstablishmentAccess, requireFarmAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { createCategory, updateCategory, getCategoryFarmId, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
 import { archiveCategory } from "@/lib/activities/category-archive";
 
@@ -15,15 +16,20 @@ const categoryInputSchema = z.object({
 });
 
 export async function createCategoryAction(input: {
+  establishmentId: string;
   name: string;
   sex?: "male" | "female" | null;
   minAgeMonths?: number | null;
 }): Promise<CategoryCatalogActionResult> {
-  await requireSession();
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
+  const farmId = await getEstablishmentFarmId(input.establishmentId);
+  if (!farmId) return { ok: false, error: "Campo no encontrado" };
+
   const parsed = categoryInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
-    const entry = await createCategory(parsed.data);
+    const entry = await createCategory(farmId, parsed.data);
     return { ok: true, entry };
   } catch (error) {
     if (isUniqueViolationError(error)) return { ok: false, error: "Ya existe una categoría con ese nombre" };
@@ -37,7 +43,11 @@ export async function updateCategoryAction(input: {
   sex?: "male" | "female" | null;
   minAgeMonths?: number | null;
 }): Promise<CategoryCatalogActionResult> {
-  await requireSession();
+  const session = await requireSession();
+  const farmId = await getCategoryFarmId(input.id);
+  if (!farmId) return { ok: false, error: "Categoría no encontrada" };
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+
   const parsed = categoryInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos" };
   try {
@@ -56,6 +66,10 @@ export async function archiveCategoryAction(input: {
   targetCategoryId: string | null;
 }): Promise<ArchiveCategoryResult> {
   const session = await requireSession();
+  const farmId = await getCategoryFarmId(input.categoryId);
+  if (!farmId) return { ok: false, error: "Categoría no encontrada" };
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+
   try {
     const { reassigned } = await archiveCategory({
       userId: session.user.id,

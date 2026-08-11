@@ -8,24 +8,24 @@ import { Label } from "@/components/ui/label";
 import { createPaddockAction, updatePaddockAction } from "@/app/(protected)/settings/paddocks/actions";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
-type Farm = { id: string; name: string };
+type Establishment = { id: string; name: string };
 
 export function PaddockCatalogForm({
   paddocks: initialPaddocks,
-  farms,
+  establishments,
 }: {
   paddocks: PaddockCatalogEntry[];
-  farms: Farm[];
+  establishments: Establishment[];
 }) {
   const [paddocks, setPaddocks] = useState(initialPaddocks);
-  const farmNameById = new Map(farms.map((f) => [f.id, f.name]));
+  const establishmentNameById = new Map(establishments.map((e) => [e.id, e.name]));
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
+  const [establishmentId, setEstablishmentId] = useState(establishments.length === 1 ? establishments[0].id : "");
   const [name, setName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -52,8 +52,8 @@ export function PaddockCatalogForm({
   }
 
   async function handleCreate() {
-    if (!farmId || !name) return;
-    const result = await createPaddockAction({ farmId, name });
+    if (!establishmentId || !name) return;
+    const result = await createPaddockAction({ establishmentId, name });
     if (!result.ok) {
       setCreateError(result.error);
       return;
@@ -74,17 +74,17 @@ export function PaddockCatalogForm({
               <DialogTitle>Nuevo potrero</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="paddock-farm">Campo</Label>
+              <Label htmlFor="paddock-establishment">Campo</Label>
               <select
-                id="paddock-farm"
-                value={farmId}
-                onChange={(e) => setFarmId(e.target.value)}
+                id="paddock-establishment"
+                value={establishmentId}
+                onChange={(e) => setEstablishmentId(e.target.value)}
                 className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
               >
                 <option value="">Elegir...</option>
-                {farms.map((farm) => (
-                  <option key={farm.id} value={farm.id}>
-                    {farm.name}
+                {establishments.map((establishment) => (
+                  <option key={establishment.id} value={establishment.id}>
+                    {establishment.name}
                   </option>
                 ))}
               </select>
@@ -92,12 +92,12 @@ export function PaddockCatalogForm({
               <Label htmlFor="paddock-name">Nombre</Label>
               <Input id="paddock-name" value={name} onChange={(e) => setName(e.target.value)} />
 
-              {farms.length === 0 ? (
+              {establishments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tenés campos asociados</p>
               ) : null}
               {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
 
-              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
+              <Button type="button" disabled={!establishmentId || !name} onClick={handleCreate}>
                 Agregar
               </Button>
             </div>
@@ -120,7 +120,7 @@ export function PaddockCatalogForm({
                 <td className="py-1 pr-2">
                   <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </td>
-                <td className="py-1 pr-2">{farmNameById.get(entry.farmId) ?? ""}</td>
+                <td className="py-1 pr-2">{establishmentNameById.get(entry.establishmentId) ?? ""}</td>
                 <td className="flex gap-1 py-1 pr-2">
                   <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
                     Guardar
@@ -133,7 +133,7 @@ export function PaddockCatalogForm({
             ) : (
               <tr key={entry.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">{entry.name}</td>
-                <td className="py-1 pr-2">{farmNameById.get(entry.farmId) ?? ""}</td>
+                <td className="py-1 pr-2">{establishmentNameById.get(entry.establishmentId) ?? ""}</td>
                 <td className="py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar

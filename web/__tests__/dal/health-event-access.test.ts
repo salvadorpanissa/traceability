@@ -3,8 +3,9 @@ import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
 import {
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   animal,
@@ -20,14 +21,15 @@ import {
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { visibleHealthEventsSince } = await import("@/lib/dal/health-event-access");
+const { visibleHealthEventsSince } =
+  await import("@/lib/dal/health-event-access");
 
 beforeEach(async () => {
   await resetTestDb();
 });
 
 async function seedHealthEvent(input: {
-  farmId: string;
+  establishmentId: string;
   paddockId: string | null;
   productId: string;
   adminId: string;
@@ -35,11 +37,18 @@ async function seedHealthEvent(input: {
   tag: string;
 }) {
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
-  await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: input.tag });
+  await testDb
+    .insert(animalTagHistory)
+    .values({ animalId: createdAnimal.id, tag: input.tag });
 
   const [placementBatch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "transfer", farmId: input.farmId, animalCount: 1, createdBy: input.adminId })
+    .values({
+      eventType: "transfer",
+      establishmentId: input.establishmentId,
+      animalCount: 1,
+      createdBy: input.adminId,
+    })
     .returning();
   const [placementEvent] = await testDb
     .insert(event)
@@ -47,20 +56,29 @@ async function seedHealthEvent(input: {
       eventType: "transfer",
       eventDate: input.eventDate,
       animalId: createdAnimal.id,
-      farmId: input.farmId,
+      establishmentId: input.establishmentId,
       batchOperationId: placementBatch.id,
       createdBy: input.adminId,
     })
     .returning();
   await testDb
     .insert(eventTransfer)
-    .values({ eventId: placementEvent.id, originFarmId: input.farmId, destinationFarmId: input.farmId });
+    .values({
+      eventId: placementEvent.id,
+      originEstablishmentId: input.establishmentId,
+      destinationEstablishmentId: input.establishmentId,
+    });
 
   // Self-retag: animal_current_state.current_tag only reflects the latest
   // event_retag row, not animal_tag_history directly.
   const [retagBatch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "retag", farmId: input.farmId, animalCount: 1, createdBy: input.adminId })
+    .values({
+      eventType: "retag",
+      establishmentId: input.establishmentId,
+      animalCount: 1,
+      createdBy: input.adminId,
+    })
     .returning();
   const [retagEvent] = await testDb
     .insert(event)
@@ -68,16 +86,23 @@ async function seedHealthEvent(input: {
       eventType: "retag",
       eventDate: input.eventDate,
       animalId: createdAnimal.id,
-      farmId: input.farmId,
+      establishmentId: input.establishmentId,
       batchOperationId: retagBatch.id,
       createdBy: input.adminId,
     })
     .returning();
-  await testDb.insert(eventRetag).values({ eventId: retagEvent.id, oldTag: input.tag, newTag: input.tag });
+  await testDb
+    .insert(eventRetag)
+    .values({ eventId: retagEvent.id, oldTag: input.tag, newTag: input.tag });
 
   const [healthBatch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "health", farmId: input.farmId, animalCount: 1, createdBy: input.adminId })
+    .values({
+      eventType: "health",
+      establishmentId: input.establishmentId,
+      animalCount: 1,
+      createdBy: input.adminId,
+    })
     .returning();
   const [healthEvent] = await testDb
     .insert(event)
@@ -85,7 +110,7 @@ async function seedHealthEvent(input: {
       eventType: "health",
       eventDate: input.eventDate,
       animalId: createdAnimal.id,
-      farmId: input.farmId,
+      establishmentId: input.establishmentId,
       batchOperationId: healthBatch.id,
       createdBy: input.adminId,
     })
@@ -104,18 +129,39 @@ async function seedHealthEvent(input: {
 }
 
 describe("visibleHealthEventsSince", () => {
-  it("returns a health event with farm, paddock, product, and current tag resolved", async () => {
-    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [seededPaddock] = await testDb.insert(paddock).values({ farmId: seededFarm.id, name: "Potrero 1" }).returning();
-    const [seededProduct] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+  it("returns a health event with establishment, paddock, product, and current tag resolved", async () => {
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
+    const [seededPaddock] = await testDb
+      .insert(paddock)
+      .values({ establishmentId: seededFarm.id, name: "Potrero 1" })
+      .returning();
+    const [seededProduct] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const [admin] = await testDb
       .insert(userAccount)
-      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
       .returning();
 
     await seedHealthEvent({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       paddockId: seededPaddock.id,
       productId: seededProduct.id,
       adminId: admin.id,
@@ -123,11 +169,15 @@ describe("visibleHealthEventsSince", () => {
       tag: "AR000000000060",
     });
 
-    const rows = await visibleHealthEventsSince(admin.id, "admin", "2026-01-01");
+    const rows = await visibleHealthEventsSince(
+      admin.id,
+      "admin",
+      "2026-01-01",
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       animalTag: "AR000000000060",
-      farmName: "Campo Norte",
+      establishmentName: "Campo Norte",
       paddockName: "Potrero 1",
       productName: "Ivermectina 1%",
       eventDate: "2026-06-01",
@@ -135,16 +185,34 @@ describe("visibleHealthEventsSince", () => {
   });
 
   it("excludes events before the given date", async () => {
-    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-    const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [seededProduct] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
+    const [seededProduct] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const [admin] = await testDb
       .insert(userAccount)
-      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
       .returning();
 
     await seedHealthEvent({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       paddockId: null,
       productId: seededProduct.id,
       adminId: admin.id,
@@ -152,31 +220,68 @@ describe("visibleHealthEventsSince", () => {
       tag: "AR000000000061",
     });
 
-    expect(await visibleHealthEventsSince(admin.id, "admin", "2026-01-01")).toEqual([]);
+    expect(
+      await visibleHealthEventsSince(admin.id, "admin", "2026-01-01"),
+    ).toEqual([]);
   });
 
-  it("scopes results to the manager's assigned farm", async () => {
-    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
-    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-    const [farmNorte] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
-    const [farmSur] = await testDb.insert(farm).values({ name: "Campo Sur" }).returning();
-    const [seededProduct] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+  it("scopes results to the manager's assigned establishment", async () => {
+    const [managerRole] = await testDb
+      .insert(role)
+      .values({ name: "manager" })
+      .returning();
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [farmNorteGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [farmNorte] = await testDb
+      .insert(establishment)
+      .values({ farmId: farmNorteGroup.id, name: "Campo Norte" })
+      .returning();
+    const [farmSurGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Sur" })
+      .returning();
+    const [farmSur] = await testDb
+      .insert(establishment)
+      .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
+      .returning();
+    const [seededProduct] = await testDb
+      .insert(product)
+      .values({ farmId: farmNorteGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const [manager] = await testDb
       .insert(userAccount)
-      .values({ name: "Manager", email: "manager@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .values({
+        name: "Manager",
+        email: "manager@example.com",
+        passwordHash: "hashed",
+        roleId: managerRole.id,
+      })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
-      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
       .returning();
-    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmNorte.id });
+    await testDb
+      .insert(userFarm)
+      .values({ userId: manager.id, farmId: farmNorteGroup.id });
 
     for (const [targetFarm, tag] of [
       [farmNorte, "AR000000000062"],
       [farmSur, "AR000000000063"],
     ] as const) {
       await seedHealthEvent({
-        farmId: targetFarm.id,
+        establishmentId: targetFarm.id,
         paddockId: null,
         productId: seededProduct.id,
         adminId: admin.id,
@@ -185,18 +290,32 @@ describe("visibleHealthEventsSince", () => {
       });
     }
 
-    const rows = await visibleHealthEventsSince(manager.id, "manager", "2026-01-01");
+    const rows = await visibleHealthEventsSince(
+      manager.id,
+      "manager",
+      "2026-01-01",
+    );
     expect(rows).toHaveLength(1);
-    expect(rows[0].farmName).toBe("Campo Norte");
+    expect(rows[0].establishmentName).toBe("Campo Norte");
   });
 
   it("returns an empty array for a manager with no assigned farms", async () => {
-    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [managerRole] = await testDb
+      .insert(role)
+      .values({ name: "manager" })
+      .returning();
     const [unassigned] = await testDb
       .insert(userAccount)
-      .values({ name: "Sin campo", email: "sincampo@example.com", passwordHash: "hashed", roleId: managerRole.id })
+      .values({
+        name: "Sin campo",
+        email: "sincampo@example.com",
+        passwordHash: "hashed",
+        roleId: managerRole.id,
+      })
       .returning();
 
-    expect(await visibleHealthEventsSince(unassigned.id, "manager", "2026-01-01")).toEqual([]);
+    expect(
+      await visibleHealthEventsSince(unassigned.id, "manager", "2026-01-01"),
+    ).toEqual([]);
   });
 });

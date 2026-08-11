@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
@@ -15,9 +15,9 @@ import {
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
 import { confirmHealthBatch, type HealthProduct } from "@/lib/activities/health";
-import { listProducts, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
+import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import { listPaddocksByFarm, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -37,8 +37,8 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
 
 export async function previewHealthBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
-  const operatingFarmId = formData.get("farmId") as string;
-  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
+  const operatingEstablishmentId = formData.get("establishmentId") as string;
+  await requireEstablishmentAccess(session.user.id, session.user.role, operatingEstablishmentId);
 
   const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -70,12 +70,13 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId, {
+  const resolvedRows = await resolveBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingEstablishmentId, {
     autoForceForeignWithoutOwner: true,
   });
 
   const productValues = extractProductColumnValues(headers, rows, mapping);
-  const catalog = await listProducts();
+  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
+  const catalog = farmId ? await listProductsByFarm(farmId) : [];
   const productSuggestions = productValues.map((rawValue) => {
     const matched = catalog.find((entry) => entry.name.trim().toLowerCase() === rawValue.trim().toLowerCase());
     return { rawValue, matchedProductId: matched?.id ?? null };
@@ -97,11 +98,11 @@ export async function confirmHealthBatchAction(input: {
   products: HealthProduct[];
   rows: ResolvedRow[];
   paddockId: string | null;
-  farmId: string;
+  establishmentId: string;
   transferMismatchedToPaddock?: boolean;
 }): Promise<void> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, input.farmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
 
   await db
     .insert(columnMapping)
@@ -111,7 +112,7 @@ export async function confirmHealthBatchAction(input: {
   await confirmHealthBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingFarmId: input.farmId,
+    operatingEstablishmentId: input.establishmentId,
     products: input.products,
     rows: input.rows,
     paddockId: input.paddockId,
@@ -119,9 +120,19 @@ export async function confirmHealthBatchAction(input: {
   });
 }
 
-export async function createProductAction(name: string): Promise<ProductCatalogEntry> {
-  await requireSession();
-  return createProduct(name);
+export async function createProductAction(establishmentId: string, name: string): Promise<ProductCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createProduct(farmId, name);
+}
+
+export async function listProductsAction(establishmentId: string): Promise<ProductCatalogEntry[]> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  return farmId ? listProductsByFarm(farmId) : [];
 }
 
 export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
@@ -129,14 +140,14 @@ export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry
   return createOwner(name);
 }
 
-export async function createHealthPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
+export async function createHealthPaddockAction(establishmentId: string, name: string): Promise<PaddockCatalogEntry> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return createPaddock(farmId, name);
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  return createPaddock(establishmentId, name);
 }
 
-export async function listPaddocksAction(farmId: string): Promise<PaddockCatalogEntry[]> {
+export async function listPaddocksAction(establishmentId: string): Promise<PaddockCatalogEntry[]> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return listPaddocksByFarm(farmId);
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  return listPaddocksByEstablishment(establishmentId);
 }

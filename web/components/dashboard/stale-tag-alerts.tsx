@@ -80,7 +80,7 @@ export function StaleTagAlerts({
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-medium text-sm">{row.currentTag}</p>
                     <p className="text-xs text-muted-foreground">
-                      {row.farmName ?? ""}
+                      {row.establishmentName ?? ""}
                       {row.paddockName ? ` • ${row.paddockName}` : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">{lastEventLabel(row, locale)}</p>

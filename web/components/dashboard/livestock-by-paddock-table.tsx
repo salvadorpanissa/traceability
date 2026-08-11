@@ -1,13 +1,13 @@
 "use client";
 
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { DataTable, type DataTableColumn, type DataTableExtraSheet } from "@/components/ui/data-table";
 import { sexLabel } from "@/lib/dashboard/animal-labels";
 import type { GroupAnimal, LivestockByPaddockRow } from "@/lib/dashboard/livestock-summary";
 
 function AnimalDetailTable({ animals, locale }: { animals: GroupAnimal[]; locale: Locale }) {
   return (
-    <div className="max-h-64 overflow-auto">
+    <div className="max-h-64 w-full overflow-auto">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-background">
           <tr className="border-b text-left">
@@ -41,11 +41,11 @@ function AnimalDetailTable({ animals, locale }: { animals: GroupAnimal[]; locale
 export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPaddockRow[]; locale: Locale }) {
   const columns: DataTableColumn<LivestockByPaddockRow>[] = [
     {
-      key: "farm",
-      header: translate(locale, "livestock.farm"),
-      render: (row) => row.farmName ?? translate(locale, "livestock.noFarm"),
-      sortValue: (row) => row.farmName,
-      searchValue: (row) => row.farmName ?? "",
+      key: "establishment",
+      header: translate(locale, "livestock.establishment"),
+      render: (row) => row.establishmentName ?? translate(locale, "livestock.noEstablishment"),
+      sortValue: (row) => row.establishmentName,
+      searchValue: (row) => row.establishmentName ?? "",
     },
     {
       key: "paddock",
@@ -62,15 +62,44 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
     },
   ];
 
+  const animalSheet: DataTableExtraSheet = {
+    name: translate(locale, "livestock.animalsInGroup"),
+    headers: [
+      translate(locale, "livestock.establishment"),
+      translate(locale, "livestock.paddock"),
+      translate(locale, "livestock.tag"),
+      translate(locale, "animalLookup.secondaryTag"),
+      translate(locale, "livestock.category"),
+      translate(locale, "animalLookup.sex"),
+      translate(locale, "animalLookup.breed"),
+      translate(locale, "animalLookup.owner"),
+      translate(locale, "animalLookup.birthDate"),
+    ],
+    rows: rows.flatMap((row) =>
+      row.animals.map((animal) => [
+        row.establishmentName ?? translate(locale, "livestock.noEstablishment"),
+        row.paddockName ?? translate(locale, "livestock.noPaddock"),
+        animal.tag,
+        animal.secondaryTag,
+        animal.categoryName ?? translate(locale, "livestock.noCategory"),
+        sexLabel(animal.sex, locale),
+        animal.breed,
+        animal.ownerName,
+        animal.birthDate,
+      ])
+    ),
+  };
+
   return (
     <DataTable
       columns={columns}
       rows={rows}
-      getRowId={(row) => `${row.farmName ?? ""}-${row.paddockName ?? ""}`}
+      getRowId={(row) => `${row.establishmentName ?? ""}-${row.paddockName ?? ""}`}
       locale={locale}
       searchable
       exportable
       exportFileName="animales-por-potrero"
+      extraSheets={[animalSheet]}
       pageSize={10}
       emptyMessage={translate(locale, "livestock.byPaddockEmpty")}
       expandable

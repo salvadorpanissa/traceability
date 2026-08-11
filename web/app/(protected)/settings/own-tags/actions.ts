@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
@@ -15,7 +15,7 @@ import {
 import {
   importOwnTags,
   countOwnTagsByRegistration,
-  countAliveAnimalsByOwnerFarm,
+  countAliveAnimalsByOwnerEstablishment,
   countBareOwnTagsByRegistration,
   findMissingPaddockNames,
   findMissingCategoryNames,
@@ -23,9 +23,9 @@ import {
 } from "@/lib/dal/own-tag";
 import {
   listDicoseRegistrations,
-  getDicoseRegistrationFarmId,
-  type DicoseRegistrationEntry,
-} from "@/lib/dal/dicose-registration";
+  getDicoseRegistrationEstablishmentId,
+  type DicoseEntry,
+} from "@/lib/dal/dicose";
 import { createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { createCategory, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import { db } from "@/db";
@@ -50,16 +50,16 @@ function ownTagHeaderSignature(headers: string[]): string {
 
 async function requireDicoseRegistrationAccess(
   session: { user: { id: string; role?: string } },
-  dicoseRegistrationId: string
+  dicoseId: string
 ): Promise<void> {
-  const farmId = await getDicoseRegistrationFarmId(dicoseRegistrationId);
-  if (!farmId) throw new Error("Registro DICOSE no encontrado");
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  const establishmentId = await getDicoseRegistrationEstablishmentId(dicoseId);
+  if (!establishmentId) throw new Error("Registro DICOSE no encontrado");
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
 }
 
-export async function previewOwnTagUpload(dicoseRegistrationId: string, formData: FormData): Promise<OwnTagPreviewResult> {
+export async function previewOwnTagUpload(dicoseId: string, formData: FormData): Promise<OwnTagPreviewResult> {
   const session = await requireSession();
-  await requireDicoseRegistrationAccess(session, dicoseRegistrationId);
+  await requireDicoseRegistrationAccess(session, dicoseId);
 
   const file = requireFile(formData, "file");
   const mappingOverride = formData.get("mapping") as string | null;
@@ -85,63 +85,66 @@ export async function previewOwnTagUpload(dicoseRegistrationId: string, formData
   let pendingPaddockNames: string[] = [];
   if (ownTagMappingHasPaddock(mapping)) {
     const paddockNames = mappedRows.map((r) => r.paddock).filter((n): n is string => !!n);
-    pendingPaddockNames = await findMissingPaddockNames(dicoseRegistrationId, paddockNames);
+    pendingPaddockNames = await findMissingPaddockNames(dicoseId, paddockNames);
   }
 
   let pendingCategoryNames: string[] = [];
   if (mapping.some((m) => m.meaning === "category")) {
     const categoryNames = mappedRows.map((r) => r.category).filter((n): n is string => !!n);
-    pendingCategoryNames = await findMissingCategoryNames(categoryNames);
+    pendingCategoryNames = await findMissingCategoryNames(dicoseId, categoryNames);
   }
 
   return { mappingNeeded: false, headerSignature, mapping, rows: mappedRows, pendingPaddockNames, pendingCategoryNames };
 }
 
-export async function createOwnTagPaddockAction(farmId: string, name: string): Promise<PaddockCatalogEntry> {
+export async function createOwnTagPaddockAction(establishmentId: string, name: string): Promise<PaddockCatalogEntry> {
   const session = await requireSession();
-  await requireFarmAccess(session.user.id, session.user.role, farmId);
-  return createPaddock(farmId, name);
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  return createPaddock(establishmentId, name);
 }
 
-export async function createOwnTagCategoryAction(name: string): Promise<CategoryCatalogEntry> {
-  await requireSession();
-  return createCategory({ name });
+export async function createOwnTagCategoryAction(establishmentId: string, name: string): Promise<CategoryCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createCategory(farmId, { name });
 }
 
 export async function confirmOwnTagUpload(
-  dicoseRegistrationId: string,
+  dicoseId: string,
   headerSignature: string,
   mapping: ColumnMapping[],
   rows: MappedOwnTagRow[]
 ): Promise<OwnTagImportResult> {
   const session = await requireSession();
-  await requireDicoseRegistrationAccess(session, dicoseRegistrationId);
+  await requireDicoseRegistrationAccess(session, dicoseId);
 
   await db
     .insert(columnMapping)
     .values({ headerSignature, mapping })
     .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping } });
 
-  return importOwnTags(dicoseRegistrationId, session.user.id, rows);
+  return importOwnTags(dicoseId, session.user.id, rows);
 }
 
 export async function listOwnTagCounts(): Promise<
-  { registration: DicoseRegistrationEntry; count: number; lastUploadedAt: string | null }[]
+  { registration: DicoseEntry; count: number; lastUploadedAt: string | null }[]
 > {
   const session = await requireSession();
   const [registrations, animalCounts, bareCounts, uploads] = await Promise.all([
     listDicoseRegistrations(session.user.id, session.user.role),
-    countAliveAnimalsByOwnerFarm(),
+    countAliveAnimalsByOwnerEstablishment(),
     countBareOwnTagsByRegistration(),
     countOwnTagsByRegistration(),
   ]);
-  const animalCountByOwnerFarm = new Map(animalCounts.map((c) => [`${c.ownerId}:${c.farmId}`, c.count]));
-  const bareCountByRegistrationId = new Map(bareCounts.map((c) => [c.dicoseRegistrationId, c.count]));
-  const lastUploadedAtByRegistrationId = new Map(uploads.map((u) => [u.dicoseRegistrationId, u.lastUploadedAt]));
+  const animalCountByOwnerEstablishment = new Map(animalCounts.map((c) => [`${c.ownerId}:${c.establishmentId}`, c.count]));
+  const bareCountByRegistrationId = new Map(bareCounts.map((c) => [c.dicoseId, c.count]));
+  const lastUploadedAtByRegistrationId = new Map(uploads.map((u) => [u.dicoseId, u.lastUploadedAt]));
   return registrations.map((registration) => ({
     registration,
     count:
-      (animalCountByOwnerFarm.get(`${registration.ownerId}:${registration.farmId}`) ?? 0) +
+      (animalCountByOwnerEstablishment.get(`${registration.ownerId}:${registration.establishmentId}`) ?? 0) +
       (bareCountByRegistrationId.get(registration.id) ?? 0),
     lastUploadedAt: lastUploadedAtByRegistrationId.get(registration.id)?.toISOString() ?? null,
   }));

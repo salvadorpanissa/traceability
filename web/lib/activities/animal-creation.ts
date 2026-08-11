@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { animal, animalTagHistory, event, eventRetag, eventRecategorize, category } from "@/db/schema";
 import type { CreatableRow } from "@/lib/activities/batch-resolution";
 import { deduceAgeMonthsForCategory } from "@/lib/activities/category-birth-date";
@@ -10,12 +11,12 @@ export async function createNewAnimal(
   tx: Transaction,
   input: {
     userId: string;
-    operatingFarmId: string;
+    operatingEstablishmentId: string;
     batchId: string;
     row: CreatableRow;
   }
 ): Promise<string> {
-  const { userId, operatingFarmId, batchId, row } = input;
+  const { userId, operatingEstablishmentId, batchId, row } = input;
 
   // No birth date on the row, but a category that implies an age bracket
   // (e.g. "Novillo 2-3 años") — deduce one instead of leaving it unknown,
@@ -23,7 +24,13 @@ export async function createNewAnimal(
   // imported for a past date doesn't get an age computed as of now.
   let birthDate = row.birthDate;
   if (!birthDate && row.categoryId) {
-    const categories = await tx.select({ id: category.id, minAgeMonths: category.minAgeMonths }).from(category);
+    const [ownCategory] = await tx.select({ farmId: category.farmId }).from(category).where(eq(category.id, row.categoryId));
+    const categories = ownCategory
+      ? await tx
+          .select({ id: category.id, minAgeMonths: category.minAgeMonths })
+          .from(category)
+          .where(eq(category.farmId, ownCategory.farmId))
+      : [];
     const ageMonths = deduceAgeMonthsForCategory(row.categoryId, categories);
     if (ageMonths !== null) birthDate = estimateBirthDateFromAge(row.eventDate, ageMonths);
   }
@@ -43,7 +50,7 @@ export async function createNewAnimal(
       eventType: "retag",
       eventDate: row.eventDate,
       animalId: createdAnimal.id,
-      farmId: operatingFarmId,
+      establishmentId: operatingEstablishmentId,
       batchOperationId: batchId,
       createdBy: userId,
     })
@@ -60,7 +67,7 @@ export async function createNewAnimal(
         eventType: "recategorize",
         eventDate: row.eventDate,
         animalId: createdAnimal.id,
-        farmId: operatingFarmId,
+        establishmentId: operatingEstablishmentId,
         batchOperationId: batchId,
         createdBy: userId,
       })

@@ -17,8 +17,8 @@ describe("NaturalLanguageQuery", () => {
   it("submits the question and renders the resulting table", async () => {
     vi.mocked(runNaturalLanguageQuery).mockResolvedValue({
       status: "ok",
-      columns: ["farm_name", "total"],
-      rows: [{ farm_name: "Campo Norte", total: 3 }],
+      columns: ["establishment_name", "total"],
+      rows: [{ establishment_name: "Campo Norte", total: 3 }],
     });
 
     render(<NaturalLanguageQuery locale="es" />);

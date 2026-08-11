@@ -5,26 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createDicoseRegistrationAction } from "@/app/(protected)/settings/dicose/actions";
-import type { DicoseRegistrationEntry } from "@/lib/dal/dicose-registration";
+import type { DicoseEntry } from "@/lib/dal/dicose";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
 export function DicoseRegistrationForm({
   registrations: initialRegistrations,
   owners,
-  farms,
+  establishments,
 }: {
-  registrations: DicoseRegistrationEntry[];
+  registrations: DicoseEntry[];
   owners: OwnerCatalogEntry[];
-  farms: { id: string; name: string }[];
+  establishments: { id: string; name: string }[];
 }) {
   const [registrations, setRegistrations] = useState(initialRegistrations);
   const [ownerId, setOwnerId] = useState("");
-  const [farmId, setFarmId] = useState("");
+  const [establishmentId, setEstablishmentId] = useState("");
   const [dicoseCode, setDicoseCode] = useState("");
 
   async function handleSubmit() {
-    if (!ownerId || !farmId || !dicoseCode) return;
-    const created = await createDicoseRegistrationAction({ ownerId, farmId, dicoseCode });
+    if (!ownerId || !establishmentId || !dicoseCode) return;
+    const created = await createDicoseRegistrationAction({ ownerId, establishmentId, dicoseCode });
     setRegistrations((prev) => [...prev, created]);
     setDicoseCode("");
   }
@@ -43,7 +43,7 @@ export function DicoseRegistrationForm({
           {registrations.map((registration) => (
             <tr key={registration.id} className="border-b last:border-0">
               <td className="py-1 pr-2">{registration.ownerName}</td>
-              <td className="py-1 pr-2">{registration.farmName}</td>
+              <td className="py-1 pr-2">{registration.establishmentName}</td>
               <td className="py-1 pr-2">{registration.dicoseCode}</td>
             </tr>
           ))}
@@ -66,17 +66,17 @@ export function DicoseRegistrationForm({
           ))}
         </select>
 
-        <Label htmlFor="dicose-farm">Campo</Label>
+        <Label htmlFor="dicose-establishment">Campo</Label>
         <select
-          id="dicose-farm"
-          value={farmId}
-          onChange={(e) => setFarmId(e.target.value)}
+          id="dicose-establishment"
+          value={establishmentId}
+          onChange={(e) => setEstablishmentId(e.target.value)}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir...</option>
-          {farms.map((farm) => (
-            <option key={farm.id} value={farm.id}>
-              {farm.name}
+          {establishments.map((establishment) => (
+            <option key={establishment.id} value={establishment.id}>
+              {establishment.name}
             </option>
           ))}
         </select>
@@ -84,7 +84,7 @@ export function DicoseRegistrationForm({
         <Label htmlFor="dicose-code">DICOSE</Label>
         <Input id="dicose-code" value={dicoseCode} onChange={(e) => setDicoseCode(e.target.value)} />
 
-        <Button type="button" disabled={!ownerId || !farmId || !dicoseCode} onClick={handleSubmit}>
+        <Button type="button" disabled={!ownerId || !establishmentId || !dicoseCode} onClick={handleSubmit}>
           Agregar
         </Button>
       </div>

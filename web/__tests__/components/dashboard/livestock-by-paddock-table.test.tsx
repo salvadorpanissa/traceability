@@ -7,10 +7,10 @@ import type { LivestockByPaddockRow } from "@/lib/dashboard/livestock-summary";
 afterEach(cleanup);
 
 describe("LivestockByPaddockTable", () => {
-  it("shows one row per farm/paddock group with its count", () => {
+  it("shows one row per establishment/paddock group with its count", () => {
     const rows: LivestockByPaddockRow[] = [
-      { farmName: "Campo Norte", paddockName: "Potrero 1", count: 2, animals: [] },
-      { farmName: "Campo Norte", paddockName: "Potrero 2", count: 1, animals: [] },
+      { establishmentName: "Campo Norte", paddockName: "Potrero 1", count: 2, animals: [] },
+      { establishmentName: "Campo Norte", paddockName: "Potrero 2", count: 1, animals: [] },
     ];
 
     render(<LivestockByPaddockTable rows={rows} locale="es" />);
@@ -22,8 +22,8 @@ describe("LivestockByPaddockTable", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 
-  it("shows placeholders for null farm/paddock", () => {
-    const rows: LivestockByPaddockRow[] = [{ farmName: null, paddockName: null, count: 3, animals: [] }];
+  it("shows placeholders for null establishment/paddock", () => {
+    const rows: LivestockByPaddockRow[] = [{ establishmentName: null, paddockName: null, count: 3, animals: [] }];
 
     render(<LivestockByPaddockTable rows={rows} locale="es" />);
 
@@ -39,7 +39,7 @@ describe("LivestockByPaddockTable", () => {
   it("expands a group to show a table with each animal's data", async () => {
     const rows: LivestockByPaddockRow[] = [
       {
-        farmName: "Campo Norte",
+        establishmentName: "Campo Norte",
         paddockName: "Potrero 1",
         count: 2,
         animals: [

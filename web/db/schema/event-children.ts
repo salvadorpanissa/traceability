@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, numeric, integer, check, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { event } from "./event";
-import { farm } from "./farm";
+import { establishment } from "./establishment";
 import { product } from "./product";
 import { category } from "./category";
 import { paddock } from "./paddock";
@@ -12,19 +12,19 @@ export const eventTransfer = pgTable(
     eventId: uuid("event_id")
       .primaryKey()
       .references(() => event.id, { onDelete: "cascade" }),
-    originFarmId: uuid("origin_farm_id")
+    originEstablishmentId: uuid("origin_establishment_id")
       .notNull()
-      .references(() => farm.id),
-    destinationFarmId: uuid("destination_farm_id")
+      .references(() => establishment.id),
+    destinationEstablishmentId: uuid("destination_establishment_id")
       .notNull()
-      .references(() => farm.id),
+      .references(() => establishment.id),
     guideNumber: text("guide_number"),
     originPaddockId: uuid("origin_paddock_id").references(() => paddock.id),
     destinationPaddockId: uuid("destination_paddock_id").references(() => paddock.id),
   },
   (table) => [
-    index("event_transfer_origin_farm_id_idx").on(table.originFarmId),
-    index("event_transfer_destination_farm_id_idx").on(table.destinationFarmId),
+    index("event_transfer_origin_establishment_id_idx").on(table.originEstablishmentId),
+    index("event_transfer_destination_establishment_id_idx").on(table.destinationEstablishmentId),
     index("event_transfer_origin_paddock_id_idx").on(table.originPaddockId),
     index("event_transfer_destination_paddock_id_idx").on(table.destinationPaddockId),
   ]

@@ -13,7 +13,7 @@ describe("ImportColumnMapper", () => {
     render(<ImportColumnMapper headers={["Propietario", "Estancia"]} onSubmit={vi.fn()} />);
 
     expect(screen.getByLabelText("Propietario")).toHaveValue("owner");
-    expect(screen.getByLabelText("Estancia")).toHaveValue("farm");
+    expect(screen.getByLabelText("Estancia")).toHaveValue("establishment");
   });
 
   it("disables the continue button until exactly one column is mapped to tag", () => {

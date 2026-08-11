@@ -1,22 +1,22 @@
 import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { owner } from "./owner";
-import { farm } from "./farm";
+import { establishment } from "./establishment";
 
-export const dicoseRegistration = pgTable(
-  "dicose_registration",
+export const dicose = pgTable(
+  "dicose",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     ownerId: uuid("owner_id")
       .notNull()
       .references(() => owner.id),
-    farmId: uuid("farm_id")
+    establishmentId: uuid("establishment_id")
       .notNull()
-      .references(() => farm.id),
+      .references(() => establishment.id),
     dicoseCode: text("dicose_code").notNull(),
   },
   (table) => [
-    index("dicose_registration_owner_id_idx").on(table.ownerId),
-    index("dicose_registration_farm_id_idx").on(table.farmId),
+    index("dicose_owner_id_idx").on(table.ownerId),
+    index("dicose_establishment_id_idx").on(table.establishmentId),
   ]
 );
 
@@ -29,10 +29,10 @@ export const ownTag = pgTable(
   "own_tag",
   {
     tag: text("tag").primaryKey(),
-    dicoseRegistrationId: uuid("dicose_registration_id")
+    dicoseId: uuid("dicose_id")
       .notNull()
-      .references(() => dicoseRegistration.id),
+      .references(() => dicose.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("own_tag_dicose_registration_id_idx").on(table.dicoseRegistrationId)]
+  (table) => [index("own_tag_dicose_id_idx").on(table.dicoseId)]
 );

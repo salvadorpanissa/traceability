@@ -16,8 +16,8 @@ describe("DicoseRegistrationForm", () => {
       id: "reg-2",
       ownerId: "owner-2",
       ownerName: "SASG",
-      farmId: "farm-1",
-      farmName: "Campo San Antonio",
+      establishmentId: "establishment-1",
+      establishmentName: "Campo San Antonio",
       dicoseCode: "151422799",
     });
 
@@ -28,8 +28,8 @@ describe("DicoseRegistrationForm", () => {
             id: "reg-1",
             ownerId: "owner-1",
             ownerName: "AIP",
-            farmId: "farm-1",
-            farmName: "Campo San Antonio",
+            establishmentId: "establishment-1",
+            establishmentName: "Campo San Antonio",
             dicoseCode: "151400442",
           },
         ]}
@@ -37,21 +37,21 @@ describe("DicoseRegistrationForm", () => {
           { id: "owner-1", name: "AIP" },
           { id: "owner-2", name: "SASG" },
         ]}
-        farms={[{ id: "farm-1", name: "Campo San Antonio" }]}
+        establishments={[{ id: "establishment-1", name: "Campo San Antonio" }]}
       />
     );
 
     expect(screen.getByText("151400442")).toBeInTheDocument();
 
     await userEvent.selectOptions(screen.getByLabelText("Dueño"), "owner-2");
-    await userEvent.selectOptions(screen.getByLabelText("Campo"), "farm-1");
+    await userEvent.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
     await userEvent.type(screen.getByLabelText("DICOSE"), "151422799");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("151422799")).toBeInTheDocument());
     expect(createDicoseRegistrationAction).toHaveBeenCalledWith({
       ownerId: "owner-2",
-      farmId: "farm-1",
+      establishmentId: "establishment-1",
       dicoseCode: "151422799",
     });
   });

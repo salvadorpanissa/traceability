@@ -7,8 +7,8 @@ function healthEvent(overrides: Partial<HealthEventRow>): HealthEventRow {
     eventId: "e1",
     eventDate: "2026-06-01",
     animalTag: "AR1",
-    farmId: "f1",
-    farmName: "Campo Norte",
+    establishmentId: "f1",
+    establishmentName: "Campo Norte",
     paddockId: "p1",
     paddockName: "Potrero 1",
     productName: "Ivermectina 1%",
@@ -17,18 +17,18 @@ function healthEvent(overrides: Partial<HealthEventRow>): HealthEventRow {
 }
 
 describe("summarizeHealthByPlace", () => {
-  it("groups events by farm and paddock, counting each group and listing its events", () => {
+  it("groups events by establishment and paddock, counting each group and listing its events", () => {
     const rows = [
-      healthEvent({ eventId: "e1", farmName: "Campo Norte", paddockName: "Potrero 1" }),
-      healthEvent({ eventId: "e2", farmName: "Campo Norte", paddockName: "Potrero 1" }),
-      healthEvent({ eventId: "e3", farmName: "Campo Norte", paddockName: "Potrero 2" }),
-      healthEvent({ eventId: "e4", farmName: "Campo Sur", paddockName: "Potrero 1" }),
+      healthEvent({ eventId: "e1", establishmentName: "Campo Norte", paddockName: "Potrero 1" }),
+      healthEvent({ eventId: "e2", establishmentName: "Campo Norte", paddockName: "Potrero 1" }),
+      healthEvent({ eventId: "e3", establishmentName: "Campo Norte", paddockName: "Potrero 2" }),
+      healthEvent({ eventId: "e4", establishmentName: "Campo Sur", paddockName: "Potrero 1" }),
     ];
 
     const summary = summarizeHealthByPlace(rows);
 
     expect(summary).toHaveLength(3);
-    const norte1 = summary.find((g) => g.farmName === "Campo Norte" && g.paddockName === "Potrero 1")!;
+    const norte1 = summary.find((g) => g.establishmentName === "Campo Norte" && g.paddockName === "Potrero 1")!;
     expect(norte1.count).toBe(2);
     expect(norte1.events.map((e) => e.eventId)).toEqual(["e1", "e2"]);
   });
@@ -37,7 +37,7 @@ describe("summarizeHealthByPlace", () => {
     const rows = [healthEvent({ paddockId: null, paddockName: null })];
     const summary = summarizeHealthByPlace(rows);
     expect(summary).toEqual([
-      { farmName: "Campo Norte", paddockName: null, count: 1, events: [rows[0]] },
+      { establishmentName: "Campo Norte", paddockName: null, count: 1, events: [rows[0]] },
     ]);
   });
 

@@ -1,9 +1,10 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { product } from "@/db/schema";
 
 export type ProductCatalogEntry = {
   id: string;
+  farmId: string;
   name: string;
   defaultDose: string | null;
   defaultDoseUnit: string | null;
@@ -11,21 +12,34 @@ export type ProductCatalogEntry = {
   defaultWithdrawalDays: number | null;
 };
 
-export async function listProducts(): Promise<ProductCatalogEntry[]> {
-  return db
-    .select({
-      id: product.id,
-      name: product.name,
-      defaultDose: product.defaultDose,
-      defaultDoseUnit: product.defaultDoseUnit,
-      defaultRoute: product.defaultRoute,
-      defaultWithdrawalDays: product.defaultWithdrawalDays,
-    })
-    .from(product)
-    .orderBy(asc(product.name));
+const PRODUCT_COLUMNS = {
+  id: product.id,
+  farmId: product.farmId,
+  name: product.name,
+  defaultDose: product.defaultDose,
+  defaultDoseUnit: product.defaultDoseUnit,
+  defaultRoute: product.defaultRoute,
+  defaultWithdrawalDays: product.defaultWithdrawalDays,
+};
+
+export async function listProductsByFarm(farmId: string): Promise<ProductCatalogEntry[]> {
+  return db.select(PRODUCT_COLUMNS).from(product).where(eq(product.farmId, farmId)).orderBy(asc(product.name));
+}
+
+// Every product across a set of farms — an admin can reach more than one
+// farm, so the settings page and sanidad's catalog list them all together.
+export async function listProductsForFarms(farmIds: string[]): Promise<ProductCatalogEntry[]> {
+  if (farmIds.length === 0) return [];
+  return db.select(PRODUCT_COLUMNS).from(product).where(inArray(product.farmId, farmIds)).orderBy(asc(product.name));
+}
+
+export async function getProductFarmId(id: string): Promise<string | null> {
+  const [row] = await db.select({ farmId: product.farmId }).from(product).where(eq(product.id, id));
+  return row?.farmId ?? null;
 }
 
 export async function createProduct(
+  farmId: string,
   name: string,
   options?: {
     defaultDose?: string | null;
@@ -37,6 +51,7 @@ export async function createProduct(
   const [created] = await db
     .insert(product)
     .values({
+      farmId,
       name,
       defaultDose: options?.defaultDose ?? null,
       defaultDoseUnit: options?.defaultDoseUnit ?? null,
@@ -46,6 +61,7 @@ export async function createProduct(
     .returning();
   return {
     id: created.id,
+    farmId: created.farmId,
     name: created.name,
     defaultDose: created.defaultDose,
     defaultDoseUnit: created.defaultDoseUnit,
@@ -77,6 +93,7 @@ export async function updateProduct(
     .returning();
   return {
     id: updated.id,
+    farmId: updated.farmId,
     name: updated.name,
     defaultDose: updated.defaultDose,
     defaultDoseUnit: updated.defaultDoseUnit,

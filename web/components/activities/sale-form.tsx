@@ -96,7 +96,7 @@ export function SaleForm() {
     try {
       const formData = new FormData();
       formData.set("file", file);
-      formData.set("originFarmId", preview.originFarmId);
+      formData.set("originEstablishmentId", preview.originEstablishmentId);
       formData.set("guideNumber", preview.guideNumber);
       formData.set("buyer", buyer);
       formData.set("price", price);
@@ -119,7 +119,7 @@ export function SaleForm() {
   const pendingNames = pendingOwnerNames(rows);
   const hasConfirmableRow = rows.some(
     (r) =>
-      r.status === "new" || r.status === "existing" || r.status === "wrong_farm" || (r.status === "foreign" && r.forced)
+      r.status === "new" || r.status === "existing" || r.status === "wrong_establishment" || (r.status === "foreign" && r.forced)
   );
   const withdrawalWarnings = preview?.ok ? preview.withdrawalWarnings : [];
   const hasUnresolvedWithdrawal = withdrawalWarnings.some((w) => !forcedWithdrawalTags.has(w.tag));
@@ -155,7 +155,7 @@ export function SaleForm() {
             <dt className="text-muted-foreground">Fecha</dt>
             <dd>{preview.eventDate}</dd>
             <dt className="text-muted-foreground">Campo origen</dt>
-            <dd>{preview.originFarmName}</dd>
+            <dd>{preview.originEstablishmentName}</dd>
           </dl>
 
           <div className="grid grid-cols-3 gap-4">

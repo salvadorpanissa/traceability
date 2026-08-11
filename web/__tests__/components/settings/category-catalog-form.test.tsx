@@ -16,26 +16,41 @@ vi.mock("@/app/(protected)/settings/categories/actions", () => ({
   archiveCategoryAction: vi.fn(),
 }));
 
+const establishments = [{ id: "establishment-1", name: "Campo Norte", farmId: "group-1" }];
+
 describe("CategoryCatalogForm", () => {
   it("lists categories, adds a new one, and edits an existing one", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Toro", sex: null, minAgeMonths: null, active: true },
+      entry: { id: "cat-2", farmId: "group-1", name: "Toro", sex: null, minAgeMonths: null, active: true },
     });
     vi.mocked(updateCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-1", name: "Vaca de invernada", sex: null, minAgeMonths: null, active: true },
+      entry: {
+        id: "cat-1",
+        farmId: "group-1",
+        name: "Vaca de invernada",
+        sex: null,
+        minAgeMonths: null,
+        active: true,
+      },
     });
 
-    render(<CategoryCatalogForm categories={[{ id: "cat-1", name: "Vaca", sex: null, minAgeMonths: null, active: true }]} />);
+    render(
+      <CategoryCatalogForm
+        categories={[{ id: "cat-1", farmId: "group-1", name: "Vaca", sex: null, minAgeMonths: null, active: true }]}
+        establishments={establishments}
+      />
+    );
 
     expect(screen.getByText("Vaca")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Toro");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
     await waitFor(() => expect(screen.getByText("Toro")).toBeInTheDocument());
-    expect(createCategoryAction).toHaveBeenCalledWith({ name: "Toro", sex: null, minAgeMonths: null });
+    expect(createCategoryAction).toHaveBeenCalledWith({ establishmentId: "establishment-1", name: "Toro", sex: null, minAgeMonths: null });
 
     await userEvent.click(screen.getAllByRole("button", { name: "Editar" })[0]);
     const editNameInput = screen.getByLabelText("Editar nombre");
@@ -57,8 +72,9 @@ describe("CategoryCatalogForm", () => {
   it("shows an inline error when the name is a duplicate", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({ ok: false, error: "Ya existe una categoría con ese nombre" });
 
-    render(<CategoryCatalogForm categories={[]} />);
+    render(<CategoryCatalogForm categories={[]} establishments={establishments} />);
 
+    await userEvent.click(screen.getByRole("button", { name: "+ Agregar" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Vaca");
     await userEvent.click(screen.getByRole("button", { name: "Agregar" }));
 
@@ -68,12 +84,13 @@ describe("CategoryCatalogForm", () => {
   it("creates a category with a sex scope and minimum age", async () => {
     vi.mocked(createCategoryAction).mockResolvedValue({
       ok: true,
-      entry: { id: "cat-2", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
+      entry: { id: "cat-2", farmId: "group-1", name: "Novillo +3 años", sex: "male", minAgeMonths: 36, active: true },
     });
 
-    render(<CategoryCatalogForm categories={[]} />);
+    render(<CategoryCatalogForm categories={[]} establishments={establishments} />);
 
     const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "+ Agregar" }));
     await user.type(screen.getByLabelText("Nombre"), "Novillo +3 años");
     await user.selectOptions(screen.getByLabelText("Sexo"), "male");
     await user.type(screen.getByLabelText("Edad mínima (meses)"), "36");
@@ -81,6 +98,7 @@ describe("CategoryCatalogForm", () => {
 
     await waitFor(() =>
       expect(createCategoryAction).toHaveBeenCalledWith({
+        establishmentId: "establishment-1",
         name: "Novillo +3 años",
         sex: "male",
         minAgeMonths: 36,
@@ -94,8 +112,9 @@ describe("CategoryCatalogForm", () => {
 
     render(
       <CategoryCatalogForm
-        categories={[{ id: "cat-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
+        categories={[{ id: "cat-1", farmId: "group-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
         animalCounts={{}}
+        establishments={establishments}
       />
     );
 
@@ -118,10 +137,11 @@ describe("CategoryCatalogForm", () => {
     render(
       <CategoryCatalogForm
         categories={[
-          { id: "cat-1", name: "Ternera", sex: "female", minAgeMonths: 0, active: true },
-          { id: "cat-2", name: "Vaquillona", sex: "female", minAgeMonths: null, active: true },
+          { id: "cat-1", farmId: "group-1", name: "Ternera", sex: "female", minAgeMonths: 0, active: true },
+          { id: "cat-2", farmId: "group-1", name: "Vaquillona", sex: "female", minAgeMonths: null, active: true },
         ]}
         animalCounts={{ "cat-1": 492 }}
+        establishments={establishments}
       />
     );
 
@@ -146,8 +166,9 @@ describe("CategoryCatalogForm", () => {
 
     render(
       <CategoryCatalogForm
-        categories={[{ id: "cat-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
+        categories={[{ id: "cat-1", farmId: "group-1", name: "Toro", sex: null, minAgeMonths: null, active: true }]}
         animalCounts={{}}
+        establishments={establishments}
       />
     );
 

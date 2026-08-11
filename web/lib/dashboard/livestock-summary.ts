@@ -12,7 +12,7 @@ export type GroupAnimal = {
 };
 
 export type LivestockByPaddockRow = {
-  farmName: string | null;
+  establishmentName: string | null;
   paddockName: string | null;
   count: number;
   animals: GroupAnimal[];
@@ -43,14 +43,14 @@ export function summarizeLivestockByPaddock(rows: AnimalLookupDetail[]): Livesto
   for (const row of rows) {
     if (row.status !== "alive") continue;
 
-    const key = `${row.farmName ?? ""} ${row.paddockName ?? ""}`;
+    const key = `${row.establishmentName ?? ""} ${row.paddockName ?? ""}`;
     const existing = groups.get(key);
     const animal = toGroupAnimal(row);
     if (existing) {
       existing.count += 1;
       existing.animals.push(animal);
     } else {
-      groups.set(key, { farmName: row.farmName, paddockName: row.paddockName, count: 1, animals: [animal] });
+      groups.set(key, { establishmentName: row.establishmentName, paddockName: row.paddockName, count: 1, animals: [animal] });
     }
   }
 

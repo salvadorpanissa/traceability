@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import {
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   animal,
   batchOperation,
@@ -23,16 +24,36 @@ beforeEach(async () => {
 });
 
 async function seedEvent(eventType: string) {
-  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+  const [adminRole] = await testDb
+    .insert(role)
+    .values({ name: "admin" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farm)
+    .values({ name: "Campo Norte" })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+    .returning();
   const [user] = await testDb
     .insert(userAccount)
-    .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+    .values({
+      name: "Admin",
+      email: "admin@example.com",
+      passwordHash: "hashed",
+      roleId: adminRole.id,
+    })
     .returning();
   const [createdAnimal] = await testDb.insert(animal).values({}).returning();
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType, farmId: seededFarm.id, animalCount: 1, createdBy: user.id })
+    .values({
+      eventType,
+      establishmentId: seededFarm.id,
+      animalCount: 1,
+      createdBy: user.id,
+    })
     .returning();
   const [createdEvent] = await testDb
     .insert(event)
@@ -40,12 +61,12 @@ async function seedEvent(eventType: string) {
       eventType,
       eventDate: "2026-01-01",
       animalId: createdAnimal.id,
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       batchOperationId: batch.id,
       createdBy: user.id,
     })
     .returning();
-  return { seededFarm, createdEvent };
+  return { seededFarm, seededFarmGroup, createdEvent };
 }
 
 describe("event_transfer table", () => {
@@ -53,7 +74,11 @@ describe("event_transfer table", () => {
     const { seededFarm, createdEvent } = await seedEvent("transfer");
     const [row] = await testDb
       .insert(eventTransfer)
-      .values({ eventId: createdEvent.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id })
+      .values({
+        eventId: createdEvent.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
+      })
       .returning();
     expect(row.guideNumber).toBeNull();
   });
@@ -61,11 +86,20 @@ describe("event_transfer table", () => {
 
 describe("event_health table", () => {
   it("stores dose/route with a required product and dose", async () => {
-    const { createdEvent } = await seedEvent("health");
-    const [createdProduct] = await testDb.insert(product).values({ name: "Ivermectina 1%" }).returning();
+    const { createdEvent, seededFarmGroup } = await seedEvent("health");
+    const [createdProduct] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
     const [row] = await testDb
       .insert(eventHealth)
-      .values({ eventId: createdEvent.id, productId: createdProduct.id, dose: "10", doseUnit: "ml", route: "subcutánea" })
+      .values({
+        eventId: createdEvent.id,
+        productId: createdProduct.id,
+        dose: "10",
+        doseUnit: "ml",
+        route: "subcutánea",
+      })
       .returning();
     expect(row.dose).toBe("10");
     expect(row.withdrawalDays).toBeNull();
@@ -77,7 +111,11 @@ describe("event_retag table", () => {
     const { createdEvent } = await seedEvent("retag");
     const [row] = await testDb
       .insert(eventRetag)
-      .values({ eventId: createdEvent.id, oldTag: "AR000000000001", newTag: "AR000000000002" })
+      .values({
+        eventId: createdEvent.id,
+        oldTag: "AR000000000001",
+        newTag: "AR000000000002",
+      })
       .returning();
     expect(row.newTag).toBe("AR000000000002");
   });
@@ -85,12 +123,22 @@ describe("event_retag table", () => {
 
 describe("event_recategorize table", () => {
   it("links old and new categories", async () => {
-    const { createdEvent } = await seedEvent("recategorize");
-    const [oldCategory] = await testDb.insert(category).values({ name: "Ternero" }).returning();
-    const [newCategory] = await testDb.insert(category).values({ name: "Novillo" }).returning();
+    const { createdEvent, seededFarmGroup } = await seedEvent("recategorize");
+    const [oldCategory] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Ternero" })
+      .returning();
+    const [newCategory] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
     const [row] = await testDb
       .insert(eventRecategorize)
-      .values({ eventId: createdEvent.id, oldCategoryId: oldCategory.id, newCategoryId: newCategory.id })
+      .values({
+        eventId: createdEvent.id,
+        oldCategoryId: oldCategory.id,
+        newCategoryId: newCategory.id,
+      })
       .returning();
     expect(row.newCategoryId).toBe(newCategory.id);
   });
@@ -99,7 +147,10 @@ describe("event_recategorize table", () => {
 describe("event_sale table", () => {
   it("stores optional buyer/price/weight", async () => {
     const { createdEvent } = await seedEvent("sale");
-    const [row] = await testDb.insert(eventSale).values({ eventId: createdEvent.id }).returning();
+    const [row] = await testDb
+      .insert(eventSale)
+      .values({ eventId: createdEvent.id })
+      .returning();
     expect(row.buyer).toBeNull();
     expect(row.price).toBeNull();
     expect(row.weightKg).toBeNull();
@@ -118,7 +169,10 @@ describe("event_sale table", () => {
 describe("event_death table", () => {
   it("stores an optional cause", async () => {
     const { createdEvent } = await seedEvent("death");
-    const [row] = await testDb.insert(eventDeath).values({ eventId: createdEvent.id }).returning();
+    const [row] = await testDb
+      .insert(eventDeath)
+      .values({ eventId: createdEvent.id })
+      .returning();
     expect(row.cause).toBeNull();
   });
 });

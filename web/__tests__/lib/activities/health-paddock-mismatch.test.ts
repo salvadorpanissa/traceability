@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { findPaddockMismatches } from "@/lib/activities/health-paddock-mismatch";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
-const OPERATING_FARM_ID = "farm-1";
+const OPERATING_FARM_ID = "establishment-1";
 
-function existingRow(tag: string, currentPaddockId: string | null, currentFarmId = OPERATING_FARM_ID): ResolvedRow {
+function existingRow(tag: string, currentPaddockId: string | null, currentEstablishmentId = OPERATING_FARM_ID): ResolvedRow {
   return {
     tag,
     eventDate: "2026-02-01",
     notes: null,
     status: "existing",
     animalId: "animal-1",
-    currentFarmId,
+    currentEstablishmentId,
     currentPaddockId,
   };
 }
@@ -49,9 +49,9 @@ describe("findPaddockMismatches", () => {
     expect(findPaddockMismatches([existingRow("AR1", null)], "potrero-a", OPERATING_FARM_ID)).toEqual([]);
   });
 
-  it("does not flag an existing row whose animal is currently at a different farm", () => {
+  it("does not flag an existing row whose animal is currently at a different establishment", () => {
     expect(
-      findPaddockMismatches([existingRow("AR1", "potrero-b", "farm-2")], "potrero-a", OPERATING_FARM_ID)
+      findPaddockMismatches([existingRow("AR1", "potrero-b", "establishment-2")], "potrero-a", OPERATING_FARM_ID)
     ).toEqual([]);
   });
 

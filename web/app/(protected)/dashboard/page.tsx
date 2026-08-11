@@ -41,7 +41,7 @@ export default async function DashboardPage() {
 
   const totalLivestock = alive.length;
   const activePaddocks = new Set(
-    alive.filter((r) => r.paddockName).map((r) => `${r.farmName ?? ""}::${r.paddockName ?? ""}`)
+    alive.filter((r) => r.paddockName).map((r) => `${r.establishmentName ?? ""}::${r.paddockName ?? ""}`)
   ).size;
 
   return (

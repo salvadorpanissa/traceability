@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
-import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import {
@@ -14,7 +14,7 @@ import {
   type UnresolvableDecision,
 } from "@/lib/activities/recategorize-resolution";
 import { confirmRecategorizeBatch } from "@/lib/activities/recategorize";
-import { listCategories, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import { listCategoriesByFarm, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -31,31 +31,10 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
   return mapping.some((m) => m.meaning === "ignore");
 }
 
-// The form no longer asks which campo the lote belongs to, so there's no
-// single farm to check access against up front — instead every resolved row
-// is scoped after the fact against the campos the user is actually assigned
-// to. Without this, uploading a list of caravanas would read back any
-// animal's campo/categoría/estado in the whole system.
-function maskRowsOutsideFarmAccess(
-  rows: RecategorizeResolvedRow[],
-  accessibleFarmIds: string[]
-): RecategorizeResolvedRow[] {
-  const allowed = new Set(accessibleFarmIds);
-  return rows.map((row) =>
-    row.status === "error" || allowed.has(row.currentFarmId)
-      ? row
-      : {
-          tag: row.tag,
-          eventDate: row.eventDate,
-          notes: row.notes,
-          status: "error" as const,
-          reason: "No tenés acceso a este campo",
-        }
-  );
-}
-
 export async function previewRecategorizeBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
+  const operatingEstablishmentId = formData.get("establishmentId") as string;
+  await requireEstablishmentAccess(session.user.id, session.user.role, operatingEstablishmentId);
 
   const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -87,17 +66,15 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const resolvedRows = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate);
-  const scopedRows = isAdmin(session.user.role)
-    ? resolvedRows
-    : maskRowsOutsideFarmAccess(resolvedRows, await userFarmIds(session.user.id));
+  const rows_ = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingEstablishmentId);
 
-  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: scopedRows };
+  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: rows_ };
 }
 
 export async function confirmRecategorizeBatchAction(input: {
   headerSignature: string;
   mapping: ColumnMapping[];
+  establishmentId: string;
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
@@ -113,6 +90,7 @@ export async function confirmRecategorizeBatchAction(input: {
   await confirmRecategorizeBatch({
     userId: session.user.id,
     role: session.user.role,
+    operatingEstablishmentId: input.establishmentId,
     targetCategoryId: input.targetCategoryId,
     rows: input.rows,
     unresolvableDecisions: input.unresolvableDecisions,
@@ -120,7 +98,9 @@ export async function confirmRecategorizeBatchAction(input: {
   });
 }
 
-export async function listCategoriesAction(): Promise<CategoryCatalogEntry[]> {
-  await requireSession();
-  return listCategories();
+export async function listCategoriesAction(establishmentId: string): Promise<CategoryCatalogEntry[]> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  return farmId ? listCategoriesByFarm(farmId) : [];
 }

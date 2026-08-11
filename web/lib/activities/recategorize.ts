@@ -1,7 +1,7 @@
-import { eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
-import { requireFarmAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
@@ -9,7 +9,7 @@ import { logError } from "@/lib/logger";
 
 type PlannedChange = {
   animalId: string;
-  farmId: string;
+  establishmentId: string;
   eventDate: string;
   notes: string | null;
   oldCategoryId: string;
@@ -19,17 +19,17 @@ type PlannedChange = {
   secondaryTag: string | null;
 };
 
-// The preview's farm/category data round-trips through the browser, so by the
-// time it comes back it is attacker-controlled input, not a server fact: a
-// user could claim any animal sits on a campo they happen to have access to
-// and have events written against it. It can also simply be stale (the animal
-// was transferred or recategorized between preview and confirm). Everything
-// security- or correctness-relevant is therefore re-read from
-// animal_current_state here; the client row only supplies routing (which
-// branch to run), the event date and the free-text notes.
+// The preview's establecimiento/category data round-trips through the
+// browser, so by the time it comes back it is attacker-controlled input, not
+// a server fact: a user could claim any animal sits on a campo they happen
+// to have access to and have events written against it. It can also simply
+// be stale (the animal was transferred or recategorized between preview and
+// confirm). Everything security- or correctness-relevant is therefore
+// re-read from animal_current_state here; the client row only supplies
+// routing (which branch to run), the event date and the free-text notes.
 type FreshState = {
   animal_id: string;
-  current_farm_id: string | null;
+  current_establishment_id: string | null;
   current_category_id: string | null;
   status: string;
   birth_date: string | null;
@@ -45,7 +45,7 @@ async function loadFreshState(animalIds: string[]): Promise<Map<string, FreshSta
     sql`, `
   );
   const result = await db.execute<FreshState>(sql`
-    select acs.animal_id, acs.current_farm_id, acs.current_category_id, acs.status,
+    select acs.animal_id, acs.current_establishment_id, acs.current_category_id, acs.status,
            a.birth_date, a.sex
     from animal_current_state acs
     join animal a on a.id = acs.animal_id
@@ -57,16 +57,28 @@ async function loadFreshState(animalIds: string[]): Promise<Map<string, FreshSta
 export async function confirmRecategorizeBatch(input: {
   userId: string;
   role: string | undefined;
+  operatingEstablishmentId: string;
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
   sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
-  const { userId, role, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+  const { userId, role, operatingEstablishmentId, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+
+  await requireEstablishmentAccess(userId, role, operatingEstablishmentId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
+
+  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+
+  const [targetCategoryRow] = await db.select({ sex: category.sex, farmId: category.farmId }).from(category).where(eq(category.id, targetCategoryId));
+  if (!targetCategoryRow || targetCategoryRow.farmId !== farmId) {
+    throw new Error("La categoría destino no pertenece al grupo del campo elegido");
+  }
+  const targetCategorySex = targetCategoryRow.sex;
 
   const animalIds = [...new Set(rows.filter((row) => row.status !== "error").map((row) => row.animalId))];
   const freshStateByAnimalId = await loadFreshState(animalIds);
@@ -76,11 +88,8 @@ export async function confirmRecategorizeBatch(input: {
     ? await db
         .select({ id: category.id, sex: category.sex, minAgeMonths: category.minAgeMonths })
         .from(category)
-        .where(isNotNull(category.minAgeMonths))
+        .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, farmId)))
     : [];
-
-  const [targetCategoryRow] = await db.select({ sex: category.sex }).from(category).where(eq(category.id, targetCategoryId));
-  const targetCategorySex = targetCategoryRow?.sex ?? null;
 
   function isSexMismatch(animalSex: "male" | "female" | null): boolean {
     return targetCategorySex !== null && animalSex !== null && animalSex !== targetCategorySex;
@@ -91,10 +100,13 @@ export async function confirmRecategorizeBatch(input: {
     if (row.status === "error") continue;
 
     const state = freshStateByAnimalId.get(row.animalId);
-    if (!state || state.status !== "alive" || !state.current_farm_id) {
+    if (!state || state.status !== "alive" || !state.current_establishment_id) {
       throw new Error(STALE_BATCH_ERROR);
     }
-    const farmId = state.current_farm_id;
+    const establishmentId = state.current_establishment_id;
+    if (establishmentId !== operatingEstablishmentId) {
+      throw new Error(STALE_BATCH_ERROR);
+    }
 
     if (row.status === "existing") {
       // The preview said this animal already had a category; if the DB no
@@ -109,7 +121,7 @@ export async function confirmRecategorizeBatch(input: {
       }
       plannedChanges.push({
         animalId: row.animalId,
-        farmId,
+        establishmentId,
         eventDate: row.eventDate,
         notes: row.notes,
         oldCategoryId: state.current_category_id,
@@ -138,7 +150,7 @@ export async function confirmRecategorizeBatch(input: {
       if (!resolvedCategoryId) throw new Error(STALE_BATCH_ERROR);
       plannedChanges.push({
         animalId: row.animalId,
-        farmId,
+        establishmentId,
         eventDate: row.eventDate,
         notes: row.notes,
         oldCategoryId: resolvedCategoryId,
@@ -160,7 +172,7 @@ export async function confirmRecategorizeBatch(input: {
     }
     plannedChanges.push({
       animalId: row.animalId,
-      farmId,
+      establishmentId,
       eventDate: row.eventDate,
       notes: row.notes,
       oldCategoryId: targetCategoryId,
@@ -175,32 +187,32 @@ export async function confirmRecategorizeBatch(input: {
     throw new Error("Ningún animal cambia de categoría; no se puede confirmar");
   }
 
-  const involvedFarmIds = [...new Set(plannedChanges.map((c) => c.farmId))];
-  for (const farmId of involvedFarmIds) {
-    await requireFarmAccess(userId, role, farmId);
+  const involvedEstablishmentIds = [...new Set(plannedChanges.map((c) => c.establishmentId))];
+  for (const establishmentId of involvedEstablishmentIds) {
+    await requireEstablishmentAccess(userId, role, establishmentId);
   }
 
-  const changesByFarm = new Map<string, PlannedChange[]>();
+  const changesByEstablishment = new Map<string, PlannedChange[]>();
   for (const change of plannedChanges) {
-    const list = changesByFarm.get(change.farmId) ?? [];
+    const list = changesByEstablishment.get(change.establishmentId) ?? [];
     list.push(change);
-    changesByFarm.set(change.farmId, list);
+    changesByEstablishment.set(change.establishmentId, list);
   }
 
   // One transaction per campo, each attempted independently: a failure on one
   // campo must neither roll back nor skip the others, and — unlike the
   // background age-recategorization job — must never be swallowed, since a
   // user is waiting on the result and needs to know what actually landed.
-  const succeededFarmIds: string[] = [];
-  const failedFarmIds: string[] = [];
-  for (const [farmId, changes] of changesByFarm) {
+  const succeededEstablishmentIds: string[] = [];
+  const failedEstablishmentIds: string[] = [];
+  for (const [establishmentId, changes] of changesByEstablishment) {
     try {
       await db.transaction(async (tx) => {
         const [batch] = await tx
           .insert(batchOperation)
           .values({
             eventType: "recategorize",
-            farmId,
+            establishmentId,
             animalCount: changes.length,
             createdBy: userId,
           })
@@ -213,7 +225,7 @@ export async function confirmRecategorizeBatch(input: {
               eventType: "recategorize",
               eventDate: change.eventDate,
               animalId: change.animalId,
-              farmId,
+              establishmentId,
               batchOperationId: batch.id,
               createdBy: userId,
               notes: change.notes,
@@ -231,10 +243,10 @@ export async function confirmRecategorizeBatch(input: {
           await gapFillSecondaryTag(tx, change.animalId, change.secondaryTag);
         }
       });
-      succeededFarmIds.push(farmId);
+      succeededEstablishmentIds.push(establishmentId);
     } catch (error) {
-      logError("confirmRecategorizeBatch.farmFailed", error, { farmId });
-      failedFarmIds.push(farmId);
+      logError("confirmRecategorizeBatch.establishmentFailed", error, { establishmentId });
+      failedEstablishmentIds.push(establishmentId);
     }
   }
 
@@ -242,11 +254,11 @@ export async function confirmRecategorizeBatch(input: {
   // are immediately visible instead of waiting on some unrelated refresh.
   await db.execute(sql`refresh materialized view concurrently animal_current_state`);
 
-  if (failedFarmIds.length > 0) {
+  if (failedEstablishmentIds.length > 0) {
     const succeededText =
-      succeededFarmIds.length > 0 ? `Campos confirmados: ${succeededFarmIds.join(", ")}.` : "Ningún campo se confirmó.";
+      succeededEstablishmentIds.length > 0 ? `Campos confirmados: ${succeededEstablishmentIds.join(", ")}.` : "Ningún campo se confirmó.";
     throw new Error(
-      `No se pudo confirmar la recategorización en los campos: ${failedFarmIds.join(", ")}. ${succeededText}`
+      `No se pudo confirmar la recategorización en los campos: ${failedEstablishmentIds.join(", ")}. ${succeededText}`
     );
   }
 }

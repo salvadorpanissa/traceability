@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OwnTagUploadForm } from "@/components/settings/own-tag-upload-form";
 import { listOwnTagCounts } from "@/app/(protected)/settings/own-tags/actions";
-import { listDicoseRegistrations } from "@/lib/dal/dicose-registration";
+import { listDicoseRegistrations } from "@/lib/dal/dicose";
 import { requireSession } from "@/lib/dal/session";
 
 export default async function OwnTagsSettingsPage() {

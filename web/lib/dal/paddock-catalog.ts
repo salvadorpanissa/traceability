@@ -5,39 +5,40 @@ import { paddock } from "@/db/schema";
 export type PaddockCatalogEntry = {
   id: string;
   name: string;
-  farmId: string;
+  establishmentId: string;
 };
 
-export async function listPaddocksByFarm(farmId: string): Promise<PaddockCatalogEntry[]> {
+export async function listPaddocksByEstablishment(establishmentId: string): Promise<PaddockCatalogEntry[]> {
   return db
-    .select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId })
+    .select({ id: paddock.id, name: paddock.name, establishmentId: paddock.establishmentId })
     .from(paddock)
-    .where(eq(paddock.farmId, farmId))
+    .where(eq(paddock.establishmentId, establishmentId))
     .orderBy(asc(paddock.name));
 }
 
-// Every potrero across a set of campos — used where the farm itself is
-// derived from which potrero gets picked, instead of asked for separately.
-export async function listPaddocksForFarms(farmIds: string[]): Promise<PaddockCatalogEntry[]> {
-  if (farmIds.length === 0) return [];
+// Every potrero across a set of establecimientos — used where the
+// establecimiento itself is derived from which potrero gets picked, instead
+// of asked for separately.
+export async function listPaddocksForEstablishments(establishmentIds: string[]): Promise<PaddockCatalogEntry[]> {
+  if (establishmentIds.length === 0) return [];
   return db
-    .select({ id: paddock.id, name: paddock.name, farmId: paddock.farmId })
+    .select({ id: paddock.id, name: paddock.name, establishmentId: paddock.establishmentId })
     .from(paddock)
-    .where(inArray(paddock.farmId, farmIds))
+    .where(inArray(paddock.establishmentId, establishmentIds))
     .orderBy(asc(paddock.name));
 }
 
-export async function getPaddockFarmId(id: string): Promise<string | null> {
-  const [match] = await db.select({ farmId: paddock.farmId }).from(paddock).where(eq(paddock.id, id));
-  return match?.farmId ?? null;
+export async function getPaddockEstablishmentId(id: string): Promise<string | null> {
+  const [match] = await db.select({ establishmentId: paddock.establishmentId }).from(paddock).where(eq(paddock.id, id));
+  return match?.establishmentId ?? null;
 }
 
-export async function createPaddock(farmId: string, name: string): Promise<PaddockCatalogEntry> {
-  const [created] = await db.insert(paddock).values({ farmId, name }).returning();
-  return { id: created.id, name: created.name, farmId: created.farmId };
+export async function createPaddock(establishmentId: string, name: string): Promise<PaddockCatalogEntry> {
+  const [created] = await db.insert(paddock).values({ establishmentId, name }).returning();
+  return { id: created.id, name: created.name, establishmentId: created.establishmentId };
 }
 
 export async function updatePaddock(id: string, name: string): Promise<PaddockCatalogEntry> {
   const [updated] = await db.update(paddock).set({ name }).where(eq(paddock.id, id)).returning();
-  return { id: updated.id, name: updated.name, farmId: updated.farmId };
+  return { id: updated.id, name: updated.name, establishmentId: updated.establishmentId };
 }

@@ -1,9 +1,10 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { category } from "@/db/schema";
 
 export type CategoryCatalogEntry = {
   id: string;
+  farmId: string;
   name: string;
   sex: "male" | "female" | null;
   minAgeMonths: number | null;
@@ -12,6 +13,7 @@ export type CategoryCatalogEntry = {
 
 const CATEGORY_COLUMNS = {
   id: category.id,
+  farmId: category.farmId,
   name: category.name,
   sex: category.sex,
   minAgeMonths: category.minAgeMonths,
@@ -22,24 +24,44 @@ const CATEGORY_COLUMNS = {
 // forward (manual recategorize, imports) should offer. An archived category
 // still exists (its historical events still reference it) but shouldn't be
 // chosen for new assignments.
-export async function listCategories(): Promise<CategoryCatalogEntry[]> {
-  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.active, true)).orderBy(asc(category.name));
+export async function listCategoriesByFarm(farmId: string): Promise<CategoryCatalogEntry[]> {
+  return db
+    .select(CATEGORY_COLUMNS)
+    .from(category)
+    .where(sql`${category.farmId} = ${farmId} and ${category.active} = true`)
+    .orderBy(asc(category.name));
 }
 
 // Every category regardless of active state — only the settings management
 // page needs this, to show archived categories alongside active ones.
-export async function listAllCategories(): Promise<CategoryCatalogEntry[]> {
-  return db.select(CATEGORY_COLUMNS).from(category).orderBy(asc(category.name));
+export async function listAllCategoriesByFarm(farmId: string): Promise<CategoryCatalogEntry[]> {
+  return db.select(CATEGORY_COLUMNS).from(category).where(eq(category.farmId, farmId)).orderBy(asc(category.name));
 }
 
-export async function createCategory(input: {
-  name: string;
-  sex?: "male" | "female" | null;
-  minAgeMonths?: number | null;
-}): Promise<CategoryCatalogEntry> {
+// Every category (any active state) across a set of farms — an admin can
+// reach more than one farm, so the settings page lists them all together.
+export async function listAllCategoriesForFarms(farmIds: string[]): Promise<CategoryCatalogEntry[]> {
+  if (farmIds.length === 0) return [];
+  return db.select(CATEGORY_COLUMNS).from(category).where(inArray(category.farmId, farmIds)).orderBy(asc(category.name));
+}
+
+export async function getCategoryFarmId(id: string): Promise<string | null> {
+  const [row] = await db.select({ farmId: category.farmId }).from(category).where(eq(category.id, id));
+  return row?.farmId ?? null;
+}
+
+export async function createCategory(
+  farmId: string,
+  input: {
+    name: string;
+    sex?: "male" | "female" | null;
+    minAgeMonths?: number | null;
+  }
+): Promise<CategoryCatalogEntry> {
   const [created] = await db
     .insert(category)
     .values({
+      farmId,
       name: input.name,
       sex: input.sex ?? null,
       minAgeMonths: input.minAgeMonths ?? null,
@@ -47,6 +69,7 @@ export async function createCategory(input: {
     .returning();
   return {
     id: created.id,
+    farmId: created.farmId,
     name: created.name,
     sex: created.sex,
     minAgeMonths: created.minAgeMonths,
@@ -69,6 +92,7 @@ export async function updateCategory(
     .returning();
   return {
     id: updated.id,
+    farmId: updated.farmId,
     name: updated.name,
     sex: updated.sex,
     minAgeMonths: updated.minAgeMonths,

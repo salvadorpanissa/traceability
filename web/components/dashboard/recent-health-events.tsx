@@ -35,7 +35,7 @@ export function RecentHealthEvents({
               <div className="flex min-w-0 flex-col gap-1">
                 <p className="font-medium text-sm">{batch.productName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {batch.farmName}
+                  {batch.establishmentName}
                   {batch.paddockName ? ` • ${batch.paddockName}` : ""}
                   {" • "}
                   {batch.animalCount} {t("dashboard.recentHealthHead")}

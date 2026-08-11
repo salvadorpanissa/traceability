@@ -17,8 +17,8 @@ vi.mock("@/app/(protected)/activities/death/actions", () => ({
 const ALIVE_STATE = {
   animalId: "a1",
   currentTag: "AR001",
-  currentFarmId: "f1",
-  farmName: "Campo Norte",
+  currentEstablishmentId: "f1",
+  establishmentName: "Campo Norte",
   currentPaddockId: "p1",
   paddockName: "Potrero 1",
   currentCategoryId: "c1",

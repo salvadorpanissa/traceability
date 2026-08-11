@@ -99,7 +99,7 @@ export function DeathForm({ initialTag }: { initialTag?: string }) {
         <div className="flex flex-col gap-4">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Campo</dt>
-            <dd>{state.farmName ?? "Sin campo"}</dd>
+            <dd>{state.establishmentName ?? "Sin campo"}</dd>
             <dt className="text-muted-foreground">Potrero</dt>
             <dd>{state.paddockName ?? "Sin potrero"}</dd>
             <dt className="text-muted-foreground">Categoría</dt>

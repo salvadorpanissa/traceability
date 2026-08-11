@@ -7,7 +7,7 @@ export function monthsAgoISODate(months: number, from: Date = new Date()): strin
 }
 
 export type HealthByPlaceRow = {
-  farmName: string;
+  establishmentName: string;
   paddockName: string | null;
   count: number;
   events: HealthEventRow[];
@@ -17,13 +17,13 @@ export function summarizeHealthByPlace(rows: HealthEventRow[]): HealthByPlaceRow
   const groups = new Map<string, HealthByPlaceRow>();
 
   for (const row of rows) {
-    const key = `${row.farmName} ${row.paddockName ?? ""}`;
+    const key = `${row.establishmentName} ${row.paddockName ?? ""}`;
     const existing = groups.get(key);
     if (existing) {
       existing.count += 1;
       existing.events.push(row);
     } else {
-      groups.set(key, { farmName: row.farmName, paddockName: row.paddockName, count: 1, events: [row] });
+      groups.set(key, { establishmentName: row.establishmentName, paddockName: row.paddockName, count: 1, events: [row] });
     }
   }
 

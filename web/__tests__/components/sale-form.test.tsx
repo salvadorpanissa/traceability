@@ -10,8 +10,8 @@ vi.mock("@/app/(protected)/activities/sale/actions", () => ({
     ok: true,
     guideNumber: "D963691",
     eventDate: "2026-02-01",
-    originFarmId: "farm-1",
-    originFarmName: "Campo Norte",
+    originEstablishmentId: "establishment-1",
+    originEstablishmentName: "Campo Norte",
     rows: [
       {
         tag: "AR000000000300",
@@ -38,7 +38,7 @@ async function uploadGuide(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("SaleForm", () => {
-  it("shows the preview with origin farm and guide number, and confirms with optional buyer/price/weight", async () => {
+  it("shows the preview with origin establishment and guide number, and confirms with optional buyer/price/weight", async () => {
     render(<SaleForm />);
     const user = userEvent.setup();
 
@@ -80,8 +80,8 @@ describe("SaleForm", () => {
       ok: true,
       guideNumber: "D963692",
       eventDate: "2026-02-10",
-      originFarmId: "farm-1",
-      originFarmName: "Campo Norte",
+      originEstablishmentId: "establishment-1",
+      originEstablishmentName: "Campo Norte",
       rows: [
         {
           tag: "AR000000000301",
@@ -89,7 +89,7 @@ describe("SaleForm", () => {
           notes: null,
           status: "existing",
           animalId: "animal-1",
-          currentFarmId: "farm-1",
+          currentEstablishmentId: "establishment-1",
           currentPaddockId: null,
         },
       ],

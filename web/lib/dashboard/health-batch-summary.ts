@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { isAdmin, userFarmIds } from "@/lib/dal/farm-access";
+import { isAdmin, userEstablishmentIds } from "@/lib/dal/farm-access";
 
 export type HealthBatchRow = {
   batchId: string;
   eventDate: string;
-  farmName: string;
+  establishmentName: string;
   paddockName: string | null;
   productName: string;
   animalCount: number;
@@ -14,7 +14,7 @@ export type HealthBatchRow = {
 type HealthBatchDbRow = {
   batch_id: string;
   event_date: string;
-  farm_name: string;
+  establishment_name: string;
   paddock_name: string | null;
   product_name: string;
   animal_count: number;
@@ -24,7 +24,7 @@ function toHealthBatchRow(row: HealthBatchDbRow): HealthBatchRow {
   return {
     batchId: row.batch_id,
     eventDate: row.event_date,
-    farmName: row.farm_name,
+    establishmentName: row.establishment_name,
     paddockName: row.paddock_name,
     productName: row.product_name,
     animalCount: row.animal_count,
@@ -33,34 +33,35 @@ function toHealthBatchRow(row: HealthBatchDbRow): HealthBatchRow {
 
 /**
  * Returns distinct health batch operations since a given date, with one row
- * per batch carrying its associated farm, paddock, product, and animal count.
+ * per batch carrying its associated establecimiento, paddock, product, and
+ * animal count.
  */
 export async function visibleHealthBatchesSince(
   userId: string,
   role: string | undefined,
   sinceDate: string
 ): Promise<HealthBatchRow[]> {
-  const farmScope = isAdmin(role)
+  const establishmentScope = isAdmin(role)
     ? sql.empty()
-    : sql`and e.farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
+    : sql`and e.establishment_id in (${sql.join((await userEstablishmentIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<HealthBatchDbRow>(sql`
     select distinct on (bo.id)
       bo.id                                        as batch_id,
       e.event_date,
-      f.name                                       as farm_name,
+      est.name                                     as establishment_name,
       p.name                                       as paddock_name,
       pr.name                                      as product_name,
       bo.animal_count
     from batch_operation bo
-    join event e on e.batch_operation_id = bo.id and e.farm_id = bo.farm_id
-    join farm f on f.id = e.farm_id
+    join event e on e.batch_operation_id = bo.id and e.establishment_id = bo.establishment_id
+    join establishment est on est.id = e.establishment_id
     join event_health eh on eh.event_id = e.id
     join product pr on pr.id = eh.product_id
     left join paddock p on p.id = eh.paddock_id
     where bo.event_type = 'health'
       and e.event_date >= ${sinceDate}
-      ${farmScope}
+      ${establishmentScope}
     order by bo.id, e.event_date desc
   `);
 
@@ -77,16 +78,16 @@ export async function countDistinctAnimalsTreatedSince(
   role: string | undefined,
   sinceDate: string
 ): Promise<number> {
-  const farmScope = isAdmin(role)
+  const establishmentScope = isAdmin(role)
     ? sql.empty()
-    : sql`and e.farm_id in (${sql.join((await userFarmIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
+    : sql`and e.establishment_id in (${sql.join((await userEstablishmentIds(userId)).map((id) => sql`${id}`), sql`, `)})`;
 
   const result = await db.execute<{ cnt: number }>(sql`
     select count(distinct e.animal_id) as cnt
     from event e
     where e.event_type = 'health'
       and e.event_date >= ${sinceDate}
-      ${farmScope}
+      ${establishmentScope}
   `);
 
   return result.rows[0]?.cnt ?? 0;

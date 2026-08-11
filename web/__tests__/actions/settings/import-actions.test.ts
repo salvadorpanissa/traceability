@@ -2,13 +2,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { role, farm, userAccount } from "@/db/schema";
+import { farm, role, establishment, userAccount } from "@/db/schema";
 import type { MappedImportRow } from "@/lib/activities/bulk-import-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
-const { parseImportFileAction, importChunkAction } = await import("../../../app/(protected)/settings/import/actions");
+const { parseImportFileAction, importChunkAction } =
+  await import("../../../app/(protected)/settings/import/actions");
 const { auth } = await import("@/auth");
 
 beforeEach(async () => {
@@ -16,12 +17,22 @@ beforeEach(async () => {
 });
 
 async function seedSession(roleName: "admin" | "manager") {
-  const [seededRole] = await testDb.insert(role).values({ name: roleName }).returning();
+  const [seededRole] = await testDb
+    .insert(role)
+    .values({ name: roleName })
+    .returning();
   const [user] = await testDb
     .insert(userAccount)
-    .values({ name: "User", email: `${roleName}@example.com`, passwordHash: "hashed", roleId: seededRole.id })
+    .values({
+      name: "User",
+      email: `${roleName}@example.com`,
+      passwordHash: "hashed",
+      roleId: seededRole.id,
+    })
     .returning();
-  vi.mocked(auth).mockResolvedValue({ user: { id: user.id, role: roleName } } as never);
+  vi.mocked(auth).mockResolvedValue({
+    user: { id: user.id, role: roleName },
+  } as never);
   return user;
 }
 
@@ -42,14 +53,20 @@ describe("importChunkAction", () => {
 
   it("returns createdCount and errors for a mix of valid and invalid rows", async () => {
     await seedSession("admin");
-    await testDb.insert(farm).values({ name: "San Antonio" });
+    const [group1] = await testDb
+      .insert(farm)
+      .values({ name: "San Antonio" })
+      .returning();
+    await testDb
+      .insert(establishment)
+      .values({ farmId: group1.id, name: "San Antonio" });
 
     const rows: MappedImportRow[] = [
       {
         tag: "TAG1",
         secondaryTag: null,
         ownerName: "SASG",
-        farmName: "San Antonio",
+        establishmentName: "San Antonio",
         paddockName: "Arerunguá",
         categoryName: "Vaca de cría",
         breed: "Hereford",
@@ -61,7 +78,7 @@ describe("importChunkAction", () => {
         tag: "",
         secondaryTag: null,
         ownerName: null,
-        farmName: null,
+        establishmentName: null,
         paddockName: null,
         categoryName: null,
         breed: null,

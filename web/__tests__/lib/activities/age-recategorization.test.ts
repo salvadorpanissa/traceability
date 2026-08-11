@@ -4,8 +4,9 @@ import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import { refreshDerivedState } from "../../../test/refresh-derived-state";
 import {
-  role,
   farm,
+  role,
+  establishment,
   userAccount,
   userFarm,
   category,
@@ -88,55 +89,80 @@ describe("resolveCategoryForAge", () => {
   });
 
   it("returns null when the animal is younger than every configured bracket", () => {
-    const onlyOlderBrackets: AgeCategoryRule[] = [{ id: "male-3-plus", sex: "male", minAgeMonths: 36 }];
+    const onlyOlderBrackets: AgeCategoryRule[] = [
+      { id: "male-3-plus", sex: "male", minAgeMonths: 36 },
+    ];
     expect(resolveCategoryForAge(onlyOlderBrackets, "male", 10)).toBeNull();
   });
 });
 
-async function seedAgeManagedCategories() {
-  const [calf] = await testDb.insert(category).values({ name: "Ternero/a" }).returning();
+async function seedAgeManagedCategories(farmId: string) {
+  const [calf] = await testDb
+    .insert(category)
+    .values({ farmId, name: "Ternero/a" })
+    .returning();
   const [male12] = await testDb
     .insert(category)
-    .values({ name: "Novillo 1 a 2 años", sex: "male", minAgeMonths: 12 })
+    .values({ farmId, name: "Novillo 1 a 2 años", sex: "male", minAgeMonths: 12 })
     .returning();
   const [male24] = await testDb
     .insert(category)
-    .values({ name: "Novillo 2 a 3 años", sex: "male", minAgeMonths: 24 })
+    .values({ farmId, name: "Novillo 2 a 3 años", sex: "male", minAgeMonths: 24 })
     .returning();
   const [male36] = await testDb
     .insert(category)
-    .values({ name: "Novillo +3 años", sex: "male", minAgeMonths: 36 })
+    .values({ farmId, name: "Novillo +3 años", sex: "male", minAgeMonths: 36 })
     .returning();
   const [female12] = await testDb
     .insert(category)
-    .values({ name: "Vaquillona 1 a 2 años", sex: "female", minAgeMonths: 12 })
+    .values({ farmId, name: "Vaquillona 1 a 2 años", sex: "female", minAgeMonths: 12 })
     .returning();
   const [female24] = await testDb
     .insert(category)
-    .values({ name: "Vaquillona 2 a 3 años", sex: "female", minAgeMonths: 24 })
+    .values({ farmId, name: "Vaquillona 2 a 3 años", sex: "female", minAgeMonths: 24 })
     .returning();
-  const [manualOnly] = await testDb.insert(category).values({ name: "Cuarentena" }).returning();
+  const [manualOnly] = await testDb
+    .insert(category)
+    .values({ farmId, name: "Cuarentena" })
+    .returning();
   return { calf, male12, male24, male36, female12, female24, manualOnly };
 }
 
-async function seedFarmAndAdmin(farmName = "Campo Norte") {
-  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
-  const [seededFarm] = await testDb.insert(farm).values({ name: farmName }).returning();
+async function seedFarmAndAdmin(establishmentName = "Campo Norte") {
+  const [adminRole] = await testDb
+    .insert(role)
+    .values({ name: "admin" })
+    .returning();
+  const [seededFarmGroup] = await testDb
+    .insert(farm)
+    .values({ name: establishmentName })
+    .returning();
+  const [seededFarm] = await testDb
+    .insert(establishment)
+    .values({ farmId: seededFarmGroup.id, name: establishmentName })
+    .returning();
   const [admin] = await testDb
     .insert(userAccount)
-    .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+    .values({
+      name: "Admin",
+      email: "admin@example.com",
+      passwordHash: "hashed",
+      roleId: adminRole.id,
+    })
     .returning();
-  await testDb.insert(userFarm).values({ userId: admin.id, farmId: seededFarm.id });
-  return { admin, seededFarm };
+  await testDb
+    .insert(userFarm)
+    .values({ userId: admin.id, farmId: seededFarmGroup.id });
+  return { admin, seededFarm, seededFarmGroup };
 }
 
 // Creates an animal already "alive" on seededFarm, with a real event_transfer
-// (so animal_current_state.current_farm_id/status resolve) and a real
+// (so animal_current_state.current_establishment_id/status resolve) and a real
 // event_recategorize into initialCategoryId (source defaults to 'initial'
 // unless overridden) — mirrors what confirmTransferBatch's createNewAnimal
 // does, but lets tests control the exact events/source directly.
 async function seedAnimal(input: {
-  farmId: string;
+  establishmentId: string;
   adminId: string;
   tag: string;
   sex: "male" | "female";
@@ -148,11 +174,18 @@ async function seedAnimal(input: {
     .insert(animal)
     .values({ sex: input.sex, birthDate: input.birthDate })
     .returning();
-  await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: input.tag });
+  await testDb
+    .insert(animalTagHistory)
+    .values({ animalId: createdAnimal.id, tag: input.tag });
 
   const [batch] = await testDb
     .insert(batchOperation)
-    .values({ eventType: "transfer", farmId: input.farmId, animalCount: 1, createdBy: input.adminId })
+    .values({
+      eventType: "transfer",
+      establishmentId: input.establishmentId,
+      animalCount: 1,
+      createdBy: input.adminId,
+    })
     .returning();
   const [transferEvent] = await testDb
     .insert(event)
@@ -160,14 +193,18 @@ async function seedAnimal(input: {
       eventType: "transfer",
       eventDate: "2020-01-01",
       animalId: createdAnimal.id,
-      farmId: input.farmId,
+      establishmentId: input.establishmentId,
       batchOperationId: batch.id,
       createdBy: input.adminId,
     })
     .returning();
   await testDb
     .insert(eventTransfer)
-    .values({ eventId: transferEvent.id, originFarmId: input.farmId, destinationFarmId: input.farmId });
+    .values({
+      eventId: transferEvent.id,
+      originEstablishmentId: input.establishmentId,
+      destinationEstablishmentId: input.establishmentId,
+    });
 
   const [recategorizeEvent] = await testDb
     .insert(event)
@@ -175,7 +212,7 @@ async function seedAnimal(input: {
       eventType: "recategorize",
       eventDate: "2020-01-01",
       animalId: createdAnimal.id,
-      farmId: input.farmId,
+      establishmentId: input.establishmentId,
       batchOperationId: batch.id,
       createdBy: input.adminId,
     })
@@ -198,10 +235,10 @@ async function seedAnimal(input: {
 
 describe("findAnimalsNeedingAgeRecategorization", () => {
   it("finds an animal that crossed into the next age bracket", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24, male36 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24, male36 } = await seedAgeManagedCategories(seededFarmGroup.id);
     const oldEnough = await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR1",
       sex: "male",
@@ -209,10 +246,16 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: male24.id,
     });
 
-    const candidates = await findAnimalsNeedingAgeRecategorization("2026-07-24");
+    const candidates =
+      await findAnimalsNeedingAgeRecategorization("2026-07-24");
 
     expect(candidates).toEqual([
-      { animalId: oldEnough.id, farmId: seededFarm.id, currentCategoryId: male24.id, targetCategoryId: male36.id },
+      {
+        animalId: oldEnough.id,
+        establishmentId: seededFarm.id,
+        currentCategoryId: male24.id,
+        targetCategoryId: male36.id,
+      },
     ]);
   });
 
@@ -225,10 +268,10 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
   // silently moved BACKWARD from male24 to male12. This test asserts it's
   // excluded instead.
   it("does not include an animal that hasn't reached the next bracket yet", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR2",
       sex: "male",
@@ -236,14 +279,16 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: male24.id,
     });
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("never touches an animal in a category with no minAgeMonths configured", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { manualOnly } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { manualOnly } = await seedAgeManagedCategories(seededFarmGroup.id);
     await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR3",
       sex: "male",
@@ -251,14 +296,16 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: manualOnly.id,
     });
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("respects a manual override — never recategorizes an animal whose last event source is 'manual'", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR4",
       sex: "male",
@@ -267,17 +314,29 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       categorySource: "manual",
     });
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("excludes an animal with no birth date", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
-    const [createdAnimal] = await testDb.insert(animal).values({ sex: "male" }).returning();
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR5" });
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
+    const [createdAnimal] = await testDb
+      .insert(animal)
+      .values({ sex: "male" })
+      .returning();
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR5" });
     const [batch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .values({
+        eventType: "transfer",
+        establishmentId: seededFarm.id,
+        animalCount: 1,
+        createdBy: admin.id,
+      })
       .returning();
     const [transferEvent] = await testDb
       .insert(event)
@@ -285,38 +344,48 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
         eventType: "transfer",
         eventDate: "2020-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
       .returning();
     await testDb
       .insert(eventTransfer)
-      .values({ eventId: transferEvent.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id });
+      .values({
+        eventId: transferEvent.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
+      });
     const [recategorizeEvent] = await testDb
       .insert(event)
       .values({
         eventType: "recategorize",
         eventDate: "2020-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
       .returning();
     await testDb
       .insert(eventRecategorize)
-      .values({ eventId: recategorizeEvent.id, oldCategoryId: male24.id, newCategoryId: male24.id });
+      .values({
+        eventId: recategorizeEvent.id,
+        oldCategoryId: male24.id,
+        newCategoryId: male24.id,
+      });
     await refreshDerivedState();
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("jumps straight to the correct final bracket in one run, skipping intermediate brackets", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male12, male36 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male12, male36 } = await seedAgeManagedCategories(seededFarmGroup.id);
     const veryOld = await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR12",
       sex: "male",
@@ -324,18 +393,24 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: male12.id,
     });
 
-    const candidates = await findAnimalsNeedingAgeRecategorization("2026-07-24");
+    const candidates =
+      await findAnimalsNeedingAgeRecategorization("2026-07-24");
 
     expect(candidates).toEqual([
-      { animalId: veryOld.id, farmId: seededFarm.id, currentCategoryId: male12.id, targetCategoryId: male36.id },
+      {
+        animalId: veryOld.id,
+        establishmentId: seededFarm.id,
+        currentCategoryId: male12.id,
+        targetCategoryId: male36.id,
+      },
     ]);
   });
 
   it("excludes an animal that is dead or sold, even if otherwise due for recategorization", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     const deadAnimal = await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR13",
       sex: "male",
@@ -345,7 +420,12 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
 
     const [deathBatch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "death", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .values({
+        eventType: "death",
+        establishmentId: seededFarm.id,
+        animalCount: 1,
+        createdBy: admin.id,
+      })
       .returning();
     const [deathEvent] = await testDb
       .insert(event)
@@ -353,7 +433,7 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
         eventType: "death",
         eventDate: "2026-06-01",
         animalId: deadAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: deathBatch.id,
         createdBy: admin.id,
       })
@@ -361,17 +441,29 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
     await testDb.insert(eventDeath).values({ eventId: deathEvent.id });
     await refreshDerivedState();
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("excludes an animal with no sex recorded", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
-    const [createdAnimal] = await testDb.insert(animal).values({ birthDate: "2023-01-01" }).returning();
-    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR14" });
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
+    const [createdAnimal] = await testDb
+      .insert(animal)
+      .values({ birthDate: "2023-01-01" })
+      .returning();
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR14" });
     const [batch] = await testDb
       .insert(batchOperation)
-      .values({ eventType: "transfer", farmId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .values({
+        eventType: "transfer",
+        establishmentId: seededFarm.id,
+        animalCount: 1,
+        createdBy: admin.id,
+      })
       .returning();
     const [transferEvent] = await testDb
       .insert(event)
@@ -379,40 +471,59 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
         eventType: "transfer",
         eventDate: "2020-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
       .returning();
     await testDb
       .insert(eventTransfer)
-      .values({ eventId: transferEvent.id, originFarmId: seededFarm.id, destinationFarmId: seededFarm.id });
+      .values({
+        eventId: transferEvent.id,
+        originEstablishmentId: seededFarm.id,
+        destinationEstablishmentId: seededFarm.id,
+      });
     const [recategorizeEvent] = await testDb
       .insert(event)
       .values({
         eventType: "recategorize",
         eventDate: "2020-01-01",
         animalId: createdAnimal.id,
-        farmId: seededFarm.id,
+        establishmentId: seededFarm.id,
         batchOperationId: batch.id,
         createdBy: admin.id,
       })
       .returning();
     await testDb
       .insert(eventRecategorize)
-      .values({ eventId: recategorizeEvent.id, oldCategoryId: male24.id, newCategoryId: male24.id });
+      .values({
+        eventId: recategorizeEvent.id,
+        oldCategoryId: male24.id,
+        newCategoryId: male24.id,
+      });
     await refreshDerivedState();
 
-    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual([]);
+    expect(await findAnimalsNeedingAgeRecategorization("2026-07-24")).toEqual(
+      [],
+    );
   });
 
   it("groups candidates from different farms separately", async () => {
-    const { admin, seededFarm: farmA } = await seedFarmAndAdmin("Campo A");
-    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
-    await testDb.insert(userFarm).values({ userId: admin.id, farmId: farmB.id });
-    const { male24 } = await seedAgeManagedCategories();
+    const { admin, seededFarm: farmA, seededFarmGroup } = await seedFarmAndAdmin("Campo A");
+    const [farmBGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo B" })
+      .returning();
+    const [farmB] = await testDb
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
+      .returning();
+    await testDb
+      .insert(userFarm)
+      .values({ userId: admin.id, farmId: farmBGroup.id });
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     const animalOnA = await seedAnimal({
-      farmId: farmA.id,
+      establishmentId: farmA.id,
       adminId: admin.id,
       tag: "AR6",
       sex: "male",
@@ -420,7 +531,7 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: male24.id,
     });
     const animalOnB = await seedAnimal({
-      farmId: farmB.id,
+      establishmentId: farmB.id,
       adminId: admin.id,
       tag: "AR7",
       sex: "male",
@@ -428,20 +539,27 @@ describe("findAnimalsNeedingAgeRecategorization", () => {
       initialCategoryId: male24.id,
     });
 
-    const candidates = await findAnimalsNeedingAgeRecategorization("2026-07-24");
+    const candidates =
+      await findAnimalsNeedingAgeRecategorization("2026-07-24");
 
-    expect(candidates.map((c) => c.animalId).sort()).toEqual([animalOnA.id, animalOnB.id].sort());
-    expect(candidates.find((c) => c.animalId === animalOnA.id)?.farmId).toBe(farmA.id);
-    expect(candidates.find((c) => c.animalId === animalOnB.id)?.farmId).toBe(farmB.id);
+    expect(candidates.map((c) => c.animalId).sort()).toEqual(
+      [animalOnA.id, animalOnB.id].sort(),
+    );
+    expect(candidates.find((c) => c.animalId === animalOnA.id)?.establishmentId).toBe(
+      farmA.id,
+    );
+    expect(candidates.find((c) => c.animalId === animalOnB.id)?.establishmentId).toBe(
+      farmB.id,
+    );
   });
 });
 
 describe("runAgeBasedRecategorization", () => {
   it("writes a real recategorize event and updates animal_current_state", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24, male36 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24, male36 } = await seedAgeManagedCategories(seededFarmGroup.id);
     const oldEnough = await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR8",
       sex: "male",
@@ -449,11 +567,16 @@ describe("runAgeBasedRecategorization", () => {
       initialCategoryId: male24.id,
     });
 
-    const result = await runAgeBasedRecategorization({ asOfDate: "2026-07-24" });
+    const result = await runAgeBasedRecategorization({
+      asOfDate: "2026-07-24",
+    });
 
     expect(result).toEqual({ recategorized: 1 });
 
-    const events = await testDb.select().from(event).where(eq(event.animalId, oldEnough.id));
+    const events = await testDb
+      .select()
+      .from(event)
+      .where(eq(event.animalId, oldEnough.id));
     const newRecategorizeEvent = events
       .filter((e) => e.eventType === "recategorize")
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -466,19 +589,30 @@ describe("runAgeBasedRecategorization", () => {
     expect(recategorizeRow.newCategoryId).toBe(male36.id);
     expect(recategorizeRow.source).toBe("auto_age");
 
-    const stateResult = await testDb.execute<{ current_category_id: string | null }>(
-      sql`select current_category_id from animal_current_state where animal_id = ${oldEnough.id}`
+    const stateResult = await testDb.execute<{
+      current_category_id: string | null;
+    }>(
+      sql`select current_category_id from animal_current_state where animal_id = ${oldEnough.id}`,
     );
     expect(stateResult.rows[0].current_category_id).toBe(male36.id);
   });
 
-  it("creates one batchOperation per farm when animals span multiple farms", async () => {
-    const { admin, seededFarm: farmA } = await seedFarmAndAdmin("Campo A");
-    const [farmB] = await testDb.insert(farm).values({ name: "Campo B" }).returning();
-    await testDb.insert(userFarm).values({ userId: admin.id, farmId: farmB.id });
-    const { male24 } = await seedAgeManagedCategories();
+  it("creates one batchOperation per establishment when animals span multiple farms", async () => {
+    const { admin, seededFarm: farmA, seededFarmGroup } = await seedFarmAndAdmin("Campo A");
+    const [farmBGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo B" })
+      .returning();
+    const [farmB] = await testDb
+      .insert(establishment)
+      .values({ farmId: farmBGroup.id, name: "Campo B" })
+      .returning();
+    await testDb
+      .insert(userFarm)
+      .values({ userId: admin.id, farmId: farmBGroup.id });
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     await seedAnimal({
-      farmId: farmA.id,
+      establishmentId: farmA.id,
       adminId: admin.id,
       tag: "AR9",
       sex: "male",
@@ -486,7 +620,7 @@ describe("runAgeBasedRecategorization", () => {
       initialCategoryId: male24.id,
     });
     await seedAnimal({
-      farmId: farmB.id,
+      establishmentId: farmB.id,
       adminId: admin.id,
       tag: "AR10",
       sex: "male",
@@ -496,16 +630,21 @@ describe("runAgeBasedRecategorization", () => {
 
     await runAgeBasedRecategorization({ asOfDate: "2026-07-24" });
 
-    const batches = await testDb.select().from(batchOperation).where(eq(batchOperation.eventType, "recategorize"));
+    const batches = await testDb
+      .select()
+      .from(batchOperation)
+      .where(eq(batchOperation.eventType, "recategorize"));
     expect(batches).toHaveLength(2);
-    expect(batches.map((b) => b.farmId).sort()).toEqual([farmA.id, farmB.id].sort());
+    expect(batches.map((b) => b.establishmentId).sort()).toEqual(
+      [farmA.id, farmB.id].sort(),
+    );
   });
 
   it("is idempotent — running it twice in a row recategorizes 0 the second time", async () => {
-    const { admin, seededFarm } = await seedFarmAndAdmin();
-    const { male24 } = await seedAgeManagedCategories();
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const { male24 } = await seedAgeManagedCategories(seededFarmGroup.id);
     await seedAnimal({
-      farmId: seededFarm.id,
+      establishmentId: seededFarm.id,
       adminId: admin.id,
       tag: "AR11",
       sex: "male",
@@ -514,17 +653,21 @@ describe("runAgeBasedRecategorization", () => {
     });
 
     const first = await runAgeBasedRecategorization({ asOfDate: "2026-07-24" });
-    const second = await runAgeBasedRecategorization({ asOfDate: "2026-07-24" });
+    const second = await runAgeBasedRecategorization({
+      asOfDate: "2026-07-24",
+    });
 
     expect(first.recategorized).toBe(1);
     expect(second.recategorized).toBe(0);
   });
 
   it("returns 0 and writes nothing when there are no candidates", async () => {
-    await seedFarmAndAdmin();
-    await seedAgeManagedCategories();
+    const { seededFarmGroup } = await seedFarmAndAdmin();
+    await seedAgeManagedCategories(seededFarmGroup.id);
 
-    const result = await runAgeBasedRecategorization({ asOfDate: "2026-07-24" });
+    const result = await runAgeBasedRecategorization({
+      asOfDate: "2026-07-24",
+    });
 
     expect(result).toEqual({ recategorized: 0 });
     expect(await testDb.select().from(batchOperation)).toEqual([]);

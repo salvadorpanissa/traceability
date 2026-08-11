@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { batchOperation, event, eventTransfer, farm } from "@/db/schema";
-import { isAdmin, requireFarmAccess, userFarmIds } from "@/lib/dal/farm-access";
+import { batchOperation, event, eventTransfer, establishment } from "@/db/schema";
+import { isAdmin, requireEstablishmentAccess, userEstablishmentIds } from "@/lib/dal/farm-access";
 
 export type GuideDocumentSummary = {
   batchId: string;
@@ -10,20 +10,21 @@ export type GuideDocumentSummary = {
   createdAt: Date;
   animalCount: number;
   guideNumber: string | null;
-  originFarmName: string | null;
-  destinationFarmName: string;
+  originEstablishmentName: string | null;
+  destinationEstablishmentName: string;
 };
 
 // Only batches created from an uploaded guide PDF carry these columns — the
 // Excel path leaves them null, so it's naturally excluded by the isNotNull
-// filter. Scoped like every other DAL read here: an admin sees every farm's
-// guides, a manager only the ones operated from a farm they're assigned to.
+// filter. Scoped like every other DAL read here: an admin sees every
+// establecimiento's guides, a manager only the ones operated from an
+// establecimiento they're assigned to.
 export async function listGuideDocuments(
   userId: string,
   role: string | undefined
 ): Promise<GuideDocumentSummary[]> {
-  const farmIds = isAdmin(role) ? null : await userFarmIds(userId);
-  if (farmIds && farmIds.length === 0) return [];
+  const establishmentIds = isAdmin(role) ? null : await userEstablishmentIds(userId);
+  if (establishmentIds && establishmentIds.length === 0) return [];
 
   const batches = await db
     .select({
@@ -32,13 +33,13 @@ export async function listGuideDocuments(
       mimeType: batchOperation.guideMimeType,
       createdAt: batchOperation.createdAt,
       animalCount: batchOperation.animalCount,
-      destinationFarmName: farm.name,
+      destinationEstablishmentName: establishment.name,
     })
     .from(batchOperation)
-    .innerJoin(farm, eq(farm.id, batchOperation.farmId))
+    .innerJoin(establishment, eq(establishment.id, batchOperation.establishmentId))
     .where(
-      farmIds
-        ? and(isNotNull(batchOperation.guideFileData), inArray(batchOperation.farmId, farmIds))
+      establishmentIds
+        ? and(isNotNull(batchOperation.guideFileData), inArray(batchOperation.establishmentId, establishmentIds))
         : isNotNull(batchOperation.guideFileData)
     )
     .orderBy(desc(batchOperation.createdAt));
@@ -52,11 +53,11 @@ export async function listGuideDocuments(
     .select({
       batchOperationId: event.batchOperationId,
       guideNumber: eventTransfer.guideNumber,
-      originFarmName: farm.name,
+      originEstablishmentName: establishment.name,
     })
     .from(event)
     .innerJoin(eventTransfer, eq(eventTransfer.eventId, event.id))
-    .innerJoin(farm, eq(farm.id, eventTransfer.originFarmId))
+    .innerJoin(establishment, eq(establishment.id, eventTransfer.originEstablishmentId))
     .where(
       inArray(
         event.batchOperationId,
@@ -74,8 +75,8 @@ export async function listGuideDocuments(
       createdAt: batch.createdAt,
       animalCount: batch.animalCount,
       guideNumber: guideInfo?.guideNumber ?? null,
-      originFarmName: guideInfo?.originFarmName ?? null,
-      destinationFarmName: batch.destinationFarmName,
+      originEstablishmentName: guideInfo?.originEstablishmentName ?? null,
+      destinationEstablishmentName: batch.destinationEstablishmentName,
     };
   });
 }
@@ -89,7 +90,7 @@ export async function getGuideDocumentFile(
 ): Promise<GuideDocumentFile | null> {
   const [batch] = await db
     .select({
-      farmId: batchOperation.farmId,
+      establishmentId: batchOperation.establishmentId,
       fileName: batchOperation.guideFileName,
       mimeType: batchOperation.guideMimeType,
       data: batchOperation.guideFileData,
@@ -100,10 +101,10 @@ export async function getGuideDocumentFile(
   if (!batch) return null;
 
   // Access must be checked before deciding whether a document is attached —
-  // otherwise a caller without farm access could distinguish "no such batch
-  // /no document" (null) from "batch exists with a document, but I can't see
-  // it" (thrown) for a farm they aren't assigned to.
-  await requireFarmAccess(userId, role, batch.farmId);
+  // otherwise a caller without establecimiento access could distinguish "no
+  // such batch/no document" (null) from "batch exists with a document, but I
+  // can't see it" (thrown) for an establecimiento they aren't assigned to.
+  await requireEstablishmentAccess(userId, role, batch.establishmentId);
 
   if (!batch.data || !batch.fileName || !batch.mimeType) return null;
 

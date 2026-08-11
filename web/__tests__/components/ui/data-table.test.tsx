@@ -159,4 +159,46 @@ describe("DataTable", () => {
     render(<DataTable columns={baseColumns} rows={[]} getRowId={(r) => r.id} locale="es" exportable />);
     expect(screen.getByRole("button", { name: /descargar excel/i })).toBeDisabled();
   });
+
+  it("writes extraSheets to the workbook alongside the main sheet", async () => {
+    // jsdom's Blob doesn't round-trip binary content reliably, so capture the
+    // raw ArrayBuffer ExcelJS hands to `new Blob([buffer], ...)` instead of
+    // reading it back out of the Blob.
+    let capturedBuffer: ArrayBuffer | null = null;
+    const OriginalBlob = globalThis.Blob;
+    class SpyBlob extends OriginalBlob {
+      constructor(parts: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        capturedBuffer = parts[0] as ArrayBuffer;
+      }
+    }
+    vi.stubGlobal("Blob", SpyBlob);
+    const createObjectURL = vi.fn(() => "blob:mock-url");
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL: vi.fn() });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    render(
+      <DataTable
+        columns={baseColumns}
+        rows={rows}
+        getRowId={(r) => r.id}
+        locale="es"
+        exportable
+        extraSheets={[{ name: "Detalle", headers: ["Col"], rows: [["valor"]] }]}
+      />
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /descargar excel/i }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(capturedBuffer!);
+    expect(workbook.worksheets.map((s) => s.name)).toEqual(["Datos", "Detalle"]);
+    expect(workbook.getWorksheet("Detalle")!.getRow(1).getCell(1).value).toBe("Col");
+    expect(workbook.getWorksheet("Detalle")!.getRow(2).getCell(1).value).toBe("valor");
+
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });
