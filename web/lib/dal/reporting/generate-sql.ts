@@ -23,6 +23,12 @@ Reglas:
 - Devolvé ÚNICAMENTE una consulta SQL, un solo SELECT, sin punto y coma final, sin explicación, sin markdown.
 - Usá exclusivamente las tablas listadas arriba.
 - Para "última X", ordená por event_date descendente (y created_at descendente como desempate) y usá LIMIT.
+- Un nombre de lugar puede ser un potrero (paddock_name) o un campo/establecimiento (establishment_name) — son
+  cosas distintas y NO intercambiables. Si la pregunta dice explícitamente "potrero" o "campo"/"establecimiento",
+  filtrá por esa columna. Si NO lo dice, no asumas cuál es: filtrá por ambas con OR, ej.
+  (paddock_name ILIKE '%valor%' OR establishment_name ILIKE '%valor%').
+- Para comparar contra un nombre (potrero, campo, categoría, caravana, etc.) usá ILIKE '%valor%' en vez de =,
+  para tolerar mayúsculas/minúsculas y coincidencias parciales.
 - No selecciones columnas *_id en el resultado final (son solo para joins y filtros) — mostrá siempre la columna
   legible correspondiente (current_tag/animal_tag, establishment_name, paddock_name, category_name, product_name,
   owner_name) en su lugar.
