@@ -7,7 +7,7 @@ import type { GroupAnimal, LivestockByPaddockRow } from "@/lib/dashboard/livesto
 
 function AnimalDetailTable({ animals, locale }: { animals: GroupAnimal[]; locale: Locale }) {
   return (
-    <div className="max-h-64 w-full overflow-auto">
+    <div className="max-h-64 w-full overflow-y-auto">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-background">
           <tr className="border-b text-left">
