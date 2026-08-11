@@ -183,70 +183,72 @@ export function DataTable<T>({
         <p className="text-muted-foreground">{emptyMessage ?? translate(locale, "dataTable.empty")}</p>
       ) : (
         <>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                {expandable ? <th className="w-8 py-1" /> : null}
-                {columns.map((column) => (
-                  <th key={column.key} className="py-1 pr-2">
-                    {column.sortValue ? (
-                      <button
-                        type="button"
-                        onClick={() => handleSort(column)}
-                        className="inline-flex items-center gap-1 font-medium hover:text-foreground"
-                      >
-                        {column.header}
-                        <span className="text-xs text-muted-foreground">
-                          {sort?.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : ""}
-                        </span>
-                      </button>
-                    ) : (
-                      column.header
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row) => {
-                const id = getRowId(row);
-                const isExpanded = expandedIds.has(id);
-                return (
-                  <Fragment key={id}>
-                    <tr className="border-b last:border-0">
-                      {expandable ? (
-                        <td className="py-1">
-                          <button
-                            type="button"
-                            aria-label={
-                              isExpanded ? translate(locale, "dataTable.collapse") : translate(locale, "dataTable.expand")
-                            }
-                            aria-expanded={isExpanded}
-                            onClick={() => toggleExpanded(id)}
-                            className="flex size-5 items-center justify-center text-muted-foreground hover:text-foreground"
-                          >
-                            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                          </button>
-                        </td>
-                      ) : null}
-                      {columns.map((column) => (
-                        <td key={column.key} className="py-1 pr-2">
-                          {column.render(row)}
-                        </td>
-                      ))}
-                    </tr>
-                    {expandable && isExpanded ? (
-                      <tr className="border-b bg-muted/30 last:border-0">
-                        <td colSpan={colSpan} className="p-2">
-                          {renderExpanded?.(row)}
-                        </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  {expandable ? <th className="w-8 py-1" /> : null}
+                  {columns.map((column) => (
+                    <th key={column.key} className="py-1 pr-2">
+                      {column.sortValue ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSort(column)}
+                          className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                        >
+                          {column.header}
+                          <span className="text-xs text-muted-foreground">
+                            {sort?.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : ""}
+                          </span>
+                        </button>
+                      ) : (
+                        column.header
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => {
+                  const id = getRowId(row);
+                  const isExpanded = expandedIds.has(id);
+                  return (
+                    <Fragment key={id}>
+                      <tr className="border-b last:border-0">
+                        {expandable ? (
+                          <td className="py-1">
+                            <button
+                              type="button"
+                              aria-label={
+                                isExpanded ? translate(locale, "dataTable.collapse") : translate(locale, "dataTable.expand")
+                              }
+                              aria-expanded={isExpanded}
+                              onClick={() => toggleExpanded(id)}
+                              className="flex size-5 items-center justify-center text-muted-foreground hover:text-foreground"
+                            >
+                              {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                            </button>
+                          </td>
+                        ) : null}
+                        {columns.map((column) => (
+                          <td key={column.key} className="py-1 pr-2">
+                            {column.render(row)}
+                          </td>
+                        ))}
                       </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                      {expandable && isExpanded ? (
+                        <tr className="border-b bg-muted/30 last:border-0">
+                          <td colSpan={colSpan} className="p-2">
+                            {renderExpanded?.(row)}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {pageSize && sortedRows.length > pageSize ? (
             <div className="flex items-center justify-between text-sm text-muted-foreground">
