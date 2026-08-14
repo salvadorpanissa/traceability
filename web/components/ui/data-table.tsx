@@ -28,6 +28,21 @@ export type DataTableExtraSheet = {
   rows: (string | number | null)[][];
 };
 
+// A dropdown filter for one column: options are the distinct values of
+// `value` across all rows, so callers don't have to keep an options list in
+// sync with the data by hand.
+export type DataTableFilter<T> = {
+  key: string;
+  label: string;
+  value: (row: T) => string;
+  // Key of another filter this one is scoped under (e.g. potrero depends on
+  // campo): its options are narrowed to rows matching the parent's current
+  // selection. One-directional on purpose — the reverse (parent narrowed by
+  // child) traps the user, since picking a child would lock out every other
+  // parent value.
+  dependsOn?: string;
+};
+
 type SortState = { key: string; direction: "asc" | "desc" };
 
 function compareValues(a: string | number | null, b: string | number | null): number {
@@ -36,6 +51,20 @@ function compareValues(a: string | number | null, b: string | number | null): nu
   if (b === null) return 1;
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b));
+}
+
+// Current page plus its next 3, then (if there's a real gap) an ellipsis
+// before the last page — instead of one button per page, which is unusable
+// once there are dozens of pages.
+function paginationItems(current: number, totalPages: number): (number | "ellipsis")[] {
+  const items: (number | "ellipsis")[] = [];
+  const windowEnd = Math.min(current + 3, totalPages - 1);
+  for (let page = current; page <= windowEnd; page++) items.push(page);
+  if (windowEnd < totalPages - 1) {
+    if (windowEnd < totalPages - 2) items.push("ellipsis");
+    items.push(totalPages - 1);
+  }
+  return items;
 }
 
 export function DataTable<T>({
@@ -53,6 +82,7 @@ export function DataTable<T>({
   exportFileName = "tabla",
   exportSheetName = "Datos",
   extraSheets,
+  filters,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -68,21 +98,45 @@ export function DataTable<T>({
   exportFileName?: string;
   exportSheetName?: string;
   extraSheets?: DataTableExtraSheet[];
+  filters?: DataTableFilter<T>[];
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(0);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   const columnByKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
 
+  // A filter with `dependsOn` gets its options from rows narrowed to the
+  // parent filter's current selection; every other filter's options come
+  // from the full row set.
+  const filterOptions = useMemo(() => {
+    const options: Record<string, string[]> = {};
+    for (const filter of filters ?? []) {
+      let base = rows;
+      const parent = filters?.find((f) => f.key === filter.dependsOn);
+      const parentSelected = filter.dependsOn ? filterValues[filter.dependsOn] : undefined;
+      if (parent && parentSelected) base = base.filter((row) => parent.value(row) === parentSelected);
+      options[filter.key] = Array.from(new Set(base.map(filter.value).filter((v) => v !== ""))).sort();
+    }
+    return options;
+  }, [rows, filters, filterValues]);
+
   const filteredRows = useMemo(() => {
-    if (!searchable || query.trim().length === 0) return rows;
-    const needle = query.trim().toLowerCase();
-    return rows.filter((row) =>
-      columns.some((column) => column.searchValue?.(row).toLowerCase().includes(needle))
-    );
-  }, [rows, columns, searchable, query]);
+    let result = rows;
+    for (const filter of filters ?? []) {
+      const selected = filterValues[filter.key];
+      if (selected) result = result.filter((row) => filter.value(row) === selected);
+    }
+    if (searchable && query.trim().length > 0) {
+      const needle = query.trim().toLowerCase();
+      result = result.filter((row) =>
+        columns.some((column) => column.searchValue?.(row).toLowerCase().includes(needle))
+      );
+    }
+    return result;
+  }, [rows, columns, searchable, query, filters, filterValues]);
 
   const sortedRows = useMemo(() => {
     if (!sort) return filteredRows;
@@ -100,6 +154,24 @@ export function DataTable<T>({
 
   function handleSearchChange(value: string) {
     setQuery(value);
+    setCurrentPage(0);
+  }
+
+  function handleFilterChange(key: string, value: string) {
+    setFilterValues((prev) => {
+      const next = { ...prev, [key]: value };
+      // Changing a parent filter can strand a dependent filter's selection
+      // outside its new (narrower) options — e.g. picking a different campo
+      // while a potrero from the old campo is still selected.
+      for (const filter of filters ?? []) {
+        if (filter.dependsOn !== key || !next[filter.key]) continue;
+        const parent = filters?.find((f) => f.key === key);
+        const scoped = parent && value ? rows.filter((row) => parent.value(row) === value) : rows;
+        const stillValid = scoped.some((row) => filter.value(row) === next[filter.key]);
+        if (!stillValid) next[filter.key] = "";
+      }
+      return next;
+    });
     setCurrentPage(0);
   }
 
@@ -153,17 +225,35 @@ export function DataTable<T>({
 
   return (
     <div className="flex flex-col gap-2">
-      {searchable || exportable ? (
-        <div className="flex items-center gap-2">
+      {searchable || exportable || filters?.length ? (
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
           {searchable ? (
             <Input
               value={query}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={searchPlaceholder ?? translate(locale, "dataTable.searchPlaceholder")}
               aria-label={searchPlaceholder ?? translate(locale, "dataTable.searchPlaceholder")}
-              className="max-w-xs"
+              className="w-56 shrink-0"
             />
           ) : null}
+          {(filters ?? []).map((filter) => (
+            <select
+              key={filter.key}
+              value={filterValues[filter.key] ?? ""}
+              onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+              aria-label={filter.label}
+              className="h-9 shrink-0 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">
+                {filter.label} · {translate(locale, "dataTable.allOption")}
+              </option>
+              {filterOptions[filter.key]?.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          ))}
           {exportable ? (
             <Button
               type="button"
@@ -171,6 +261,7 @@ export function DataTable<T>({
               size="sm"
               disabled={sortedRows.length === 0}
               onClick={handleExport}
+              className="ml-auto shrink-0"
             >
               <Download className="size-4" />
               {translate(locale, "dataTable.downloadExcel")}
@@ -266,19 +357,25 @@ export function DataTable<T>({
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => (
-                  <Button
-                    key={i}
-                    type="button"
-                    variant={i === safePage ? "default" : "outline"}
-                    size="icon-xs"
-                    onClick={() => setCurrentPage(i)}
-                    aria-label={`Página ${i + 1}`}
-                    aria-current={i === safePage ? "page" : undefined}
-                  >
-                    {i + 1}
-                  </Button>
-                ))}
+                {paginationItems(safePage, totalPages).map((item, index) =>
+                  item === "ellipsis" ? (
+                    <span key={`ellipsis-${index}`} className="px-1 text-muted-foreground">
+                      …
+                    </span>
+                  ) : (
+                    <Button
+                      key={item}
+                      type="button"
+                      variant={item === safePage ? "default" : "outline"}
+                      size="icon-xs"
+                      onClick={() => setCurrentPage(item)}
+                      aria-label={`Página ${item + 1}`}
+                      aria-current={item === safePage ? "page" : undefined}
+                    >
+                      {item + 1}
+                    </Button>
+                  )
+                )}
                 <Button
                   type="button"
                   variant="outline"

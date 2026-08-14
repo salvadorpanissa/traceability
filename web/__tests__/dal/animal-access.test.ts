@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
 import { refreshDerivedState } from "../../test/refresh-derived-state";
@@ -29,6 +30,8 @@ const {
   findAnimalLocationByTag,
   findAnimalDetailByTag,
   visibleAnimalDetails,
+  getAnimalEditState,
+  updateAnimalDetails,
 } = await import("@/lib/dal/animal-access");
 
 beforeEach(async () => {
@@ -1325,5 +1328,133 @@ describe("visibleAnimalDetails", () => {
     expect(await visibleAnimalDetails(unassignedManager.id, "manager")).toEqual(
       [],
     );
+  });
+});
+
+describe("getAnimalEditState", () => {
+  it("returns the animal's current establishment, category, and status", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [seededFarmGroup] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
+    const [seededCategory] = await testDb.insert(category).values({ farmId: seededFarmGroup.id, name: "Vaca" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({ name: "Admin", email: "admin@example.com", passwordHash: "hashed", roleId: adminRole.id })
+      .returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "transfer", establishmentId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .returning();
+    const [transferEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "transfer",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        establishmentId: seededFarm.id,
+        batchOperationId: batch.id,
+        createdBy: admin.id,
+      })
+      .returning();
+    await testDb
+      .insert(eventTransfer)
+      .values({ eventId: transferEvent.id, originEstablishmentId: seededFarm.id, destinationEstablishmentId: seededFarm.id });
+    const [recatBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "recategorize", establishmentId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .returning();
+    const [recatEvent] = await testDb
+      .insert(event)
+      .values({
+        eventType: "recategorize",
+        eventDate: "2026-01-01",
+        animalId: createdAnimal.id,
+        establishmentId: seededFarm.id,
+        batchOperationId: recatBatch.id,
+        createdBy: admin.id,
+      })
+      .returning();
+    await testDb
+      .insert(eventRecategorize)
+      .values({ eventId: recatEvent.id, oldCategoryId: seededCategory.id, newCategoryId: seededCategory.id });
+    await refreshDerivedState();
+
+    expect(await getAnimalEditState(createdAnimal.id)).toEqual({
+      establishmentId: seededFarm.id,
+      categoryId: seededCategory.id,
+      status: "alive",
+    });
+  });
+
+  it("returns null for an unknown animal", async () => {
+    expect(await getAnimalEditState("00000000-0000-0000-0000-000000000000")).toBeNull();
+  });
+});
+
+describe("updateAnimalDetails", () => {
+  it("updates sex, breed, birth date, owner, and the current secondary tag", async () => {
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000080" });
+    const [newOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    // updateAnimalDetails re-reads the animal through animal_current_state,
+    // which (like in production) only reflects a row once it's been
+    // refreshed — every real animal gets this via its creation event.
+    await refreshDerivedState();
+
+    const updated = await updateAnimalDetails(createdAnimal.id, {
+      sex: "male",
+      breed: "Angus",
+      birthDate: "2022-06-15",
+      ownerId: newOwner.id,
+      secondaryTag: "CHIP-NEW",
+    });
+
+    expect(updated).toMatchObject({
+      sex: "male",
+      breed: "Angus",
+      birthDate: "2022-06-15",
+      ownerName: "AIP",
+      secondaryTag: "CHIP-NEW",
+    });
+  });
+
+  it("overwrites the secondary tag on the current tag-history row instead of inserting a new one", async () => {
+    const [createdAnimal] = await testDb
+      .insert(animal)
+      .values({})
+      .returning();
+    await testDb
+      .insert(animalTagHistory)
+      .values({ animalId: createdAnimal.id, tag: "AR000000000081", secondaryTag: "CHIP-OLD" });
+
+    await updateAnimalDetails(createdAnimal.id, {
+      sex: null,
+      breed: null,
+      birthDate: null,
+      ownerId: null,
+      secondaryTag: "CHIP-UPDATED",
+    });
+
+    const rows = await testDb
+      .select()
+      .from(animalTagHistory)
+      .where(eq(animalTagHistory.animalId, createdAnimal.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].secondaryTag).toBe("CHIP-UPDATED");
+  });
+
+  it("rejects a secondary tag already used by a different animal", async () => {
+    const [animalA] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: animalA.id, tag: "AR000000000082", secondaryTag: "CHIP-TAKEN" });
+    const [animalB] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: animalB.id, tag: "AR000000000083" });
+
+    await expect(
+      updateAnimalDetails(animalB.id, { sex: null, breed: null, birthDate: null, ownerId: null, secondaryTag: "CHIP-TAKEN" }),
+    ).rejects.toThrow();
   });
 });

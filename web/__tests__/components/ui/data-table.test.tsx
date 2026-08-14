@@ -122,6 +122,27 @@ describe("DataTable", () => {
     expect(screen.getAllByRole("row")).toHaveLength(2); // header + 1 row (Apple still)
   });
 
+  it("truncates page buttons to the current page, its next 3, an ellipsis, then the last page", () => {
+    const manyRows: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: String(i), name: `Row ${i}`, count: i }));
+    render(<DataTable columns={baseColumns} rows={manyRows} getRowId={(r) => r.id} locale="es" pageSize={10} />);
+
+    // Page 1 (index 0): current + next 3 => 1,2,3,4, then … then last page 10.
+    for (const label of ["Página 1", "Página 2", "Página 3", "Página 4", "Página 10"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: "Página 5" })).not.toBeInTheDocument();
+    expect(screen.getByText("…")).toBeInTheDocument();
+  });
+
+  it("jumps directly to the last page from the truncated pagination", async () => {
+    const manyRows: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: String(i), name: `Row ${i}`, count: i }));
+    render(<DataTable columns={baseColumns} rows={manyRows} getRowId={(r) => r.id} locale="es" pageSize={10} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Página 10" }));
+    expect(screen.getByText("Row 99")).toBeInTheDocument();
+  });
+
   it("does not render a download button unless exportable is set", () => {
     render(<DataTable columns={baseColumns} rows={rows} getRowId={(r) => r.id} locale="es" />);
     expect(screen.queryByRole("button", { name: /descargar excel/i })).not.toBeInTheDocument();

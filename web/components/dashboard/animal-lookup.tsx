@@ -5,21 +5,10 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { translate, type Locale, type TranslationKey } from "@/lib/i18n/dictionaries";
+import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { lookupAnimalByTagAction } from "@/app/(protected)/dashboard/animal-lookup-actions";
-import { sexLabel } from "@/lib/dashboard/animal-labels";
+import { sexLabel, statusLabel } from "@/lib/dashboard/animal-labels";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
-
-const STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
-  alive: "animalLookup.statusAlive",
-  sold: "animalLookup.statusSold",
-  dead: "animalLookup.statusDead",
-};
-
-function statusLabel(status: string, locale: Locale): string {
-  const key = STATUS_LABEL_KEYS[status];
-  return key ? translate(locale, key) : status;
-}
 
 export function AnimalLookup({ locale }: { locale: Locale }) {
   const [tag, setTag] = useState("");

@@ -21,6 +21,11 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
+    href: "/animals",
+    labelKey: "appShell.navAnimals",
+    isActive: (pathname) => pathname.startsWith("/animals"),
+  },
+  {
     href: "/activities/health",
     labelKey: "appShell.navHealth",
     isActive: (pathname) => pathname.startsWith("/activities/health"),

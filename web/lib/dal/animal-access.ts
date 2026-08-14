@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { animal, animalTagHistory } from "@/db/schema";
 import { isAdmin, userEstablishmentIds } from "@/lib/dal/farm-access";
 
 // A manager may move animals between two different campos only when they're
@@ -342,6 +343,65 @@ export async function findAnimalDetailByTag(
   );
   const result = await db.execute<AnimalLookupDetailRow>(
     sql`${base} and acs.current_establishment_id in (${establishmentIdList}) limit 1`
+  );
+  return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
+}
+
+export type AnimalEditState = {
+  establishmentId: string | null;
+  categoryId: string | null;
+  status: string;
+};
+
+type AnimalEditStateRow = {
+  current_establishment_id: string | null;
+  current_category_id: string | null;
+  status: string;
+};
+
+// What an edit action needs before writing anything: the establecimiento to
+// authorize against (an animal's own direct fields — sex/breed/etc. — carry
+// no establecimiento of their own) plus the current category and status, so
+// a category change can be turned into a trustworthy recategorize event
+// instead of taking the client's word for the "old" side of the change.
+export async function getAnimalEditState(animalId: string): Promise<AnimalEditState | null> {
+  const result = await db.execute<AnimalEditStateRow>(
+    sql`select current_establishment_id, current_category_id, status from animal_current_state where animal_id = ${animalId}`
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return { establishmentId: row.current_establishment_id, categoryId: row.current_category_id, status: row.status };
+}
+
+export type AnimalDetailsPatch = {
+  sex: "male" | "female" | null;
+  breed: string | null;
+  birthDate: string | null;
+  ownerId: string | null;
+  secondaryTag: string | null;
+};
+
+// Direct corrections to fields that live on `animal`/`animal_tag_history`
+// themselves, not derived from the event log — sex, breed, birth date,
+// owner, and the current secondary tag. Anything event-sourced (tag,
+// category, campo, potrero, estado) goes through its own activity instead,
+// so it stays in the audit trail.
+export async function updateAnimalDetails(animalId: string, patch: AnimalDetailsPatch): Promise<AnimalLookupDetail | null> {
+  const { secondaryTag, ...animalPatch } = patch;
+  await db.update(animal).set(animalPatch).where(eq(animal.id, animalId));
+
+  const [currentTagRow] = await db
+    .select({ id: animalTagHistory.id })
+    .from(animalTagHistory)
+    .where(eq(animalTagHistory.animalId, animalId))
+    .orderBy(desc(animalTagHistory.validFrom))
+    .limit(1);
+  if (currentTagRow) {
+    await db.update(animalTagHistory).set({ secondaryTag }).where(eq(animalTagHistory.id, currentTagRow.id));
+  }
+
+  const result = await db.execute<AnimalLookupDetailRow>(
+    sql`${CURRENT_STATE_WITH_DETAILS_SELECT} where acs.animal_id = ${animalId}`
   );
   return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
 }
