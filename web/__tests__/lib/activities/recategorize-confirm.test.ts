@@ -222,7 +222,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novilloPlus3.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id }),
@@ -273,7 +273,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, {
@@ -315,7 +315,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -354,7 +354,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -398,7 +398,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [
         ageResolvedRow(seededFarm.id, {
@@ -438,7 +438,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -479,7 +479,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [
         unresolvableRow(seededFarm.id, {
@@ -522,7 +522,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, {
@@ -540,10 +540,63 @@ describe("confirmRecategorizeBatch", () => {
     expect(batches[0].establishmentId).toBe(seededFarm.id);
   });
 
-  // The batch is scoped to one campo now (operatingEstablishmentId); a row whose
+  // A batch is scoped to a farm group (operatingFarmId), not a single
+  // establecimiento — a farm group with several establecimientos should
+  // recategorize animals on any of them in one go, writing one batchOperation
+  // per establecimiento actually touched.
+  it("confirms animals on two different establishments of the same farm group in one batch", async () => {
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const [otherEstablishment] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [novillo] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
+    const [other] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
+      .returning();
+    const animalOnFirst = await seedAnimalAtFarm({
+      establishmentId: seededFarm.id,
+      createdBy: admin.id,
+      categoryId: other.id,
+    });
+    const animalOnSecond = await seedAnimalAtFarm({
+      establishmentId: otherEstablishment.id,
+      createdBy: admin.id,
+      categoryId: other.id,
+    });
+    await refreshDerivedState();
+
+    await confirmRecategorizeBatch({
+      userId: admin.id,
+      role: "admin",
+      operatingFarmId: seededFarmGroup.id,
+      targetCategoryId: novillo.id,
+      rows: [
+        existingRow(seededFarm.id, { animalId: animalOnFirst, currentCategoryId: other.id, tag: "AR1" }),
+        existingRow(otherEstablishment.id, { animalId: animalOnSecond, currentCategoryId: other.id, tag: "AR2" }),
+      ],
+      unresolvableDecisions: {},
+      sexMismatchDecisions: {},
+    });
+
+    expect(await newEventsFor(animalOnFirst)).toHaveLength(1);
+    expect(await newEventsFor(animalOnSecond)).toHaveLength(1);
+
+    const batches = await recategorizeBatches();
+    expect(batches).toHaveLength(2);
+    expect(batches.map((b) => b.establishmentId).sort()).toEqual(
+      [seededFarm.id, otherEstablishment.id].sort(),
+    );
+  });
+
+  // The batch is scoped to one farm group now (operatingFarmId); a row whose
   // animal really lives elsewhere per the fresh DB read must not sneak
   // through even if the client-supplied row claims otherwise.
-  it("rejects a row whose animal is on a different campo than operatingEstablishmentId", async () => {
+  it("rejects a row whose animal is on a different farm group than operatingFarmId", async () => {
     const { admin, seededFarm: farmA, seededFarmGroup } = await seedFarmAndAdmin("Campo A");
     const [farmBGroup] = await testDb
       .insert(farm)
@@ -572,7 +625,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: farmA.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(farmA.id, {
@@ -643,7 +696,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: manager.id,
         role: "manager",
-        operatingEstablishmentId: otherFarm.id,
+        operatingFarmId: otherFarmGroup.id,
         targetCategoryId: novillo.id,
         rows: [
           existingRow(otherFarm.id, { animalId, currentCategoryId: other.id }),
@@ -651,7 +704,7 @@ describe("confirmRecategorizeBatch", () => {
         unresolvableDecisions: {},
         sexMismatchDecisions: {},
       }),
-    ).rejects.toThrow("No tenés acceso a este campo");
+    ).rejects.toThrow("No tenés acceso a este grupo de campos");
   });
 
   // Finding 1: the preview row round-trips through the browser, so its
@@ -706,15 +759,15 @@ describe("confirmRecategorizeBatch", () => {
     });
     await refreshDerivedState();
 
-    // The manager operates the campo they DO have access to (requireEstablishmentAccess
-    // passes), but the animal re-read fresh from the DB is really on
-    // foreignFarm — the per-row establishmentId !== operatingEstablishmentId guard must catch
-    // this even though the client-supplied currentEstablishmentId lied about it.
+    // The manager operates the farm group they DO have access to
+    // (requireFarmAccess passes), but the animal re-read fresh from the DB is
+    // really on foreignFarm — the per-row farmId !== operatingFarmId guard
+    // must catch this even though the client-supplied currentEstablishmentId lied about it.
     await expect(
       confirmRecategorizeBatch({
         userId: manager.id,
         role: "manager",
-        operatingEstablishmentId: accessibleFarm.id,
+        operatingFarmId: accessibleFarmGroup.id,
         targetCategoryId: novillo.id,
         // ...but the payload claims it's on the accessible one.
         rows: [
@@ -760,7 +813,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: target.id,
         rows: [
           existingRow(seededFarm.id, {
@@ -801,7 +854,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novilloMacho.id,
         rows: [
           existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -837,7 +890,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novilloMacho.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -879,7 +932,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novilloMacho.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -912,7 +965,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novillo.id,
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
@@ -941,7 +994,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novilloMacho.id,
         rows: [unresolvableRow(seededFarm.id, { animalId })],
         unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -970,7 +1023,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: novilloMacho.id,
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
@@ -1017,7 +1070,7 @@ describe("confirmRecategorizeBatch", () => {
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
-        operatingEstablishmentId: seededFarm.id,
+        operatingFarmId: seededFarmGroup.id,
         targetCategoryId: novilloMacho.id,
         // ...but the payload claims it's male, matching the target category
         // and trying to sneak past the mismatch check undetected.
@@ -1061,7 +1114,7 @@ describe("confirmRecategorizeBatch", () => {
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
-      operatingEstablishmentId: seededFarm.id,
+      operatingFarmId: seededFarmGroup.id,
       targetCategoryId: newCategory.id,
       rows: [
         existingRow(seededFarm.id, {

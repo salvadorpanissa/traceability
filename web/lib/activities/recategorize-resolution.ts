@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { animalTagHistory, category } from "@/db/schema";
 import { normalizeDate } from "@/lib/activities/date-normalization";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
-import { getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import type { MappedRow } from "@/lib/activities/column-mapping";
 
 export type UnresolvableDecision = "skip" | "assignTarget";
@@ -65,6 +64,7 @@ function resolveEventDate(rowDate: string | null, formEventDate: string | null):
 
 type CurrentStateRow = {
   current_establishment_id: string | null;
+  current_farm_id: string | null;
   current_category_id: string | null;
   category_name: string | null;
   status: string;
@@ -75,7 +75,7 @@ type CurrentStateRow = {
 export async function resolveRecategorizeBatchRows(
   rows: MappedRow[],
   formEventDate: string | null,
-  establishmentId: string
+  farmId: string
 ): Promise<RecategorizeResolvedRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
@@ -111,13 +111,10 @@ export async function resolveRecategorizeBatchRows(
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const farmId = await getEstablishmentFarmId(establishmentId);
-  const ageManagedCategories = farmId
-    ? await db
-        .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
-        .from(category)
-        .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, farmId)))
-    : [];
+  const ageManagedCategories = await db
+    .select({ id: category.id, name: category.name, sex: category.sex, minAgeMonths: category.minAgeMonths })
+    .from(category)
+    .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, farmId)));
   const ageManagedCategoryNameById = new Map(ageManagedCategories.map((c) => [c.id, c.name]));
 
   const result: RecategorizeResolvedRow[] = [];
@@ -176,10 +173,11 @@ export async function resolveRecategorizeBatchRows(
     }
 
     const stateResult = await db.execute<CurrentStateRow>(sql`
-      select acs.current_establishment_id, acs.current_category_id, c.name as category_name, acs.status,
-             a.birth_date, a.sex
+      select acs.current_establishment_id, e.farm_id as current_farm_id, acs.current_category_id,
+             c.name as category_name, acs.status, a.birth_date, a.sex
       from animal_current_state acs
       left join category c on c.id = acs.current_category_id
+      left join establishment e on e.id = acs.current_establishment_id
       join animal a on a.id = acs.animal_id
       where acs.animal_id = ${animalId}
     `);
@@ -193,8 +191,8 @@ export async function resolveRecategorizeBatchRows(
       result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
       continue;
     }
-    if (state.current_establishment_id !== establishmentId) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no pertenece al campo elegido" });
+    if (state.current_farm_id !== farmId) {
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no pertenece a este grupo de campos" });
       continue;
     }
 

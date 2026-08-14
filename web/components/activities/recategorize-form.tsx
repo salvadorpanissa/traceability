@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,8 @@ import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
-export function RecategorizeForm({ establishments }: { establishments: { id: string; name: string }[] }) {
-  const [establishmentId, setEstablishmentId] = useState("");
+export function RecategorizeForm({ farms }: { farms: { id: string; name: string }[] }) {
+  const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [categories, setCategories] = useState<CategoryCatalogEntry[]>([]);
   const [categoryLoadError, setCategoryLoadError] = useState("");
   const [targetCategoryId, setTargetCategoryId] = useState("");
@@ -33,22 +33,32 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
   const [globalSexMismatchDefault, setGlobalSexMismatchDefault] = useState<UnresolvableDecision>("skip");
   const [sexMismatchOverrides, setSexMismatchOverrides] = useState<Record<string, UnresolvableDecision>>({});
 
-  async function handleEstablishmentChange(selectedEstablishmentId: string) {
-    setEstablishmentId(selectedEstablishmentId);
-    setTargetCategoryId("");
+  async function loadCategories(selectedFarmId: string) {
     setCategoryLoadError("");
-    handleFileChange(null);
-    if (!selectedEstablishmentId) {
+    if (!selectedFarmId) {
       setCategories([]);
       return;
     }
     try {
-      setCategories(await listCategoriesAction(selectedEstablishmentId));
+      setCategories(await listCategoriesAction(selectedFarmId));
     } catch (err) {
       setCategories([]);
       setCategoryLoadError(err instanceof Error ? err.message : "No se pudieron cargar las categorías");
     }
   }
+
+  async function handleFarmChange(selectedFarmId: string) {
+    setFarmId(selectedFarmId);
+    setTargetCategoryId("");
+    handleFileChange(null);
+    await loadCategories(selectedFarmId);
+  }
+
+  useEffect(() => {
+    if (farmId) void loadCategories(farmId);
+    // Only ever auto-load once, for the farm preselected when there's just one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
@@ -60,11 +70,11 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
-    if (!file || !establishmentId) return;
+    if (!file || !farmId) return;
     const formData = new FormData();
     formData.set("file", file);
     formData.set("eventDate", eventDate);
-    formData.set("establishmentId", establishmentId);
+    formData.set("farmId", farmId);
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewRecategorizeBatch(formData);
     setPreview(result);
@@ -146,7 +156,7 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
       await confirmRecategorizeBatchAction({
         headerSignature: preview.headerSignature,
         mapping: preview.mapping,
-        establishmentId,
+        farmId,
         targetCategoryId,
         rows,
         unresolvableDecisions,
@@ -182,23 +192,25 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="establishment">Campo</Label>
-        <select
-          id="establishment"
-          aria-label="Campo"
-          value={establishmentId}
-          onChange={(e) => handleEstablishmentChange(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir campo</option>
-          {establishments.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {farms.length > 1 ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="farm">Campo</Label>
+          <select
+            id="farm"
+            aria-label="Campo"
+            value={farmId}
+            onChange={(e) => handleFarmChange(e.target.value)}
+            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+          >
+            <option value="">Elegir campo</option>
+            {farms.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       {categoryLoadError ? <p className="text-sm text-destructive">{categoryLoadError}</p> : null}
 
       <div className="flex flex-col gap-2">
@@ -207,7 +219,7 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
           id="targetCategoryId"
           value={targetCategoryId}
           onChange={(e) => setTargetCategoryId(e.target.value)}
-          disabled={!establishmentId}
+          disabled={!farmId}
           className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
         >
           <option value="">Elegir categoría</option>
@@ -221,9 +233,9 @@ export function RecategorizeForm({ establishments }: { establishments: { id: str
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="file">Archivo</Label>
-        <FileInput id="file" disabled={!establishmentId} file={file} onChange={handleFileChange} />
+        <FileInput id="file" disabled={!farmId} file={file} onChange={handleFileChange} />
       </div>
-      <Button type="button" disabled={!establishmentId || !targetCategoryId || !file} onClick={() => runPreview()}>
+      <Button type="button" disabled={!farmId || !targetCategoryId || !file} onClick={() => runPreview()}>
         Subir
       </Button>
 
