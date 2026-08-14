@@ -157,10 +157,9 @@ export function LogoScrollHero() {
             ref={splashRef}
             className="absolute inset-0 z-40 flex flex-col items-center justify-center text-center"
           >
-            <h1 className="text-4xl font-bold text-balance sm:text-6xl">Tracker</h1>
-            <p className="mt-3 text-lg text-balance text-muted-foreground sm:text-xl">
-              Sistema de trazabilidad de ganado
-            </p>
+            <h1 className="max-w-3xl text-4xl font-bold text-balance sm:text-6xl">
+              Tracker: Tu rodeo bajo control total
+            </h1>
           </div>
 
           <div ref={logoWrapRef} className="absolute left-1/2 top-1/2 z-30 will-change-transform">
@@ -204,10 +203,11 @@ export function LogoScrollHero() {
             className="absolute left-[6vw] top-[22%] max-w-xs -translate-y-1/2 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
-              Lorem ipsum dolor sit amet consectetur.
+              Desde la manga a la industria
             </p>
             <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
-              Adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+              Automatizá la trazabilidad de tu rodeo. La información entra directo desde tu bastón
+              de lectura y los PDFs del SNIG.
             </p>
           </div>
           <div
@@ -215,10 +215,11 @@ export function LogoScrollHero() {
             className="absolute right-[6vw] top-[22%] max-w-xs -translate-y-1/2 text-right sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
-              Ut enim ad minim veniam quis nostrud.
+              Olvidate de las planillas
             </p>
             <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
-              Exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute.
+              El historial de tu establecimiento se construye solo. Subí tus lecturas y procesá
+              cientos de animales en segundos.
             </p>
           </div>
 
@@ -228,21 +229,21 @@ export function LogoScrollHero() {
             className="absolute left-[6vw] top-[42%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
           >
             <p className="text-xl font-semibold text-balance sm:text-2xl">
-              Irure dolor in reprehenderit voluptate.
+              Controlá los tiempos de retiro
             </p>
             <p className="mt-2 text-base text-balance text-muted-foreground">
-              Velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat.
+              Registrá la sanidad y el sistema calculará automáticamente cuántos días de carencia
+              le quedan a cada animal.
             </p>
           </div>
           <div
             ref={text4Ref}
             className="absolute right-[6vw] top-[42%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
           >
-            <p className="text-xl font-semibold text-balance sm:text-2xl">
-              Non proident sunt in culpa qui officia.
-            </p>
+            <p className="text-xl font-semibold text-balance sm:text-2xl">Vendé con seguridad</p>
             <p className="mt-2 text-base text-balance text-muted-foreground">
-              Deserunt mollit anim id est laborum sed ut perspiciatis unde omnis iste natus.
+              Nunca más un rechazo en planta. Recibí alertas inmediatas si intentás enviar a faena
+              un animal con residuos.
             </p>
           </div>
         </div>

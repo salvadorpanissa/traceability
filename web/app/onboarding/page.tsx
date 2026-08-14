@@ -1,34 +1,43 @@
+import { FileSpreadsheet, History, Receipt, ScanText, Sparkles, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoScrollHero } from "@/components/onboarding/logo-scroll-hero";
 
 const features = [
   {
-    title: "Trazabilidad por caravana",
-    description: "Historial completo de cada animal: sanidad, movimientos y ubicación.",
+    icon: ScanText,
+    title: "Lectura inteligente del SNIG",
+    description:
+      "Olvidate de tipear. Subí el PDF de tu Guía de Tránsito y el sistema extrae automáticamente todo el anexo de caravanas en un segundo.",
   },
   {
-    title: "Movimientos",
-    description: "Altas, bajas, traslados, ventas y recategorizaciones en un solo lugar.",
+    icon: FileSpreadsheet,
+    title: "Del bastón directo a la app",
+    description:
+      "Subí las planillas Excel que genera tu lector. El sistema reconoce las columnas y procesa cientos de animales al instante.",
   },
   {
-    title: "DICOSE",
-    description: "Declaraciones sin duplicar carga de datos.",
+    icon: Timer,
+    title: "Control de días de carencia",
+    description:
+      "Registrá la sanidad y el sistema calculará los tiempos de retiro. Recibí alertas si intentás enviar a faena un animal con residuos.",
   },
   {
-    title: "Guías de traslado",
-    description: "Se generan desde la misma información del rodeo.",
+    icon: Receipt,
+    title: "Liquidaciones de Frigorífico",
+    description:
+      "Subí el PDF de la liquidación de la industria. El sistema extrae los kilos y montos reales para asociarlos automáticamente a tu lote.",
   },
   {
-    title: "Categorías y stock",
-    description: "Sabés cuánto tenés y de qué categoría, siempre actualizado.",
+    icon: History,
+    title: "Historial inmutable",
+    description:
+      "Cada sanidad, recategorización y traslado queda guardado para siempre. Trazabilidad perfecta y transparente de toda la vida del animal.",
   },
   {
-    title: "Alertas de novedades",
-    description: "Caravanas sin movimientos recientes, para que no se te escapen.",
-  },
-  {
+    icon: Sparkles,
     title: "Preguntale a la IA",
-    description: "Consultas en lenguaje natural sobre tu rodeo.",
+    description:
+      "Consultas en lenguaje natural sobre tu rodeo. Pedile reportes o preguntale cuántos novillos tenés listos, como si chatearas con un asesor.",
   },
 ];
 
@@ -52,6 +61,7 @@ export default function OnboardingPage() {
           {features.map((feature) => (
             <Card key={feature.title}>
               <CardHeader>
+                <feature.icon className="mb-1 size-6 text-primary" />
                 <CardTitle>{feature.title}</CardTitle>
               </CardHeader>
               <CardContent className="text-muted-foreground">{feature.description}</CardContent>
