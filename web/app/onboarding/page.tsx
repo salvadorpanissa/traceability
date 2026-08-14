@@ -46,17 +46,7 @@ export default function OnboardingPage() {
     <div>
       <LogoScrollHero />
 
-      <section className="mx-auto max-w-3xl px-4 py-24 text-center">
-        <h2 className="text-3xl font-bold text-balance sm:text-4xl">
-          Cada tratamiento, cada caravana, cada plazo.
-        </h2>
-        <p className="mt-4 text-lg text-balance text-muted-foreground">
-          Registrás qué producto recibió cada animal y el sistema calcula solo hasta cuándo no
-          puede salir a faena. Nada se pierde en una planilla.
-        </p>
-      </section>
-
-      <section className="mx-auto max-w-5xl px-4 py-16">
+      <section className="mx-auto max-w-5xl px-4 py-24">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <Card key={feature.title}>

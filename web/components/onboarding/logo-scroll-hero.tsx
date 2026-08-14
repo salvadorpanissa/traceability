@@ -96,7 +96,9 @@ export function LogoScrollHero() {
 
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const big = Math.min(0.58 * vh, 0.6 * vw);
+      // Narrow screens don't have room for a full-size logo beside the text blocks.
+      const vwFactor = vw < 640 ? 0.24 : 0.6;
+      const big = Math.min(0.58 * vh, vwFactor * vw);
       const t = ease(seg(p, 0.8, 1));
       const size = big - (big - SMALL_LOGO_PX) * t;
       const x = (HEADER_TARGET_X - vw / 2) * t;
@@ -194,46 +196,46 @@ export function LogoScrollHero() {
           {/* Staircase: each block fades in lower than the last, alternating sides, and stays. */}
           <div
             ref={text1Ref}
-            className="absolute left-[6vw] top-[16%] max-w-xs opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-[16%] max-w-[30vw] opacity-0 sm:max-w-sm"
           >
-            <p className="text-2xl font-semibold text-balance sm:text-3xl">
+            <p className="text-lg font-semibold text-balance sm:text-3xl">
               Desde la manga a la industria
             </p>
-            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
+            <p className="mt-2 text-xs text-balance text-muted-foreground sm:text-lg">
               Automatizá la trazabilidad de tu rodeo. La información entra directo desde tu bastón
               de lectura y los PDFs del SNIG.
             </p>
           </div>
           <div
             ref={text2Ref}
-            className="absolute right-[6vw] top-[34%] max-w-xs text-right opacity-0 sm:max-w-sm"
+            className="absolute right-[6vw] top-[34%] max-w-[30vw] text-right opacity-0 sm:max-w-sm"
           >
-            <p className="text-2xl font-semibold text-balance sm:text-3xl">
+            <p className="text-lg font-semibold text-balance sm:text-3xl">
               Olvidate de las planillas
             </p>
-            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
+            <p className="mt-2 text-xs text-balance text-muted-foreground sm:text-lg">
               El historial de tu establecimiento se construye solo. Subí tus lecturas y procesá
               cientos de animales en segundos.
             </p>
           </div>
           <div
             ref={text3Ref}
-            className="absolute left-[6vw] top-[52%] max-w-xs opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-[52%] max-w-[30vw] opacity-0 sm:max-w-sm"
           >
-            <p className="text-2xl font-semibold text-balance sm:text-3xl">
+            <p className="text-lg font-semibold text-balance sm:text-3xl">
               Controlá los tiempos de retiro
             </p>
-            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
+            <p className="mt-2 text-xs text-balance text-muted-foreground sm:text-lg">
               Registrá la sanidad y el sistema calculará automáticamente cuántos días de carencia
               le quedan a cada animal.
             </p>
           </div>
           <div
             ref={text4Ref}
-            className="absolute right-[6vw] top-[70%] max-w-xs text-right opacity-0 sm:max-w-sm"
+            className="absolute right-[6vw] top-[70%] max-w-[30vw] text-right opacity-0 sm:max-w-sm"
           >
-            <p className="text-2xl font-semibold text-balance sm:text-3xl">Vendé con seguridad</p>
-            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
+            <p className="text-lg font-semibold text-balance sm:text-3xl">Vendé con seguridad</p>
+            <p className="mt-2 text-xs text-balance text-muted-foreground sm:text-lg">
               Recibí alertas inmediatas si intentás enviar a faena un animal con residuos.
             </p>
           </div>
