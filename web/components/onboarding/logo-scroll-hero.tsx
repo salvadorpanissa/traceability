@@ -23,10 +23,6 @@ function back(t: number) {
   const c = 1.7;
   return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
 }
-function fadeWindow(p: number, start: number, end: number, feather = 0.08) {
-  return Math.min(seg(p, start, start + feather), 1 - seg(p, end - feather, end));
-}
-
 export function LogoScrollHero() {
   const sectionRef = useRef<HTMLElement>(null);
   const mainRef = useRef<SVGPathElement>(null);
@@ -92,13 +88,11 @@ export function LogoScrollHero() {
       // App name + subtitle, visible only at the very top; clears the way for the animation.
       splash!.style.opacity = `${1 - seg(p, 0, 0.06)}`;
 
-      const pairAOpacity = fadeWindow(p, 0.06, 0.4, 0.06);
-      text1!.style.opacity = `${pairAOpacity}`;
-      text2!.style.opacity = `${pairAOpacity}`;
-
-      const pairBOpacity = fadeWindow(p, 0.36, 0.78);
-      text3!.style.opacity = `${pairBOpacity}`;
-      text4!.style.opacity = `${pairBOpacity}`;
+      // Each block fades in once and stays — no fade-out once revealed.
+      text1!.style.opacity = `${seg(p, 0.06, 0.14)}`;
+      text2!.style.opacity = `${seg(p, 0.22, 0.3)}`;
+      text3!.style.opacity = `${seg(p, 0.38, 0.46)}`;
+      text4!.style.opacity = `${seg(p, 0.54, 0.62)}`;
 
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -197,10 +191,10 @@ export function LogoScrollHero() {
             </svg>
           </div>
 
-          {/* Pair A: visible immediately, higher up, bigger */}
+          {/* Staircase: each block fades in lower than the last, alternating sides, and stays. */}
           <div
             ref={text1Ref}
-            className="absolute left-[6vw] top-[22%] max-w-xs -translate-y-1/2 sm:max-w-sm"
+            className="absolute left-[6vw] top-[18%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Desde la manga a la industria
@@ -212,7 +206,7 @@ export function LogoScrollHero() {
           </div>
           <div
             ref={text2Ref}
-            className="absolute right-[6vw] top-[22%] max-w-xs -translate-y-1/2 text-right sm:max-w-sm"
+            className="absolute right-[6vw] top-[30%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Olvidate de las planillas
@@ -222,11 +216,9 @@ export function LogoScrollHero() {
               cientos de animales en segundos.
             </p>
           </div>
-
-          {/* Pair B: takes over once pair A fades out */}
           <div
             ref={text3Ref}
-            className="absolute left-[6vw] top-[42%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-[48%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
           >
             <p className="text-xl font-semibold text-balance sm:text-2xl">
               Controlá los tiempos de retiro
@@ -238,12 +230,11 @@ export function LogoScrollHero() {
           </div>
           <div
             ref={text4Ref}
-            className="absolute right-[6vw] top-[42%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
+            className="absolute right-[6vw] top-[66%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
           >
             <p className="text-xl font-semibold text-balance sm:text-2xl">Vendé con seguridad</p>
             <p className="mt-2 text-base text-balance text-muted-foreground">
-              Nunca más un rechazo en planta. Recibí alertas inmediatas si intentás enviar a faena
-              un animal con residuos.
+              Recibí alertas inmediatas si intentás enviar a faena un animal con residuos.
             </p>
           </div>
         </div>
