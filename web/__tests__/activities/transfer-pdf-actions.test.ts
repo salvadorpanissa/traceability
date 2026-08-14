@@ -127,6 +127,7 @@ describe("previewTransferBatchFromPdf", () => {
           tag: "858000031330866",
           eventDate: "2026-07-11",
           notes: null,
+          reproductiveStatusId: null,
           secondaryTag: null,
           breed: null,
           status: "new",

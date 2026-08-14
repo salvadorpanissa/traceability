@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
+import { updateReproductiveStatus } from "@/lib/activities/reproductive-status-update";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import { isSameEstablishmentMismatch } from "@/lib/activities/health-paddock-mismatch";
 
@@ -90,6 +91,7 @@ export async function confirmHealthBatch(input: {
         animalId = row.animalId;
         await gapFillBreed(tx, animalId, row.breed);
         await gapFillSecondaryTag(tx, animalId, row.secondaryTag);
+        await updateReproductiveStatus(tx, animalId, row.reproductiveStatusId ?? null);
       } else {
         animalId = await createNewAnimal(tx, { userId, operatingEstablishmentId, batchId: batch.id, row });
 

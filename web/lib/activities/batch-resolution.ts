@@ -11,6 +11,7 @@ export type ResolvedRow = {
   notes: string | null;
   secondaryTag?: string | null;
   breed?: string | null;
+  reproductiveStatusId?: string | null;
 } & (
   | { status: "existing"; animalId: string; currentEstablishmentId: string | null; currentPaddockId: string | null }
   | {
@@ -135,18 +136,19 @@ export async function resolveBatchRows(
     const notes = row.notes;
     const secondaryTag = row.secondaryTag ?? null;
     const breed = row.breed ?? null;
+    const reproductiveStatusId = row.reproductiveStatusId ?? null;
 
     if (!eventDate) {
-      result.push({ tag: row.tag, eventDate: "", notes, secondaryTag, breed, status: "error", reason: "Falta la fecha" });
+      result.push({ tag: row.tag, eventDate: "", notes, secondaryTag, breed, reproductiveStatusId, status: "error", reason: "Falta la fecha" });
       continue;
     }
 
     if (!row.tag) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Falta la caravana" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, reproductiveStatusId, status: "error", reason: "Falta la caravana" });
       continue;
     }
     if ((tagCounts.get(row.tag) ?? 0) > 1) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana duplicada en el archivo" });
+      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, reproductiveStatusId, status: "error", reason: "Caravana duplicada en el archivo" });
       continue;
     }
     if (secondaryTag && (secondaryTagCounts.get(secondaryTag) ?? 0) > 1) {
@@ -156,6 +158,7 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
+        reproductiveStatusId,
         status: "error",
         reason: "Chip secundario duplicado en el archivo",
       });
@@ -173,6 +176,7 @@ export async function resolveBatchRows(
           notes,
           secondaryTag,
           breed,
+          reproductiveStatusId,
           status: "error",
           reason: "Chip secundario ya asignado a otro animal",
         });
@@ -186,7 +190,7 @@ export async function resolveBatchRows(
       );
       const state = stateResult.rows[0];
       if (state && state.status !== "alive") {
-        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
+        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, reproductiveStatusId, status: "error", reason: "El animal está vendido o muerto" });
         continue;
       }
       result.push({
@@ -195,6 +199,7 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
+        reproductiveStatusId,
         status: "existing",
         animalId,
         currentEstablishmentId: state?.current_establishment_id ?? null,
@@ -207,7 +212,7 @@ export async function resolveBatchRows(
     if (row.category) {
       const matchedCategoryId = categoryIdByName.get(row.category);
       if (!matchedCategoryId) {
-        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Categoría no reconocida" });
+        result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, reproductiveStatusId, status: "error", reason: "Categoría no reconocida" });
         continue;
       }
       categoryId = matchedCategoryId;
@@ -241,6 +246,7 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
+        reproductiveStatusId,
         status: "foreign",
         forced,
         categoryId,
@@ -259,6 +265,7 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
+        reproductiveStatusId,
         status: "new",
         categoryId,
         sex,
@@ -273,6 +280,7 @@ export async function resolveBatchRows(
         notes,
         secondaryTag,
         breed,
+        reproductiveStatusId,
         status: "wrong_establishment",
         categoryId,
         sex,

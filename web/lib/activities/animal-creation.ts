@@ -37,7 +37,13 @@ export async function createNewAnimal(
 
   const [createdAnimal] = await tx
     .insert(animal)
-    .values({ sex: row.sex, ownerId: row.ownerId, birthDate, breed: row.breed ?? null })
+    .values({
+      sex: row.sex,
+      ownerId: row.ownerId,
+      birthDate,
+      breed: row.breed ?? null,
+      reproductiveStatusId: row.reproductiveStatusId ?? null,
+    })
     .returning();
   await tx.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: row.tag, secondaryTag: row.secondaryTag ?? null });
 

@@ -15,6 +15,7 @@ import {
   eventRecategorize,
   animalTagHistory,
   animal,
+  reproductiveStatus,
 } from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
@@ -371,5 +372,29 @@ describe("createNewAnimal", () => {
       .from(animalTagHistory)
       .where(eq(animalTagHistory.animalId, animalId));
     expect(tagRow.secondaryTag).toBeNull();
+  });
+
+  it("sets the initial reproductive status when the row carries one", async () => {
+    const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
+    const [status] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
+    const row: Extract<ResolvedRow, { status: "new" }> = {
+      tag: "AR000000000061",
+      eventDate: "2026-02-01",
+      notes: null,
+      reproductiveStatusId: status.id,
+      status: "new",
+      categoryId: null,
+      sex: null,
+      birthDate: null,
+      ownerId: null,
+      pendingOwnerName: null,
+    };
+
+    const animalId = await testDb.transaction(async (tx) =>
+      createNewAnimal(tx, { userId: user.id, operatingEstablishmentId: seededFarm.id, batchId: batch.id, row })
+    );
+
+    const [created] = await testDb.select().from(animal).where(eq(animal.id, animalId));
+    expect(created.reproductiveStatusId).toBe(status.id);
   });
 });
