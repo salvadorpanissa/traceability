@@ -98,6 +98,7 @@ export function HealthForm({
     setTransferMismatched(null);
     setPaddockLoadError("");
     setCatalogLoadError("");
+    setReproductiveStatusValueMap({});
     if (!selectedEstablishmentId) {
       setPaddocks([]);
       setCatalog([]);
@@ -134,6 +135,7 @@ export function HealthForm({
     setFile(selected);
     setEventDate("");
     setTransferMismatched(null);
+    setReproductiveStatusValueMap({});
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {

@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { getAnimalEditState, updateAnimalDetails, type AnimalLookupDetail } from "@/lib/dal/animal-access";
 import { confirmSingleRecategorize } from "@/lib/activities/recategorize-single";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
+import { getReproductiveStatusFarmId } from "@/lib/dal/reproductive-status-catalog";
 
 export type UpdateAnimalActionResult = { ok: true; animal: AnimalLookupDetail } | { ok: false; error: string };
 
@@ -41,6 +42,14 @@ export async function updateAnimalAction(
         oldCategoryId: state.categoryId,
         newCategoryId: parsed.data.categoryId,
       });
+    }
+
+    if (parsed.data.reproductiveStatusId) {
+      const statusFarmId = await getReproductiveStatusFarmId(parsed.data.reproductiveStatusId);
+      const animalFarmId = await getEstablishmentFarmId(state.establishmentId);
+      if (!statusFarmId || statusFarmId !== animalFarmId) {
+        throw new Error("El estado reproductivo no pertenece al campo de este animal");
+      }
     }
 
     const updated = await updateAnimalDetails(parsed.data.animalId, {

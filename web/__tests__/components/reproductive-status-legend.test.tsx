@@ -50,13 +50,17 @@ describe("ReproductiveStatusLegend", () => {
     expect(await screen.findByText("Repite")).toBeInTheDocument();
   });
 
-  it("defaults unassigned values to sin dato, which onChange never receives a key for", () => {
+  it("explicitly picking Sin dato submits the key with an empty-string value, not key absence", async () => {
     const onChange = vi.fn();
+    const user = userEvent.setup();
     render(
       <ReproductiveStatusLegend distinctValues={["1"]} catalog={catalog} onCreateStatus={vi.fn()} onChange={onChange} />
     );
 
     expect(screen.getByLabelText("Valor: 1")).toHaveValue("");
     expect(onChange).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText("Valor: 1"), "Sin dato");
+    expect(onChange).toHaveBeenLastCalledWith({ "1": "" });
   });
 });

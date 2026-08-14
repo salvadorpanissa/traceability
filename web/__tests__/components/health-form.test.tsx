@@ -414,4 +414,97 @@ describe("HealthForm", () => {
 
     await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(2));
   });
+
+  it("clears the reproductive-status value map when the file changes, so a second file can't silently submit under the first file's mapping", async () => {
+    vi.mocked(listReproductiveStatusesAction).mockResolvedValue([
+      { id: "rs1", farmId: "group-1", name: "Preñada", active: true },
+      { id: "rs2", farmId: "group-1", name: "Vacía", active: true },
+    ]);
+    vi.mocked(previewHealthBatch)
+      // 1) first file uploaded — legend needed
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: true,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          { header: "Preñez", meaning: "reproductiveStatus" },
+        ],
+        distinctValues: ["1", "2"],
+      })
+      // 2) legend answered for the first file (1 -> rs1, 2 -> rs2)
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: false,
+        eventDateNeeded: false,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          {
+            header: "Preñez",
+            meaning: "reproductiveStatus",
+            reproductiveStatusValueMap: { "1": "rs1", "2": "rs2" },
+          },
+        ],
+        rows: [],
+        productSuggestions: [],
+      })
+      // 3) second file uploaded, same raw codes — legend needed again
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: true,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          { header: "Preñez", meaning: "reproductiveStatus" },
+        ],
+        distinctValues: ["1", "2"],
+      })
+      // 4) user immediately continues without re-selecting anything
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: false,
+        eventDateNeeded: false,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          { header: "Preñez", meaning: "reproductiveStatus" },
+        ],
+        rows: [],
+        productSuggestions: [],
+      });
+
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
+    const user = userEvent.setup();
+
+    await selectPaddockAndUploadFile(user);
+    expect(await screen.findByText("A qué estado corresponde cada valor de la columna")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Valor: 1"), "rs1");
+    await user.selectOptions(screen.getByLabelText("Valor: 2"), "rs2");
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(2));
+
+    const secondFile = new File(["dummy2"], "lote2.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), secondFile);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
+    expect(await screen.findByText("A qué estado corresponde cada valor de la columna")).toBeInTheDocument();
+
+    // Immediately continue without touching the (blank-looking) selects.
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(4));
+
+    const lastCallFormData = vi.mocked(previewHealthBatch).mock.calls[3][0] as FormData;
+    const submittedMapping = JSON.parse(lastCallFormData.get("mapping") as string) as {
+      meaning: string;
+      reproductiveStatusValueMap?: Record<string, string>;
+    }[];
+    const reproductiveStatusColumn = submittedMapping.find((m) => m.meaning === "reproductiveStatus");
+    expect(reproductiveStatusColumn?.reproductiveStatusValueMap ?? {}).toEqual({});
+  });
 });

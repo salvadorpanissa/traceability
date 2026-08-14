@@ -23,9 +23,7 @@ export function ReproductiveStatusLegend({
   const [createError, setCreateError] = useState("");
 
   function handleAssign(rawValue: string, statusId: string) {
-    const next = { ...valueMap };
-    if (statusId) next[rawValue] = statusId;
-    else delete next[rawValue];
+    const next = { ...valueMap, [rawValue]: statusId };
     setValueMap(next);
     onChange(next);
   }

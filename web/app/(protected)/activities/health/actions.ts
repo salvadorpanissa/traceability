@@ -81,11 +81,18 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
 
+  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
+
   const reproductiveStatusColumn = mapping.find((m) => m.meaning === "reproductiveStatus");
   if (reproductiveStatusColumn) {
     const distinctValues = extractDistinctColumnValues(headers, rows, mapping, "reproductiveStatus");
     const valueMap = reproductiveStatusColumn.reproductiveStatusValueMap ?? {};
-    const uncovered = distinctValues.some((v) => !(v in valueMap));
+    const farmStatusIds = new Set((farmId ? await listReproductiveStatusesByFarm(farmId) : []).map((s) => s.id));
+    const uncovered = distinctValues.some((v) => {
+      if (!(v in valueMap)) return true;
+      const mappedId = valueMap[v];
+      return mappedId !== "" && !farmStatusIds.has(mappedId);
+    });
     if (uncovered) {
       return { mappingNeeded: false, valueLegendNeeded: true, headerSignature, mapping, distinctValues };
     }
@@ -101,7 +108,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   });
 
   const productValues = extractProductColumnValues(headers, rows, mapping);
-  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
   const catalog = farmId ? await listProductsByFarm(farmId) : [];
   const productSuggestions = productValues.map((rawValue) => {
     const matched = catalog.find((entry) => entry.name.trim().toLowerCase() === rawValue.trim().toLowerCase());

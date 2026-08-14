@@ -70,7 +70,7 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     secondaryTag: secondaryTagIndex >= 0 ? (row[secondaryTagIndex] || null) : null,
     breed: breedIndex >= 0 ? (row[breedIndex] || null) : null,
     reproductiveStatusId:
-      reproductiveStatusIndex >= 0 ? (reproductiveStatusValueMap[(row[reproductiveStatusIndex] ?? "").trim()] ?? null) : null,
+      reproductiveStatusIndex >= 0 ? (reproductiveStatusValueMap[(row[reproductiveStatusIndex] ?? "").trim()] || null) : null,
   }));
 }
 
