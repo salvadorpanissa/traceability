@@ -194,7 +194,7 @@ export function LogoScrollHero() {
           {/* Staircase: each block fades in lower than the last, alternating sides, and stays. */}
           <div
             ref={text1Ref}
-            className="absolute left-[6vw] top-24 max-w-xs opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-[16%] max-w-xs opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Desde la manga a la industria
@@ -206,7 +206,7 @@ export function LogoScrollHero() {
           </div>
           <div
             ref={text2Ref}
-            className="absolute right-[6vw] top-[30%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
+            className="absolute right-[6vw] top-[34%] max-w-xs text-right opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Olvidate de las planillas
@@ -218,7 +218,7 @@ export function LogoScrollHero() {
           </div>
           <div
             ref={text3Ref}
-            className="absolute left-[6vw] top-[48%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-[52%] max-w-xs opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Controlá los tiempos de retiro
@@ -230,7 +230,7 @@ export function LogoScrollHero() {
           </div>
           <div
             ref={text4Ref}
-            className="absolute right-[6vw] top-[66%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
+            className="absolute right-[6vw] top-[70%] max-w-xs text-right opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">Vendé con seguridad</p>
             <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
