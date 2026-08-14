@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 
-const PUBLIC_PATHS = ["/login", "/onboarding", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/landing", "/api/cron"];
 
 export default auth((req) => {
   const isPublic = PUBLIC_PATHS.some((path) => req.nextUrl.pathname.startsWith(path));

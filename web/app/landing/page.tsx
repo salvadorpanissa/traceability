@@ -1,6 +1,6 @@
 import { FileSpreadsheet, History, Receipt, ScanText, Sparkles, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogoScrollHero } from "@/components/onboarding/logo-scroll-hero";
+import { LogoScrollHero } from "@/components/landing/logo-scroll-hero";
 
 const features = [
   {
