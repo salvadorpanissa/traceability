@@ -16,6 +16,7 @@ const MEANING_LABELS: Record<ColumnMeaning, string> = {
   paddock: "Potrero",
   secondaryTag: "Chip secundario",
   breed: "Raza",
+  reproductiveStatus: "Estado reproductivo",
   ignore: "Ignorar",
 };
 

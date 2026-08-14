@@ -54,6 +54,7 @@ export async function previewSaleBatchFromPdf(formData: FormData): Promise<PdfPr
     ownerName: null,
     notes: null,
     birthDate: a.ageMonths !== null ? estimateBirthDateFromAge(guide.eventDate, a.ageMonths) : null,
+    reproductiveStatusId: null,
   }));
 
   const rows = await resolveBatchRows(mappedRows, guide.eventDate, origin.establishmentId);

@@ -10,11 +10,18 @@ export type ColumnMeaning =
   | "paddock"
   | "secondaryTag"
   | "breed"
+  | "reproductiveStatus"
   | "ignore";
+
+// Raw Excel value (trimmed) -> reproductive_status.id. Ausencia de clave =
+// "sin dato" — no se toca el estado reproductivo del animal para esa fila.
+export type ReproductiveStatusValueMap = Record<string, string>;
 
 export type ColumnMapping = {
   header: string;
   meaning: ColumnMeaning;
+  // Solo relevante cuando meaning === "reproductiveStatus".
+  reproductiveStatusValueMap?: ReproductiveStatusValueMap;
 };
 
 export type MappedRow = {
@@ -27,6 +34,7 @@ export type MappedRow = {
   birthDate?: string | null;
   secondaryTag?: string | null;
   breed?: string | null;
+  reproductiveStatusId: string | null;
 };
 
 export function computeHeaderSignature(headers: string[]): string {
@@ -48,6 +56,9 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
   const notesIndex = columnIndexFor(headers, mapping, "notes");
   const secondaryTagIndex = columnIndexFor(headers, mapping, "secondaryTag");
   const breedIndex = columnIndexFor(headers, mapping, "breed");
+  const reproductiveStatusColumn = mapping.find((m) => m.meaning === "reproductiveStatus");
+  const reproductiveStatusIndex = reproductiveStatusColumn ? headers.indexOf(reproductiveStatusColumn.header) : -1;
+  const reproductiveStatusValueMap = reproductiveStatusColumn?.reproductiveStatusValueMap ?? {};
 
   return rows.map((row) => ({
     tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
@@ -58,6 +69,8 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     notes: notesIndex >= 0 ? (row[notesIndex] || null) : null,
     secondaryTag: secondaryTagIndex >= 0 ? (row[secondaryTagIndex] || null) : null,
     breed: breedIndex >= 0 ? (row[breedIndex] || null) : null,
+    reproductiveStatusId:
+      reproductiveStatusIndex >= 0 ? (reproductiveStatusValueMap[(row[reproductiveStatusIndex] ?? "").trim()] ?? null) : null,
   }));
 }
 
@@ -120,4 +133,30 @@ export function extractProductColumnValues(headers: string[], rows: string[][], 
   }
 
   return values;
+}
+
+// Valores crudos únicos, trimeados y no vacíos de la(s) columna(s) con el
+// meaning dado — usado por el paso de leyenda de Sanidad para mostrarle al
+// usuario qué códigos aparecen realmente en su archivo. El trim tiene que
+// coincidir exactamente con el que hace applyColumnMapping al resolver
+// reproductiveStatusValueMap, o un valor con espacios nunca matchearía.
+export function extractDistinctColumnValues(
+  headers: string[],
+  rows: string[][],
+  mapping: ColumnMapping[],
+  meaning: ColumnMeaning
+): string[] {
+  const columns = mapping.filter((m) => m.meaning === meaning);
+  const values = new Set<string>();
+
+  for (const column of columns) {
+    const index = headers.indexOf(column.header);
+    if (index < 0) continue;
+    for (const row of rows) {
+      const value = (row[index] ?? "").trim();
+      if (value) values.add(value);
+    }
+  }
+
+  return [...values];
 }
