@@ -5,6 +5,7 @@ export * from "./establishment";
 export * from "./user";
 export * from "./category";
 export * from "./product";
+export * from "./reproductive-status";
 export * from "./owner";
 export * from "./animal";
 export * from "./event";

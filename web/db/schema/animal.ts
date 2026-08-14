@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, date, timestamp, index, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
 import { owner } from "./owner";
+import { reproductiveStatus } from "./reproductive-status";
 
 export const animalSex = pgEnum("animal_sex", ["male", "female"]);
 
@@ -11,6 +12,7 @@ export const animal = pgTable(
     sex: animalSex("sex"),
     breed: text("breed"),
     ownerId: uuid("owner_id").references(() => owner.id),
+    reproductiveStatusId: uuid("reproductive_status_id").references(() => reproductiveStatus.id),
   },
   (table) => [index("animal_owner_id_idx").on(table.ownerId)]
 );
