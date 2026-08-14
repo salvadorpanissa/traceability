@@ -11,6 +11,7 @@ import {
   computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
+  extractDistinctColumnValues,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, type ResolvedRow } from "@/lib/activities/batch-resolution";
@@ -19,12 +20,25 @@ import { healthBatchDetail, type HealthBatchDetail } from "@/lib/dashboard/healt
 import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import {
+  createReproductiveStatus,
+  listReproductiveStatusesByFarm,
+  type ReproductiveStatusCatalogEntry,
+} from "@/lib/dal/reproductive-status-catalog";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
+      valueLegendNeeded: true;
+      headerSignature: string;
+      mapping: ColumnMapping[];
+      distinctValues: string[];
+    }
+  | { mappingNeeded: false; valueLegendNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | {
+      mappingNeeded: false;
+      valueLegendNeeded: false;
       eventDateNeeded: false;
       headerSignature: string;
       mapping: ColumnMapping[];
@@ -66,8 +80,19 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
+
+  const reproductiveStatusColumn = mapping.find((m) => m.meaning === "reproductiveStatus");
+  if (reproductiveStatusColumn) {
+    const distinctValues = extractDistinctColumnValues(headers, rows, mapping, "reproductiveStatus");
+    const valueMap = reproductiveStatusColumn.reproductiveStatusValueMap ?? {};
+    const uncovered = distinctValues.some((v) => !(v in valueMap));
+    if (uncovered) {
+      return { mappingNeeded: false, valueLegendNeeded: true, headerSignature, mapping, distinctValues };
+    }
+  }
+
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, valueLegendNeeded: false, eventDateNeeded: true, headerSignature, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
@@ -85,6 +110,7 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 
   return {
     mappingNeeded: false,
+    valueLegendNeeded: false,
     eventDateNeeded: false,
     headerSignature,
     mapping,
@@ -161,4 +187,22 @@ export async function voidHealthBatchAction(batchId: string): Promise<void> {
 export async function getHealthBatchDetailAction(batchId: string): Promise<HealthBatchDetail | null> {
   const session = await requireSession();
   return healthBatchDetail(batchId, session.user.id, session.user.role);
+}
+
+export async function createReproductiveStatusForHealthAction(
+  establishmentId: string,
+  name: string
+): Promise<ReproductiveStatusCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createReproductiveStatus(farmId, name);
+}
+
+export async function listReproductiveStatusesAction(establishmentId: string): Promise<ReproductiveStatusCatalogEntry[]> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  return farmId ? listReproductiveStatusesByFarm(farmId) : [];
 }

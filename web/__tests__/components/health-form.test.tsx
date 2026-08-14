@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HealthForm } from "@/components/activities/health-form";
-import { previewHealthBatch, listPaddocksAction } from "@/app/(protected)/activities/health/actions";
+import { previewHealthBatch, listPaddocksAction, listReproductiveStatusesAction } from "@/app/(protected)/activities/health/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
@@ -10,7 +10,15 @@ import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 // @testing-library/react's automatic afterEach cleanup never registers —
 // see __tests__/components/dashboard/livestock-status-table.test.tsx for
 // the full explanation.
-afterEach(cleanup);
+//
+// vi.clearAllMocks() resets each mock's call count between tests (see
+// __tests__/components/death-form.test.tsx for the same pattern) — needed
+// so a later test's toHaveBeenCalledTimes assertion on previewHealthBatch
+// isn't polluted by calls made in earlier tests in this file.
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const catalog: ProductCatalogEntry[] = [
   {
@@ -27,6 +35,7 @@ const catalog: ProductCatalogEntry[] = [
 vi.mock("@/app/(protected)/activities/health/actions", () => ({
   previewHealthBatch: vi.fn(async () => ({
     mappingNeeded: false,
+    valueLegendNeeded: false,
     eventDateNeeded: false,
     headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
@@ -58,6 +67,13 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
   createHealthPaddockAction: vi.fn(async (establishmentId: string, name: string) => ({ id: "pd2", name, establishmentId })),
   listPaddocksAction: vi.fn(async () => [{ id: "pd1", name: "Potrero 1", establishmentId: "establishment-1" }]),
   listProductsAction: vi.fn(async () => catalog),
+  listReproductiveStatusesAction: vi.fn(async () => []),
+  createReproductiveStatusForHealthAction: vi.fn(async (establishmentId: string, name: string) => ({
+    id: "rs-created",
+    farmId: "group-1",
+    name,
+    active: true,
+  })),
 }));
 const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
 const establishments = [{ id: "establishment-1", name: "Campo Norte" }];
@@ -159,12 +175,14 @@ describe("HealthForm", () => {
   it("does not show a Fecha field upfront, and asks for one only when the file has no date column", async () => {
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      valueLegendNeeded: false,
       eventDateNeeded: true,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
     });
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      valueLegendNeeded: false,
       eventDateNeeded: false,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
@@ -251,6 +269,7 @@ describe("HealthForm", () => {
   it("shows a paddock-mismatch warning for an existing row in a different potrero, and blocks Confirmar until a choice is made", async () => {
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      valueLegendNeeded: false,
       eventDateNeeded: false,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
@@ -298,6 +317,7 @@ describe("HealthForm", () => {
   it("sends transferMismatchedToPaddock: true when the user chooses to also relocate mismatched caravanas", async () => {
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
+      valueLegendNeeded: false,
       eventDateNeeded: false,
       headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
@@ -346,5 +366,52 @@ describe("HealthForm", () => {
     await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
 
     expect(screen.queryByText(/trasladarlas también a este potrero/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the reproductive-status legend when the preview asks for one, then proceeds", async () => {
+    vi.mocked(listReproductiveStatusesAction).mockResolvedValueOnce([
+      { id: "rs1", farmId: "group-1", name: "Preñada", active: true },
+      { id: "rs2", farmId: "group-1", name: "Vacía", active: true },
+    ]);
+    vi.mocked(previewHealthBatch)
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: true,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          { header: "Preñez", meaning: "reproductiveStatus" },
+        ],
+        distinctValues: ["1", "2"],
+      })
+      .mockResolvedValueOnce({
+        mappingNeeded: false,
+        valueLegendNeeded: false,
+        eventDateNeeded: false,
+        headerSignature: "sig-1",
+        mapping: [
+          { header: "IDE", meaning: "tag" },
+          { header: "Fecha", meaning: "date" },
+          {
+            header: "Preñez",
+            meaning: "reproductiveStatus",
+            reproductiveStatusValueMap: { "1": "rs1", "2": "rs2" },
+          },
+        ],
+        rows: [],
+        productSuggestions: [],
+      });
+
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
+    const user = userEvent.setup();
+    await selectPaddockAndUploadFile(user);
+
+    expect(await screen.findByText("A qué estado corresponde cada valor de la columna")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Valor: 1"), "rs1");
+    await user.selectOptions(screen.getByLabelText("Valor: 2"), "rs2");
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(2));
   });
 });

@@ -11,6 +11,7 @@ import { ProductListEditor, emptyProduct } from "@/components/activities/product
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { PaddockSelector } from "@/components/activities/paddock-selector";
 import { PaddockMismatchWarning } from "@/components/activities/paddock-mismatch-warning";
+import { ReproductiveStatusLegend } from "@/components/activities/reproductive-status-legend";
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
@@ -19,6 +20,8 @@ import {
   createHealthPaddockAction,
   listPaddocksAction,
   listProductsAction,
+  createReproductiveStatusForHealthAction,
+  listReproductiveStatusesAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -28,6 +31,7 @@ import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 function buildInitialProducts(
   suggestions: { rawValue: string; matchedProductId: string | null }[],
@@ -82,6 +86,8 @@ export function HealthForm({
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
   const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
+  const [reproductiveStatusCatalog, setReproductiveStatusCatalog] = useState<ReproductiveStatusCatalogEntry[]>([]);
+  const [reproductiveStatusValueMap, setReproductiveStatusValueMap] = useState<Record<string, string>>({});
 
   async function handleEstablishmentChange(selectedEstablishmentId: string) {
     setEstablishmentId(selectedEstablishmentId);
@@ -109,6 +115,11 @@ export function HealthForm({
       setCatalog([]);
       setCatalogLoadError(err instanceof Error ? err.message : "No se pudieron cargar los productos");
     }
+    try {
+      setReproductiveStatusCatalog(await listReproductiveStatusesAction(selectedEstablishmentId));
+    } catch {
+      setReproductiveStatusCatalog([]);
+    }
   }
 
   function handlePaddockChange(selectedPaddockId: string | null) {
@@ -134,7 +145,7 @@ export function HealthForm({
     if (mapping) formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
     setPreview(result);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       setRows(result.rows);
       const built = buildInitialProducts(result.productSuggestions, catalog);
       setProducts(built.products);
@@ -143,8 +154,26 @@ export function HealthForm({
   }
 
   async function handleSubmitEventDate() {
-    if (!preview || preview.mappingNeeded || !preview.eventDateNeeded) return;
+    if (!preview || preview.mappingNeeded || preview.valueLegendNeeded || !preview.eventDateNeeded) return;
     await runPreview(preview.mapping);
+  }
+
+  async function handleCreateReproductiveStatus(name: string): Promise<ReproductiveStatusCatalogEntry> {
+    const created = await createReproductiveStatusForHealthAction(establishmentId, name);
+    setReproductiveStatusCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
+  }
+
+  function handleReproductiveStatusLegendChange(valueMap: Record<string, string>) {
+    setReproductiveStatusValueMap(valueMap);
+  }
+
+  async function handleSubmitReproductiveStatusLegend() {
+    if (!preview || preview.mappingNeeded || !preview.valueLegendNeeded) return;
+    const mapping = preview.mapping.map((m) =>
+      m.meaning === "reproductiveStatus" ? { ...m, reproductiveStatusValueMap: reproductiveStatusValueMap } : m
+    );
+    await runPreview(mapping);
   }
 
   async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
@@ -180,7 +209,7 @@ export function HealthForm({
   }
 
   async function handleConfirm() {
-    if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
+    if (!preview || preview.mappingNeeded || preview.valueLegendNeeded || preview.eventDateNeeded) return;
     await confirmHealthBatchAction({
       headerSignature: preview.headerSignature,
       mapping: preview.mapping,
@@ -250,13 +279,39 @@ export function HealthForm({
       {preview?.mappingNeeded ? (
         <ColumnMapper
           headers={preview.headers}
-          availableMeanings={["tag", "date", "category", "product", "sex", "owner", "notes", "secondaryTag", "breed", "ignore"]}
+          availableMeanings={[
+            "tag",
+            "date",
+            "category",
+            "product",
+            "sex",
+            "owner",
+            "notes",
+            "secondaryTag",
+            "breed",
+            "reproductiveStatus",
+            "ignore",
+          ]}
           initialMapping={preview.initialMapping}
           onSubmit={(mapping) => runPreview(mapping)}
         />
       ) : null}
 
-      {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
+      {preview && !preview.mappingNeeded && preview.valueLegendNeeded ? (
+        <div className="flex flex-col gap-2">
+          <ReproductiveStatusLegend
+            distinctValues={preview.distinctValues}
+            catalog={reproductiveStatusCatalog}
+            onCreateStatus={handleCreateReproductiveStatus}
+            onChange={handleReproductiveStatusLegendChange}
+          />
+          <Button type="button" onClick={handleSubmitReproductiveStatusLegend}>
+            Continuar
+          </Button>
+        </div>
+      ) : null}
+
+      {preview && !preview.mappingNeeded && !preview.valueLegendNeeded && preview.eventDateNeeded ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">
             El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
@@ -269,7 +324,7 @@ export function HealthForm({
         </div>
       ) : null}
 
-      {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
+      {preview && !preview.mappingNeeded && !preview.valueLegendNeeded && !preview.eventDateNeeded ? (
         <div className="flex flex-col gap-4">
           <ProductListEditor
             catalog={catalog}

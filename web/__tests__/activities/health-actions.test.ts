@@ -122,7 +122,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].status).toBe("new");
     }
@@ -202,7 +202,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.productSuggestions).toEqual([
         { rawValue: "ASPERSIN", matchedProductId: null },
         { rawValue: "Aftosa", matchedProductId: matchedProduct.id },
@@ -229,7 +229,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(false);
       if (!result.eventDateNeeded) {
         expect(result.rows[0].eventDate).toBe("2026-03-10");
@@ -250,7 +250,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(true);
     }
   });
@@ -269,7 +269,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(false);
       if (!result.eventDateNeeded) {
         expect(result.rows[0].eventDate).toBe("2026-02-01");
@@ -291,9 +291,66 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.rows[0].status).toBe("foreign");
     }
+  });
+
+  it("asks for a value legend when a reproductiveStatus column has no map covering its distinct values yet", async () => {
+    const { seededFarm } = await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha", "Preñez"],
+      [
+        ["AR000000000090", "2026-02-01", "1"],
+        ["AR000000000091", "2026-02-01", "2"],
+      ]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+        { header: "Preñez", meaning: "reproductiveStatus" },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result).toMatchObject({ mappingNeeded: false, valueLegendNeeded: true, distinctValues: ["1", "2"] });
+  });
+
+  it("proceeds past the legend once the value map covers every distinct value", async () => {
+    const { seededFarm } = await seedManagerSession();
+    await seedOwnTag("AR000000000092", seededFarm.id, "AIP");
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha", "Preñez"],
+      [["AR000000000092", "2026-02-01", "1"]]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+        {
+          header: "Preñez",
+          meaning: "reproductiveStatus",
+          reproductiveStatusValueMap: { "1": "status-a", "2": "status-b" },
+        },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) expect(result.valueLegendNeeded).toBe(false);
   });
 });
 
