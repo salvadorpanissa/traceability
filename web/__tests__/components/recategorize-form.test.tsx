@@ -16,14 +16,13 @@ vi.mock("@/app/(protected)/activities/recategorize/actions", () => ({
   listCategoriesAction: vi.fn(),
 }));
 
-const establishments = [{ id: "establishment-1", name: "Campo Norte" }];
+const farms = [{ id: "farm-1", name: "Campo Norte" }];
 
 function sampleFile(): File {
   return new File(["Caravana,Fecha\nAR1,2026-03-01"], "lote.csv", { type: "text/csv" });
 }
 
-async function pickFarm(user: ReturnType<typeof userEvent.setup>) {
-  await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
+async function pickFarm() {
   await waitFor(() => expect(screen.getByLabelText("Categoría destino")).not.toBeDisabled());
 }
 
@@ -61,11 +60,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    expect(screen.getByLabelText("Categoría destino")).toBeDisabled();
-    await pickFarm(user);
+    await pickFarm();
 
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-plus3");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
@@ -82,7 +80,7 @@ describe("RecategorizeForm", () => {
       expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith({
         headerSignature: "sig",
         mapping: [],
-        establishmentId: "establishment-1",
+        farmId: "farm-1",
         targetCategoryId: "cat-novillo-plus3",
         rows: expect.any(Array),
         unresolvableDecisions: {},
@@ -127,10 +125,10 @@ describe("RecategorizeForm", () => {
       new Error("El lote cambió desde que se generó la vista previa; volvé a subir el archivo.")
     );
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-plus3");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -165,10 +163,10 @@ describe("RecategorizeForm", () => {
       rows: [{ tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" }],
     });
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -201,10 +199,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -243,10 +241,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -293,10 +291,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));
@@ -339,10 +337,10 @@ describe("RecategorizeForm", () => {
     });
     vi.mocked(confirmRecategorizeBatchAction).mockResolvedValue(undefined);
 
-    render(<RecategorizeForm establishments={establishments} />);
+    render(<RecategorizeForm farms={farms} />);
 
     const user = userEvent.setup();
-    await pickFarm(user);
+    await pickFarm();
     await user.selectOptions(screen.getByLabelText("Categoría destino"), "cat-novillo-macho");
     await user.upload(screen.getByLabelText("Archivo"), sampleFile());
     await user.click(screen.getByRole("button", { name: "Subir" }));

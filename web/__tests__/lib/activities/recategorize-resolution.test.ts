@@ -171,7 +171,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result).toEqual([
@@ -191,7 +191,45 @@ describe("resolveRecategorizeBatchRows", () => {
     ]);
   });
 
-  it("errors a row whose animal is on a different campo than the one chosen", async () => {
+  it("resolves animals on different establishments as long as they're in the same farm group", async () => {
+    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
+    const [otherEstablishment] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    const [novillo] = await testDb
+      .insert(category)
+      .values({ farmId: seededFarmGroup.id, name: "Novillo" })
+      .returning();
+    await seedAnimalAtFarm({
+      establishmentId: seededFarm.id,
+      adminId: admin.id,
+      tag: "AR1",
+      categoryId: novillo.id,
+    });
+    await seedAnimalAtFarm({
+      establishmentId: otherEstablishment.id,
+      adminId: admin.id,
+      tag: "AR2",
+      categoryId: novillo.id,
+    });
+
+    const result = await resolveRecategorizeBatchRows(
+      [
+        row({ tag: "AR1", date: "2026-03-01" }),
+        row({ tag: "AR2", date: "2026-03-01" }),
+      ],
+      null,
+      seededFarmGroup.id,
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({ tag: "AR1", status: "existing", currentEstablishmentId: seededFarm.id }),
+      expect.objectContaining({ tag: "AR2", status: "existing", currentEstablishmentId: otherEstablishment.id }),
+    ]);
+  });
+
+  it("errors a row whose animal is on a different farm group than the one chosen", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [otherFarmGroup] = await testDb
       .insert(farm)
@@ -224,7 +262,7 @@ describe("resolveRecategorizeBatchRows", () => {
         row({ tag: "AR2", date: "2026-03-01" }),
       ],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result).toEqual([
@@ -232,7 +270,7 @@ describe("resolveRecategorizeBatchRows", () => {
       expect.objectContaining({
         tag: "AR2",
         status: "error",
-        reason: "El animal no pertenece al campo elegido",
+        reason: "El animal no pertenece a este grupo de campos",
       }),
     ]);
   });
@@ -253,7 +291,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: null })],
       "2026-04-01",
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -278,7 +316,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: null })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result).toEqual([
@@ -295,11 +333,11 @@ describe("resolveRecategorizeBatchRows", () => {
   });
 
   it("errors on a missing tag", async () => {
-    const { seededFarm } = await seedFarmAndAdmin();
+    const { seededFarmGroup } = await seedFarmAndAdmin();
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result).toEqual([
@@ -316,14 +354,14 @@ describe("resolveRecategorizeBatchRows", () => {
   });
 
   it("errors on a tag repeated in the file", async () => {
-    const { seededFarm } = await seedFarmAndAdmin();
+    const { seededFarmGroup } = await seedFarmAndAdmin();
     const result = await resolveRecategorizeBatchRows(
       [
         row({ tag: "AR1", date: "2026-03-01" }),
         row({ tag: "AR1", date: "2026-03-01" }),
       ],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(
@@ -336,11 +374,11 @@ describe("resolveRecategorizeBatchRows", () => {
   });
 
   it("errors when the tag was never registered", async () => {
-    const { seededFarm } = await seedFarmAndAdmin();
+    const { seededFarmGroup } = await seedFarmAndAdmin();
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR-NOPE", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result).toEqual([
@@ -373,7 +411,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -399,7 +437,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -429,7 +467,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -456,7 +494,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({ status: "age-unresolvable" });
@@ -479,7 +517,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({ status: "age-unresolvable" });
@@ -502,7 +540,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({ status: "age-unresolvable" });
@@ -525,7 +563,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({ status: "existing", sex: "female" });
@@ -548,7 +586,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR1", date: "2026-03-01" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -580,7 +618,7 @@ describe("resolveRecategorizeBatchRows", () => {
         }),
       ],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -615,7 +653,7 @@ describe("resolveRecategorizeBatchRows", () => {
         row({ tag: "AR4", date: "2026-03-01", secondaryTag: "CHIP-DUP" }),
       ],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({
@@ -659,7 +697,7 @@ describe("resolveRecategorizeBatchRows", () => {
     const result = await resolveRecategorizeBatchRows(
       [row({ tag: "AR6", date: "2026-03-01", secondaryTag: "CHIP-TAKEN" })],
       null,
-      seededFarm.id,
+      seededFarmGroup.id,
     );
 
     expect(result[0]).toMatchObject({

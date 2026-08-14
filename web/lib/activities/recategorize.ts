@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
-import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, requireFarmAccess } from "@/lib/dal/farm-access";
 import { gapFillBreed, gapFillSecondaryTag } from "@/lib/activities/gap-fill";
 import { computeAgeMonths, resolveCategoryForAge } from "@/lib/activities/age-recategorization";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
@@ -30,6 +30,7 @@ type PlannedChange = {
 type FreshState = {
   animal_id: string;
   current_establishment_id: string | null;
+  current_farm_id: string | null;
   current_category_id: string | null;
   status: string;
   birth_date: string | null;
@@ -45,10 +46,11 @@ async function loadFreshState(animalIds: string[]): Promise<Map<string, FreshSta
     sql`, `
   );
   const result = await db.execute<FreshState>(sql`
-    select acs.animal_id, acs.current_establishment_id, acs.current_category_id, acs.status,
-           a.birth_date, a.sex
+    select acs.animal_id, acs.current_establishment_id, e.farm_id as current_farm_id,
+           acs.current_category_id, acs.status, a.birth_date, a.sex
     from animal_current_state acs
     join animal a on a.id = acs.animal_id
+    left join establishment e on e.id = acs.current_establishment_id
     where acs.animal_id in (${idList})
   `);
   return new Map(result.rows.map((row) => [row.animal_id, row]));
@@ -57,26 +59,23 @@ async function loadFreshState(animalIds: string[]): Promise<Map<string, FreshSta
 export async function confirmRecategorizeBatch(input: {
   userId: string;
   role: string | undefined;
-  operatingEstablishmentId: string;
+  operatingFarmId: string;
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
   sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
-  const { userId, role, operatingEstablishmentId, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+  const { userId, role, operatingFarmId, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
 
-  await requireEstablishmentAccess(userId, role, operatingEstablishmentId);
+  await requireFarmAccess(userId, role, operatingFarmId);
 
   if (rows.some((row) => row.status === "error")) {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
 
-  const farmId = await getEstablishmentFarmId(operatingEstablishmentId);
-  if (!farmId) throw new Error("Campo no encontrado");
-
   const [targetCategoryRow] = await db.select({ sex: category.sex, farmId: category.farmId }).from(category).where(eq(category.id, targetCategoryId));
-  if (!targetCategoryRow || targetCategoryRow.farmId !== farmId) {
-    throw new Error("La categoría destino no pertenece al grupo del campo elegido");
+  if (!targetCategoryRow || targetCategoryRow.farmId !== operatingFarmId) {
+    throw new Error("La categoría destino no pertenece a este grupo de campos");
   }
   const targetCategorySex = targetCategoryRow.sex;
 
@@ -88,7 +87,7 @@ export async function confirmRecategorizeBatch(input: {
     ? await db
         .select({ id: category.id, sex: category.sex, minAgeMonths: category.minAgeMonths })
         .from(category)
-        .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, farmId)))
+        .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, operatingFarmId)))
     : [];
 
   function isSexMismatch(animalSex: "male" | "female" | null): boolean {
@@ -104,7 +103,7 @@ export async function confirmRecategorizeBatch(input: {
       throw new Error(STALE_BATCH_ERROR);
     }
     const establishmentId = state.current_establishment_id;
-    if (establishmentId !== operatingEstablishmentId) {
+    if (state.current_farm_id !== operatingFarmId) {
       throw new Error(STALE_BATCH_ERROR);
     }
 

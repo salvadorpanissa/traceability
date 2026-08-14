@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
-import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
+import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import {
@@ -33,8 +33,8 @@ function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
 
 export async function previewRecategorizeBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
-  const operatingEstablishmentId = formData.get("establishmentId") as string;
-  await requireEstablishmentAccess(session.user.id, session.user.role, operatingEstablishmentId);
+  const operatingFarmId = formData.get("farmId") as string;
+  await requireFarmAccess(session.user.id, session.user.role, operatingFarmId);
 
   const file = requireFile(formData, "file");
   const eventDateInput = formData.get("eventDate") as string | null;
@@ -66,7 +66,7 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
-  const rows_ = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingEstablishmentId);
+  const rows_ = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
 
   return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: rows_ };
 }
@@ -74,7 +74,7 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
 export async function confirmRecategorizeBatchAction(input: {
   headerSignature: string;
   mapping: ColumnMapping[];
-  establishmentId: string;
+  farmId: string;
   targetCategoryId: string;
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
@@ -90,7 +90,7 @@ export async function confirmRecategorizeBatchAction(input: {
   await confirmRecategorizeBatch({
     userId: session.user.id,
     role: session.user.role,
-    operatingEstablishmentId: input.establishmentId,
+    operatingFarmId: input.farmId,
     targetCategoryId: input.targetCategoryId,
     rows: input.rows,
     unresolvableDecisions: input.unresolvableDecisions,
@@ -98,9 +98,8 @@ export async function confirmRecategorizeBatchAction(input: {
   });
 }
 
-export async function listCategoriesAction(establishmentId: string): Promise<CategoryCatalogEntry[]> {
+export async function listCategoriesAction(farmId: string): Promise<CategoryCatalogEntry[]> {
   const session = await requireSession();
-  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
-  const farmId = await getEstablishmentFarmId(establishmentId);
-  return farmId ? listCategoriesByFarm(farmId) : [];
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return listCategoriesByFarm(farmId);
 }

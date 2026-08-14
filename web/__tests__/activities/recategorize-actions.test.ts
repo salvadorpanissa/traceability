@@ -139,13 +139,13 @@ async function seedAnimalAtFarm(
 
 async function excelFormData(
   rows: string[][],
-  establishmentId: string,
+  farmId: string,
   headers: string[] = ["Caravana", "Fecha"],
 ): Promise<FormData> {
   const buffer = await buildWorkbookBuffer(headers, rows);
   const formData = new FormData();
   formData.set("file", new Blob([buffer]), "lote.xlsx");
-  formData.set("establishmentId", establishmentId);
+  formData.set("farmId", farmId);
   return formData;
 }
 
@@ -159,7 +159,7 @@ describe("previewRecategorizeBatch", () => {
     await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
     await refreshDerivedState();
 
-    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarm.id);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarmGroup.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -184,12 +184,11 @@ describe("previewRecategorizeBatch", () => {
     });
   });
 
-  it("rejects the whole batch when the manager has no access to the chosen campo", async () => {
+  it("rejects the whole batch when the manager has no access to the chosen farm group", async () => {
     await seedManagerAndFarm();
     const [foreignGroup] = await testDb.insert(farm).values({ name: "Grupo Ajeno" }).returning();
-    const [foreignFarm] = await testDb.insert(establishment).values({ farmId: foreignGroup.id, name: "Campo Ajeno" }).returning();
 
-    const formData = await excelFormData([["AR1", "2026-03-01"]], foreignFarm.id);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], foreignGroup.id);
     formData.set(
       "mapping",
       JSON.stringify([
@@ -198,10 +197,10 @@ describe("previewRecategorizeBatch", () => {
       ]),
     );
 
-    await expect(previewRecategorizeBatch(formData)).rejects.toThrow("No tenés acceso a este campo");
+    await expect(previewRecategorizeBatch(formData)).rejects.toThrow("No tenés acceso a este grupo de campos");
   });
 
-  it("errors a row whose animal is on a different campo than the one chosen", async () => {
+  it("errors a row whose animal is on a different farm group than the one chosen", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [foreignGroup] = await testDb.insert(farm).values({ name: "Grupo Ajeno" }).returning();
     const [foreignFarm] = await testDb.insert(establishment).values({ farmId: foreignGroup.id, name: "Campo Ajeno" }).returning();
@@ -211,7 +210,8 @@ describe("previewRecategorizeBatch", () => {
       .returning();
     await seedAnimalAtFarm(seededFarm.id, manager.id, "AR1", novillo.id);
     // Same manager id as creator (only a FK filler) — the point is this animal
-    // lives on foreignFarm, not the campo the user picked in the form.
+    // lives on foreignFarm, in a different farm group than the one picked in
+    // the form.
     await seedAnimalAtFarm(foreignFarm.id, manager.id, "AR9", novillo.id);
     await refreshDerivedState();
 
@@ -220,7 +220,7 @@ describe("previewRecategorizeBatch", () => {
         ["AR1", "2026-03-01"],
         ["AR9", "2026-03-01"],
       ],
-      seededFarm.id,
+      seededFarmGroup.id,
     );
     formData.set(
       "mapping",
@@ -237,15 +237,15 @@ describe("previewRecategorizeBatch", () => {
       eventDateNeeded: false,
       rows: [
         { tag: "AR1", status: "existing", currentCategoryId: novillo.id },
-        { tag: "AR9", status: "error", reason: "El animal no pertenece al campo elegido" },
+        { tag: "AR9", status: "error", reason: "El animal no pertenece a este grupo de campos" },
       ],
     });
   });
 
   it("asks for a column mapping the first time a header signature is seen", async () => {
-    const { seededFarm } = await seedManagerAndFarm();
+    const { seededFarmGroup } = await seedManagerAndFarm();
 
-    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarm.id);
+    const formData = await excelFormData([["AR1", "2026-03-01"]], seededFarmGroup.id);
 
     const result = await previewRecategorizeBatch(formData);
 
@@ -283,7 +283,7 @@ describe("confirmRecategorizeBatchAction", () => {
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },
       ],
-      establishmentId: seededFarm.id,
+      farmId: seededFarmGroup.id,
       targetCategoryId: novilloPlus3.id,
       rows: [
         {
