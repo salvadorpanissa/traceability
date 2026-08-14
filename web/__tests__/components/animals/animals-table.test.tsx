@@ -31,6 +31,8 @@ function makeAnimal(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail 
     ownerName: "SASG",
     secondaryTag: null,
     notes: null,
+    reproductiveStatusId: null,
+    reproductiveStatusName: null,
     ...overrides,
   };
 }
@@ -44,7 +46,7 @@ describe("AnimalsTable", () => {
     ];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const table = within(screen.getByRole("table"));
 
@@ -63,7 +65,7 @@ describe("AnimalsTable", () => {
     ];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const user = userEvent.setup();
     const search = screen.getByPlaceholderText(/buscar por caravana/i);
@@ -82,7 +84,7 @@ describe("AnimalsTable", () => {
     const rows = [makeAnimal({ animalId: "a1", currentTag: "AR1", categoryName: "Vaca de cría" })];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const user = userEvent.setup();
 
@@ -93,7 +95,7 @@ describe("AnimalsTable", () => {
 
   it("shows an empty-state message when there are no animals", () => {
     render(
-      <AnimalsTable rows={[]} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={[]} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     expect(screen.getByText("No hay animales para mostrar.")).toBeInTheDocument();
   });
@@ -105,7 +107,7 @@ describe("AnimalsTable", () => {
     ];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const user = userEvent.setup();
 
@@ -123,7 +125,7 @@ describe("AnimalsTable", () => {
     ];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const user = userEvent.setup();
 
@@ -144,7 +146,7 @@ describe("AnimalsTable", () => {
     ];
 
     render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale="es" />
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
     );
     const user = userEvent.setup();
 
@@ -156,5 +158,21 @@ describe("AnimalsTable", () => {
 
     expect(screen.getByLabelText("Potrero")).toHaveValue("");
     expect(screen.getByText("AR1")).toBeInTheDocument();
+  });
+
+  it("shows notes and reproductive status columns", () => {
+    const rows = [
+      makeAnimal({ animalId: "a1", currentTag: "AR1", notes: "Cojera leve", reproductiveStatusName: "Preñada" }),
+      makeAnimal({ animalId: "a2", currentTag: "AR2", notes: null, reproductiveStatusName: "Vacía" }),
+    ];
+
+    render(
+      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
+    );
+    const table = within(screen.getByRole("table"));
+
+    expect(table.getByText("Cojera leve")).toBeInTheDocument();
+    expect(table.getByText("Preñada")).toBeInTheDocument();
+    expect(table.getByText("Vacía")).toBeInTheDocument();
   });
 });

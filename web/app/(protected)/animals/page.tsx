@@ -5,6 +5,7 @@ import { visibleAnimalDetails } from "@/lib/dal/animal-access";
 import { listOwners } from "@/lib/dal/owner-catalog";
 import { listSelectableEstablishments } from "@/lib/dal/farm-access";
 import { listCategoriesByFarm, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import { listReproductiveStatusesByFarm, type ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 import { AnimalsTable } from "@/components/animals/animals-table";
 
 export default async function AnimalsPage() {
@@ -27,10 +28,26 @@ export default async function AnimalsPage() {
     categoriesByEstablishmentId[establishment.id] = categoriesByFarmId.get(establishment.farmId) ?? [];
   }
 
+  const reproductiveStatusesByFarmId = new Map(
+    await Promise.all(
+      farmIds.map(async (farmId): Promise<[string, ReproductiveStatusCatalogEntry[]]> => [farmId, await listReproductiveStatusesByFarm(farmId)])
+    )
+  );
+  const reproductiveStatusesByEstablishmentId: Record<string, ReproductiveStatusCatalogEntry[]> = {};
+  for (const establishment of establishments) {
+    reproductiveStatusesByEstablishmentId[establishment.id] = reproductiveStatusesByFarmId.get(establishment.farmId) ?? [];
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">{translate(locale, "animals.title")}</h1>
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} locale={locale} />
+      <AnimalsTable
+        rows={rows}
+        owners={owners}
+        categoriesByEstablishmentId={categoriesByEstablishmentId}
+        reproductiveStatusesByEstablishmentId={reproductiveStatusesByEstablishmentId}
+        locale={locale}
+      />
     </div>
   );
 }

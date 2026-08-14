@@ -6,6 +6,7 @@ import { updateAnimalAction } from "@/app/(protected)/animals/actions";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 afterEach(cleanup);
 
@@ -29,6 +30,8 @@ const baseAnimal: AnimalLookupDetail = {
   ownerName: "SASG",
   secondaryTag: "CHIP1",
   notes: null,
+  reproductiveStatusId: null,
+  reproductiveStatusName: null,
 };
 
 const owners: OwnerCatalogEntry[] = [
@@ -41,6 +44,11 @@ const categories: CategoryCatalogEntry[] = [
   { id: "c2", farmId: "f1", name: "Vaca de invernada", sex: "female", minAgeMonths: null, active: true },
 ];
 
+const reproductiveStatuses: ReproductiveStatusCatalogEntry[] = [
+  { id: "rs1", farmId: "f1", name: "Preñada", active: true },
+  { id: "rs2", farmId: "f1", name: "Vacía", active: true },
+];
+
 describe("AnimalEditDialog", () => {
   it("opens pre-filled with the animal's current data and saves the edited fields", async () => {
     vi.mocked(updateAnimalAction).mockResolvedValue({
@@ -50,7 +58,7 @@ describe("AnimalEditDialog", () => {
     const onSaved = vi.fn();
     const user = userEvent.setup();
 
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={onSaved} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={onSaved} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.getByLabelText("Raza")).toHaveValue("Hereford");
@@ -72,6 +80,7 @@ describe("AnimalEditDialog", () => {
         birthDate: "2021-01-01",
         ownerId: "o2",
         secondaryTag: "CHIP1",
+        reproductiveStatusId: null,
       })
     );
     expect(onSaved).toHaveBeenCalledWith({ ...baseAnimal, breed: "Angus", ownerName: "AIP" });
@@ -84,7 +93,7 @@ describe("AnimalEditDialog", () => {
     });
     const user = userEvent.setup();
 
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={vi.fn()} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
     await user.click(screen.getByRole("button", { name: "Guardar" }));
 
@@ -96,7 +105,7 @@ describe("AnimalEditDialog", () => {
 
   it("does not offer the caravana, campo, potrero, or sexo as editable fields", async () => {
     const user = userEvent.setup();
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={vi.fn()} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.queryByLabelText("Caravana")).not.toBeInTheDocument();
@@ -109,7 +118,7 @@ describe("AnimalEditDialog", () => {
     vi.mocked(updateAnimalAction).mockResolvedValue({ ok: true, animal: baseAnimal });
     const user = userEvent.setup();
 
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={vi.fn()} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.getByText("Hembra")).toBeInTheDocument();
@@ -121,7 +130,7 @@ describe("AnimalEditDialog", () => {
 
   it("shows the campo and potrero together under one Establecimiento label", async () => {
     const user = userEvent.setup();
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={vi.fn()} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.getByText("Establecimiento")).toBeInTheDocument();
@@ -132,7 +141,7 @@ describe("AnimalEditDialog", () => {
     vi.mocked(updateAnimalAction).mockResolvedValue({ ok: true, animal: { ...baseAnimal, categoryName: "Vaca de invernada" } });
     const user = userEvent.setup();
 
-    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} locale="es" onSaved={vi.fn()} />);
+    render(<AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.queryByText("Esto genera un evento de recategorización para este animal.")).not.toBeInTheDocument();
@@ -145,5 +154,35 @@ describe("AnimalEditDialog", () => {
     await waitFor(() =>
       expect(updateAnimalAction).toHaveBeenCalledWith(expect.objectContaining({ categoryId: "c2" }))
     );
+  });
+
+  it("lets the reproductive status be set from the catalog and sends it on save", async () => {
+    vi.mocked(updateAnimalAction).mockResolvedValue({
+      ok: true,
+      animal: { ...baseAnimal, reproductiveStatusId: "rs1", reproductiveStatusName: "Preñada" },
+    });
+    const user = userEvent.setup();
+
+    render(
+      <AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+
+    await user.selectOptions(screen.getByLabelText("Estado reproductivo"), "rs1");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() =>
+      expect(updateAnimalAction).toHaveBeenCalledWith(expect.objectContaining({ reproductiveStatusId: "rs1" }))
+    );
+  });
+
+  it("does not show the removed campo/potrero hint", async () => {
+    const user = userEvent.setup();
+    render(
+      <AnimalEditDialog animal={baseAnimal} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" onSaved={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+
+    expect(screen.queryByText(/se cambian desde Traslado/)).not.toBeInTheDocument();
   });
 });

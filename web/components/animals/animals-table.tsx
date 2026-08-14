@@ -8,6 +8,7 @@ import { AnimalEditDialog } from "@/components/animals/animal-edit-dialog";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 const PAGE_SIZE = 100;
 
@@ -15,11 +16,13 @@ export function AnimalsTable({
   rows: initialRows,
   owners,
   categoriesByEstablishmentId,
+  reproductiveStatusesByEstablishmentId,
   locale,
 }: {
   rows: AnimalLookupDetail[];
   owners: OwnerCatalogEntry[];
   categoriesByEstablishmentId: Record<string, CategoryCatalogEntry[]>;
+  reproductiveStatusesByEstablishmentId: Record<string, ReproductiveStatusCatalogEntry[]>;
   locale: Locale;
 }) {
   const [rows, setRows] = useState(initialRows);
@@ -79,6 +82,12 @@ export function AnimalsTable({
       sortValue: (row) => row.breed,
     },
     {
+      key: "reproductiveStatus",
+      header: translate(locale, "animalLookup.reproductiveStatus"),
+      render: (row) => row.reproductiveStatusName ?? translate(locale, "animalLookup.noReproductiveStatus"),
+      sortValue: (row) => row.reproductiveStatusName,
+    },
+    {
       key: "owner",
       header: translate(locale, "animalLookup.owner"),
       render: (row) => row.ownerName ?? "—",
@@ -92,6 +101,11 @@ export function AnimalsTable({
       sortValue: (row) => row.birthDate,
     },
     {
+      key: "notes",
+      header: translate(locale, "livestock.notes"),
+      render: (row) => row.notes ?? "—",
+    },
+    {
       key: "actions",
       header: translate(locale, "animals.actions"),
       render: (row) => (
@@ -99,6 +113,7 @@ export function AnimalsTable({
           animal={row}
           owners={owners}
           categories={categoriesByEstablishmentId[row.currentEstablishmentId ?? ""] ?? []}
+          reproductiveStatuses={reproductiveStatusesByEstablishmentId[row.currentEstablishmentId ?? ""] ?? []}
           locale={locale}
           onSaved={handleSaved}
         />

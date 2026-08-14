@@ -11,17 +11,20 @@ import { updateAnimalAction } from "@/app/(protected)/animals/actions";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
+import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 export function AnimalEditDialog({
   animal,
   owners,
   categories,
+  reproductiveStatuses,
   locale,
   onSaved,
 }: {
   animal: AnimalLookupDetail;
   owners: OwnerCatalogEntry[];
   categories: CategoryCatalogEntry[];
+  reproductiveStatuses: ReproductiveStatusCatalogEntry[];
   locale: Locale;
   onSaved: (updated: AnimalLookupDetail) => void;
 }) {
@@ -31,6 +34,7 @@ export function AnimalEditDialog({
   const [birthDate, setBirthDate] = useState(animal.birthDate ?? "");
   const [ownerId, setOwnerId] = useState(owners.find((o) => o.name === animal.ownerName)?.id ?? "");
   const [secondaryTag, setSecondaryTag] = useState(animal.secondaryTag ?? "");
+  const [reproductiveStatusId, setReproductiveStatusId] = useState(animal.reproductiveStatusId ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +44,7 @@ export function AnimalEditDialog({
     setBirthDate(animal.birthDate ?? "");
     setOwnerId(owners.find((o) => o.name === animal.ownerName)?.id ?? "");
     setSecondaryTag(animal.secondaryTag ?? "");
+    setReproductiveStatusId(animal.reproductiveStatusId ?? "");
     setError(null);
   }
 
@@ -59,6 +64,7 @@ export function AnimalEditDialog({
       birthDate: birthDate || null,
       ownerId: ownerId || null,
       secondaryTag: secondaryTag.trim() || null,
+      reproductiveStatusId: reproductiveStatusId || null,
     });
     setIsSaving(false);
     if (!result.ok) {
@@ -137,7 +143,24 @@ export function AnimalEditDialog({
             <Input id="animal-edit-breed" value={breed} onChange={(e) => setBreed(e.target.value)} />
           </div>
 
-          <div className="col-span-2 flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="animal-edit-reproductive-status">{translate(locale, "animalLookup.reproductiveStatus")}</Label>
+            <select
+              id="animal-edit-reproductive-status"
+              value={reproductiveStatusId}
+              onChange={(e) => setReproductiveStatusId(e.target.value)}
+              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+            >
+              <option value="">{translate(locale, "animalLookup.noReproductiveStatus")}</option>
+              {reproductiveStatuses.map((status) => (
+                <option key={status.id} value={status.id}>
+                  {status.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
             <Label htmlFor="animal-edit-owner">{translate(locale, "animalLookup.owner")}</Label>
             <select
               id="animal-edit-owner"
@@ -165,8 +188,6 @@ export function AnimalEditDialog({
 
           {error ? <p className="col-span-2 text-sm text-destructive">{error}</p> : null}
         </div>
-
-        <p className="text-xs text-muted-foreground">{translate(locale, "animals.editReadOnlyHint")}</p>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>
