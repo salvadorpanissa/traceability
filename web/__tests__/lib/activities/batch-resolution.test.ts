@@ -670,6 +670,34 @@ describe("resolveBatchRows", () => {
     });
   });
 
+  it("resolves an existing animal when the tag column actually holds its secondary chip", async () => {
+    const { seededFarm, createdAnimal } = await seedExistingAnimal("AR000000000097");
+    await testDb
+      .update(animalTagHistory)
+      .set({ secondaryTag: "CHIP-097" })
+      .where(eq(animalTagHistory.animalId, createdAnimal.id));
+
+    const rows: MappedRow[] = [
+      {
+        // A reader that could only pick up the chip put its value in the
+        // "caravana" column instead of the ear tag.
+        tag: "CHIP-097",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: null,
+        notes: null,
+      },
+    ];
+
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({
+      status: "existing",
+      tag: "CHIP-097",
+      animalId: createdAnimal.id,
+    });
+  });
+
   it("errors both rows of a duplicated secondaryTag within the same file", async () => {
     const { seededFarm } = await seedFarmUserRole();
     const rows: MappedRow[] = [

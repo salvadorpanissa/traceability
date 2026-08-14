@@ -83,7 +83,13 @@ export async function resolveBatchRows(
       : [];
   const animalIdByTag = new Map(tagHistoryRows.map((r) => [r.tag, r.animalId]));
 
-  const nonEmptySecondaryTags = rows.map((r) => r.secondaryTag).filter((v): v is string => !!v);
+  // Also looked up against the row's own tag: a tag reader sometimes only
+  // picks up an animal's chip (secondary tag) — e.g. the ear tag was lost —
+  // so a "caravana" column value that matches no primary tag may still
+  // match a known secondary one.
+  const nonEmptySecondaryTags = [
+    ...new Set([...rows.map((r) => r.secondaryTag).filter((v): v is string => !!v), ...nonEmptyTags]),
+  ];
   const secondaryTagHistoryRows =
     nonEmptySecondaryTags.length > 0
       ? await db
@@ -156,7 +162,7 @@ export async function resolveBatchRows(
       continue;
     }
 
-    const animalId = animalIdByTag.get(row.tag);
+    const animalId = animalIdByTag.get(row.tag) ?? animalIdBySecondaryTag.get(row.tag);
 
     if (secondaryTag) {
       const secondaryTagOwnerId = animalIdBySecondaryTag.get(secondaryTag);
