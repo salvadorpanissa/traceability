@@ -36,6 +36,8 @@ describe("AnimalLookup", () => {
       ownerName: "SASG",
       secondaryTag: "CHIP1",
       notes: null,
+      reproductiveStatusId: null,
+      reproductiveStatusName: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -73,6 +75,8 @@ describe("AnimalLookup", () => {
       ownerName: null,
       secondaryTag: null,
       notes: null,
+      reproductiveStatusId: null,
+      reproductiveStatusName: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -104,6 +108,8 @@ describe("AnimalLookup", () => {
       ownerName: null,
       secondaryTag: null,
       notes: null,
+      reproductiveStatusId: null,
+      reproductiveStatusName: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -152,6 +158,8 @@ describe("AnimalLookup", () => {
       ownerName: null,
       secondaryTag: null,
       notes: null,
+      reproductiveStatusId: null,
+      reproductiveStatusName: null,
     });
 
     render(<AnimalLookup locale="es" />);
@@ -180,6 +188,8 @@ describe("AnimalLookup", () => {
       ownerName: null,
       secondaryTag: null,
       notes: null,
+      reproductiveStatusId: null,
+      reproductiveStatusName: null,
     });
 
     render(<AnimalLookup locale="es" />);
