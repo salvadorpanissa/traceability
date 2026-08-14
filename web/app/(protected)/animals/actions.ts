@@ -17,6 +17,7 @@ const updateAnimalSchema = z.object({
   ownerId: z.string().uuid().nullable(),
   secondaryTag: z.string().trim().nullable(),
   categoryId: z.string().uuid().nullable(),
+  reproductiveStatusId: z.string().uuid().nullable(),
 });
 
 export async function updateAnimalAction(
@@ -48,6 +49,7 @@ export async function updateAnimalAction(
       birthDate: parsed.data.birthDate || null,
       ownerId: parsed.data.ownerId,
       secondaryTag: parsed.data.secondaryTag || null,
+      reproductiveStatusId: parsed.data.reproductiveStatusId,
     });
     if (!updated) return { ok: false, error: "Animal no encontrado" };
     return { ok: true, animal: updated };
