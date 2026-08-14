@@ -194,7 +194,7 @@ export function LogoScrollHero() {
           {/* Staircase: each block fades in lower than the last, alternating sides, and stays. */}
           <div
             ref={text1Ref}
-            className="absolute left-[6vw] top-[18%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
+            className="absolute left-[6vw] top-24 max-w-xs opacity-0 sm:max-w-sm"
           >
             <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Desde la manga a la industria
@@ -220,10 +220,10 @@ export function LogoScrollHero() {
             ref={text3Ref}
             className="absolute left-[6vw] top-[48%] max-w-xs -translate-y-1/2 opacity-0 sm:max-w-sm"
           >
-            <p className="text-xl font-semibold text-balance sm:text-2xl">
+            <p className="text-2xl font-semibold text-balance sm:text-3xl">
               Controlá los tiempos de retiro
             </p>
-            <p className="mt-2 text-base text-balance text-muted-foreground">
+            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
               Registrá la sanidad y el sistema calculará automáticamente cuántos días de carencia
               le quedan a cada animal.
             </p>
@@ -232,8 +232,8 @@ export function LogoScrollHero() {
             ref={text4Ref}
             className="absolute right-[6vw] top-[66%] max-w-xs -translate-y-1/2 text-right opacity-0 sm:max-w-sm"
           >
-            <p className="text-xl font-semibold text-balance sm:text-2xl">Vendé con seguridad</p>
-            <p className="mt-2 text-base text-balance text-muted-foreground">
+            <p className="text-2xl font-semibold text-balance sm:text-3xl">Vendé con seguridad</p>
+            <p className="mt-2 text-base text-balance text-muted-foreground sm:text-lg">
               Recibí alertas inmediatas si intentás enviar a faena un animal con residuos.
             </p>
           </div>
