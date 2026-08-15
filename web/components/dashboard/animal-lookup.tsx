@@ -1,26 +1,30 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { lookupAnimalByTagAction } from "@/app/(protected)/dashboard/animal-lookup-actions";
-import { sexLabel, statusLabel } from "@/lib/dashboard/animal-labels";
-import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 
 export function AnimalLookup({ locale }: { locale: Locale }) {
+  const router = useRouter();
   const [tag, setTag] = useState("");
-  const [result, setResult] = useState<{ tag: string; state: AnimalLookupDetail | null } | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit() {
     const searchedTag = tag.trim();
     if (searchedTag.length === 0) return;
+    setNotFound(false);
     startTransition(async () => {
       const state = await lookupAnimalByTagAction(searchedTag);
-      setResult({ tag: searchedTag, state });
+      if (state) {
+        router.push(`/animals/${state.animalId}`);
+      } else {
+        setNotFound(true);
+      }
     });
   }
 
@@ -38,7 +42,10 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
         <Input
           id="animal-lookup-tag"
           value={tag}
-          onChange={(e) => setTag(e.target.value)}
+          onChange={(e) => {
+            setTag(e.target.value);
+            setNotFound(false);
+          }}
           onKeyDown={handleKeyDown}
           placeholder={translate(locale, "animalLookup.placeholder")}
           className="max-w-xs"
@@ -48,55 +55,7 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
         </Button>
       </div>
 
-      {result ? (
-        result.state ? (
-          <div className="flex flex-col gap-1 text-sm">
-            {result.state.currentTag && result.state.currentTag !== result.tag ? (
-              <p className="text-muted-foreground">
-                {translate(locale, "animalLookup.tagChanged")} {result.state.currentTag}
-              </p>
-            ) : null}
-            <p>
-              {translate(locale, "livestock.establishment")}: {result.state.establishmentName ?? translate(locale, "livestock.noEstablishment")}
-            </p>
-            <p>
-              {translate(locale, "livestock.paddock")}:{" "}
-              {result.state.paddockName ?? translate(locale, "livestock.noPaddock")}
-            </p>
-            <p>
-              {translate(locale, "livestock.category")}:{" "}
-              {result.state.categoryName ?? translate(locale, "livestock.noCategory")}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.status")}: {statusLabel(result.state.status, locale)}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.owner")}: {result.state.ownerName ?? translate(locale, "animalLookup.noOwner")}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.sex")}: {sexLabel(result.state.sex, locale)}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.breed")}: {result.state.breed ?? translate(locale, "animalLookup.noBreed")}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.birthDate")}:{" "}
-              {result.state.birthDate ?? translate(locale, "animalLookup.noBirthDate")}
-            </p>
-            <p>
-              {translate(locale, "animalLookup.secondaryTag")}:{" "}
-              {result.state.secondaryTag ?? translate(locale, "animalLookup.noSecondaryTag")}
-            </p>
-            {result.state.status === "alive" ? (
-              <Link href={`/activities/death?tag=${encodeURIComponent(result.tag)}`} className="text-sm underline">
-                {translate(locale, "animalLookup.registerDeath")}
-              </Link>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">{translate(locale, "animalLookup.notFound")}</p>
-        )
-      ) : null}
+      {notFound ? <p className="text-muted-foreground">{translate(locale, "animalLookup.notFound")}</p> : null}
     </div>
   );
 }

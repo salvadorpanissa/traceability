@@ -34,7 +34,7 @@ describe("AppShell", () => {
 
     expect(screen.getByText("theme-toggle")).toBeInTheDocument();
     expect(activeNavLink).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("link", { name: "Registro de Caravanas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Registro de caravanas" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Recategorización" })).toHaveAttribute("href", "/activities/recategorize");
     expect(screen.queryByRole("button", { name: "Cerrar sesión" })).not.toBeInTheDocument();
 
@@ -45,6 +45,21 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
     expect(screen.getByText("contenido")).toBeInTheDocument();
+  });
+
+  it("does not link to Recaravaneo or Muerte from the header nav", async () => {
+    mockedPathname = "/dashboard";
+
+    render(
+      <LocaleProvider initialLocale="es">
+        <AppShell userName="Encargado Norte">
+          <p>contenido</p>
+        </AppShell>
+      </LocaleProvider>
+    );
+
+    expect(screen.queryByRole("link", { name: "Recaravaneo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Muerte" })).not.toBeInTheDocument();
   });
 
   it("only marks Liquidación as active on /activities/sale-settlement, not Venta", async () => {

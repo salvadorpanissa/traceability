@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnimalLookup } from "@/components/dashboard/animal-lookup";
 import { lookupAnimalByTagAction } from "@/app/(protected)/dashboard/animal-lookup-actions";
+import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
 
 afterEach(() => {
   cleanup();
@@ -13,114 +14,50 @@ vi.mock("@/app/(protected)/dashboard/animal-lookup-actions", () => ({
   lookupAnimalByTagAction: vi.fn(),
 }));
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
+
+const ALIVE_STATE: AnimalLookupDetail = {
+  animalId: "a1",
+  currentTag: "AR001",
+  currentEstablishmentId: "f1",
+  establishmentName: "Campo Norte",
+  currentPaddockId: "p1",
+  paddockName: "Potrero 1",
+  currentCategoryId: "c1",
+  categoryName: "Vaca",
+  status: "alive",
+  sex: "female",
+  breed: "Hereford",
+  birthDate: "2021-01-01",
+  ownerName: "SASG",
+  secondaryTag: "CHIP1",
+  notes: null,
+  reproductiveStatusId: null,
+  reproductiveStatusName: null,
+};
+
 describe("AnimalLookup", () => {
   it("disables the submit button while the tag is empty", () => {
     render(<AnimalLookup locale="es" />);
     expect(screen.getByRole("button", { name: "Buscar" })).toBeDisabled();
   });
 
-  it("shows the animal's location on a successful lookup", async () => {
-    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
-      animalId: "a1",
-      currentTag: "AR001",
-      currentEstablishmentId: "f1",
-      establishmentName: "Campo Norte",
-      currentPaddockId: "p1",
-      paddockName: "Potrero 1",
-      currentCategoryId: "c1",
-      categoryName: "Vaca",
-      status: "alive",
-      sex: "female",
-      breed: "Hereford",
-      birthDate: "2021-01-01",
-      ownerName: "SASG",
-      secondaryTag: "CHIP1",
-      notes: null,
-      reproductiveStatusId: null,
-      reproductiveStatusName: null,
-    });
+  it("navigates to the animal's detail page on a successful lookup", async () => {
+    vi.mocked(lookupAnimalByTagAction).mockResolvedValue(ALIVE_STATE);
 
     render(<AnimalLookup locale="es" />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
     await user.click(screen.getByRole("button", { name: "Buscar" }));
 
-    await waitFor(() => expect(screen.getByText(/campo/i)).toBeInTheDocument());
     expect(lookupAnimalByTagAction).toHaveBeenCalledWith("AR001");
-    expect(screen.getByText(/campo norte/i)).toBeInTheDocument();
-    expect(screen.getByText(/potrero 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/vaca/i)).toBeInTheDocument();
-    expect(screen.getByText(/viva/i)).toBeInTheDocument();
-    expect(screen.getByText(/sasg/i)).toBeInTheDocument();
-    expect(screen.getByText(/hembra/i)).toBeInTheDocument();
-    expect(screen.getByText(/hereford/i)).toBeInTheDocument();
-    expect(screen.getByText(/2021-01-01/)).toBeInTheDocument();
-    expect(screen.getByText(/chip1/i)).toBeInTheDocument();
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/animals/a1"));
   });
 
-  it("shows fallback text for owner, sex, breed, birth date, and secondary tag when unset", async () => {
-    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
-      animalId: "a1",
-      currentTag: "AR001",
-      currentEstablishmentId: "f1",
-      establishmentName: "Campo Norte",
-      currentPaddockId: null,
-      paddockName: null,
-      currentCategoryId: null,
-      categoryName: null,
-      status: "alive",
-      sex: null,
-      breed: null,
-      birthDate: null,
-      ownerName: null,
-      secondaryTag: null,
-      notes: null,
-      reproductiveStatusId: null,
-      reproductiveStatusName: null,
-    });
-
-    render(<AnimalLookup locale="es" />);
-    const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
-    await user.click(screen.getByRole("button", { name: "Buscar" }));
-
-    await waitFor(() => expect(screen.getByText(/sin propietario/i)).toBeInTheDocument());
-    expect(screen.getByText(/sin dato/i)).toBeInTheDocument();
-    expect(screen.getByText(/sin raza/i)).toBeInTheDocument();
-    expect(screen.getByText(/sin fecha de nacimiento/i)).toBeInTheDocument();
-    expect(screen.getByText(/sin chip secundario/i)).toBeInTheDocument();
-  });
-
-  it("mentions the current tag when it differs from what was searched", async () => {
-    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
-      animalId: "a1",
-      currentTag: "AR002",
-      currentEstablishmentId: "f1",
-      establishmentName: "Campo Norte",
-      currentPaddockId: null,
-      paddockName: null,
-      currentCategoryId: null,
-      categoryName: null,
-      status: "alive",
-      sex: null,
-      breed: null,
-      birthDate: null,
-      ownerName: null,
-      secondaryTag: null,
-      notes: null,
-      reproductiveStatusId: null,
-      reproductiveStatusName: null,
-    });
-
-    render(<AnimalLookup locale="es" />);
-    const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
-    await user.click(screen.getByRole("button", { name: "Buscar" }));
-
-    await waitFor(() => expect(screen.getByText(/AR002/)).toBeInTheDocument());
-  });
-
-  it("shows a not-found message when the tag doesn't resolve", async () => {
+  it("shows a not-found message when the tag doesn't resolve, without navigating", async () => {
     vi.mocked(lookupAnimalByTagAction).mockResolvedValue(null);
 
     render(<AnimalLookup locale="es" />);
@@ -129,6 +66,7 @@ describe("AnimalLookup", () => {
     await user.click(screen.getByRole("button", { name: "Buscar" }));
 
     await waitFor(() => expect(screen.getByText("No se encontró esa caravana.")).toBeInTheDocument());
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("submits on Enter", async () => {
@@ -139,65 +77,5 @@ describe("AnimalLookup", () => {
     await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001{Enter}");
 
     await waitFor(() => expect(lookupAnimalByTagAction).toHaveBeenCalledWith("AR001"));
-  });
-
-  it("shows a Registrar muerte link only when the animal is alive", async () => {
-    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
-      animalId: "a1",
-      currentTag: "AR001",
-      currentEstablishmentId: "f1",
-      establishmentName: "Campo Norte",
-      currentPaddockId: null,
-      paddockName: null,
-      currentCategoryId: null,
-      categoryName: null,
-      status: "alive",
-      sex: null,
-      breed: null,
-      birthDate: null,
-      ownerName: null,
-      secondaryTag: null,
-      notes: null,
-      reproductiveStatusId: null,
-      reproductiveStatusName: null,
-    });
-
-    render(<AnimalLookup locale="es" />);
-    const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
-    await user.click(screen.getByRole("button", { name: "Buscar" }));
-
-    const link = await screen.findByRole("link", { name: "Registrar muerte" });
-    expect(link).toHaveAttribute("href", "/activities/death?tag=AR001");
-  });
-
-  it("hides the Registrar muerte link when the animal is already dead", async () => {
-    vi.mocked(lookupAnimalByTagAction).mockResolvedValue({
-      animalId: "a1",
-      currentTag: "AR001",
-      currentEstablishmentId: "f1",
-      establishmentName: "Campo Norte",
-      currentPaddockId: null,
-      paddockName: null,
-      currentCategoryId: null,
-      categoryName: null,
-      status: "dead",
-      sex: null,
-      breed: null,
-      birthDate: null,
-      ownerName: null,
-      secondaryTag: null,
-      notes: null,
-      reproductiveStatusId: null,
-      reproductiveStatusName: null,
-    });
-
-    render(<AnimalLookup locale="es" />);
-    const user = userEvent.setup();
-    await user.type(screen.getByPlaceholderText("Número de caravana"), "AR001");
-    await user.click(screen.getByRole("button", { name: "Buscar" }));
-
-    await waitFor(() => expect(screen.getByText(/muerta/i)).toBeInTheDocument());
-    expect(screen.queryByRole("link", { name: "Registrar muerte" })).not.toBeInTheDocument();
   });
 });

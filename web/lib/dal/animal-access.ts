@@ -359,6 +359,112 @@ export async function findAnimalDetailByTag(
   return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
 }
 
+// Same shape as findAnimalDetailByTag, but keyed by the animal's permanent
+// uuid instead of a tag — used by the /animals/[id] detail page, since a
+// tag can change on a later retag while the id never does.
+export async function findAnimalDetailById(
+  userId: string,
+  role: string | undefined,
+  animalId: string
+): Promise<AnimalLookupDetail | null> {
+  if (isAdmin(role)) {
+    const result = await db.execute<AnimalLookupDetailRow>(
+      sql`${CURRENT_STATE_WITH_DETAILS_SELECT} where acs.animal_id = ${animalId}`
+    );
+    return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
+  }
+
+  const establishmentIds = await userEstablishmentIds(userId);
+  if (establishmentIds.length === 0) return null;
+
+  const establishmentIdList = sql.join(
+    establishmentIds.map((establishmentId) => sql`${establishmentId}`),
+    sql`, `
+  );
+  const result = await db.execute<AnimalLookupDetailRow>(
+    sql`${CURRENT_STATE_WITH_DETAILS_SELECT} where acs.animal_id = ${animalId} and acs.current_establishment_id in (${establishmentIdList})`
+  );
+  return result.rows[0] ? toAnimalLookupDetail(result.rows[0]) : null;
+}
+
+export type AnimalTagHistoryEntry = {
+  tag: string;
+  secondaryTag: string | null;
+  validFrom: Date;
+};
+
+// Every tag the animal has ever worn, newest first — for the detail page's
+// tag-history table. Unguarded by establishment access: callers only reach
+// here after findAnimalDetailById/findAnimalDetailByTag already confirmed
+// the caller can see this animal.
+export async function animalTagHistoryFor(animalId: string): Promise<AnimalTagHistoryEntry[]> {
+  return db
+    .select({
+      tag: animalTagHistory.tag,
+      secondaryTag: animalTagHistory.secondaryTag,
+      validFrom: animalTagHistory.validFrom,
+    })
+    .from(animalTagHistory)
+    .where(eq(animalTagHistory.animalId, animalId))
+    .orderBy(desc(animalTagHistory.validFrom));
+}
+
+export type AnimalHealthNoteEntry = {
+  eventDate: string;
+  establishmentName: string | null;
+  paddockName: string | null;
+  productName: string;
+  withdrawalEndDate: string | null;
+  notes: string;
+};
+
+type AnimalHealthNoteRow = {
+  event_date: string;
+  establishment_name: string | null;
+  paddock_name: string | null;
+  product_name: string;
+  withdrawal_end_date: string | null;
+  notes: string;
+};
+
+// Sanidad (health) events are the only event type that carries a note
+// alongside a campo/potrero, product, and withdrawal period, so notes shown
+// with their sanidad context on the detail page come only from here — not
+// the flat, all-event-types aggregate on AnimalLookupDetail.notes. The campo
+// comes from the event's own establishment_id (where the animal was at the
+// time of that sanidad), not the animal's current one. The withdrawal end
+// date follows the same event_date + withdrawal_days computation as
+// findPendingWithdrawals (lib/dal/health-withdrawal.ts). Unguarded by
+// establishment access, same as animalTagHistoryFor: callers reach here only
+// after findAnimalDetailById already confirmed the caller can see this
+// animal.
+export async function animalHealthNotesFor(animalId: string): Promise<AnimalHealthNoteEntry[]> {
+  const result = await db.execute<AnimalHealthNoteRow>(sql`
+    select
+      ev.event_date,
+      est.name as establishment_name,
+      p.name as paddock_name,
+      pr.name as product_name,
+      (ev.event_date + eh.withdrawal_days) as withdrawal_end_date,
+      ev.notes
+    from event ev
+    join event_health eh on eh.event_id = ev.id
+    join product pr on pr.id = eh.product_id
+    left join establishment est on est.id = ev.establishment_id
+    left join paddock p on p.id = eh.paddock_id
+    where ev.animal_id = ${animalId} and ev.notes is not null
+    order by ev.event_date desc, ev.created_at desc
+  `);
+  return result.rows.map((row) => ({
+    eventDate: row.event_date,
+    establishmentName: row.establishment_name,
+    paddockName: row.paddock_name,
+    productName: row.product_name,
+    withdrawalEndDate: row.withdrawal_end_date,
+    notes: row.notes,
+  }));
+}
+
 export type AnimalEditState = {
   establishmentId: string | null;
   categoryId: string | null;

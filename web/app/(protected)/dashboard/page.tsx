@@ -82,6 +82,9 @@ export default async function DashboardPage() {
         </div>
         <div className="flex flex-col gap-6 lg:col-span-1">
           <div>
+            <AnimalLookup locale={locale} />
+          </div>
+          <div>
             <h2 className="mb-3 text-lg font-semibold">{translate(locale, "dashboard.stockByCategoryTitle")}</h2>
             <div className="rounded-xl border bg-card p-4">
               <StockByCategoryChart rows={byCategory} />
@@ -94,9 +97,6 @@ export default async function DashboardPage() {
               initialThreshold={DEFAULT_STALE_TAG_THRESHOLD_DAYS}
               locale={locale}
             />
-          </div>
-          <div>
-            <AnimalLookup locale={locale} />
           </div>
         </div>
       </div>

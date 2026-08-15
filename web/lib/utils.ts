@@ -19,3 +19,14 @@ export function formatLongDate(dateStr: string): string {
 export function formatShortDate(dateStr: string): string {
   return shortDateFormatter.format(new Date(`${dateStr}T12:00:00Z`))
 }
+
+// Normalizes free text typed into the database inconsistently (e.g. a
+// product name entered as "ASPERSIN") into sentence case for display — only
+// the first letter capitalized, the rest lowercased. Word-by-word Title
+// Case would wrongly capitalize Spanish connector words (e.g. "Vaca de
+// cría" becoming "Vaca De Cría"), so this stays a single first-letter
+// capitalization. Display-only: never applied to identifiers like tags.
+export function toSentenceCase(value: string): string {
+  if (value.length === 0) return value
+  return value[0].toUpperCase() + value.slice(1).toLowerCase()
+}

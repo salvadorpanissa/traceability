@@ -53,12 +53,19 @@ function compareValues(a: string | number | null, b: string | number | null): nu
   return String(a).localeCompare(String(b));
 }
 
-// Current page plus its next 3, then (if there's a real gap) an ellipsis
-// before the last page — instead of one button per page, which is unusable
-// once there are dozens of pages.
+// The first page (so there's always a way back to the start), then current
+// plus its next 3, then the last page — with an ellipsis standing in for
+// any real gap on either side. One button per page is unusable once there
+// are dozens of pages, but a window that only ever looks forward (the
+// previous version) strands you near the end with no page-1 anchor and a
+// button set that shrinks as you page backward.
 function paginationItems(current: number, totalPages: number): (number | "ellipsis")[] {
   const items: (number | "ellipsis")[] = [];
   const windowEnd = Math.min(current + 3, totalPages - 1);
+  if (current > 0) {
+    items.push(0);
+    if (current > 1) items.push("ellipsis");
+  }
   for (let page = current; page <= windowEnd; page++) items.push(page);
   if (windowEnd < totalPages - 1) {
     if (windowEnd < totalPages - 2) items.push("ellipsis");

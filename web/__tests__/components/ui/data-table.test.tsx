@@ -143,6 +143,24 @@ describe("DataTable", () => {
     expect(screen.getByText("Row 99")).toBeInTheDocument();
   });
 
+  it("keeps a page-1 anchor visible once paged in near the end, instead of stranding you with no way back", async () => {
+    const manyRows: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: String(i), name: `Row ${i}`, count: i }));
+    render(<DataTable columns={baseColumns} rows={manyRows} getRowId={(r) => r.id} locale="es" pageSize={10} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Página 10" }));
+    // Paging backward one step at a time (as clicking the previous chevron
+    // would) must never lose the page-1 button — that was the original bug.
+    await user.click(screen.getByRole("button", { name: "Página anterior" }));
+    await user.click(screen.getByRole("button", { name: "Página anterior" }));
+
+    expect(screen.getByRole("button", { name: "Página 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página 8" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página 9" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página 10" })).toBeInTheDocument();
+    expect(screen.getAllByText("…")).toHaveLength(1);
+  });
+
   it("does not render a download button unless exportable is set", () => {
     render(<DataTable columns={baseColumns} rows={rows} getRowId={(r) => r.id} locale="es" />);
     expect(screen.queryByRole("button", { name: /descargar excel/i })).not.toBeInTheDocument();
