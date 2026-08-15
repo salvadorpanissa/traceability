@@ -8,7 +8,7 @@ export const userAccount = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     email: text("email").notNull().unique(),
-    passwordHash: text("password_hash").notNull(),
+    passwordHash: text("password_hash"),
     roleId: uuid("role_id")
       .notNull()
       .references(() => role.id),
