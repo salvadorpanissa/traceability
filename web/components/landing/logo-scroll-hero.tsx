@@ -147,7 +147,7 @@ export function LogoScrollHero() {
         </div>
       </div>
 
-      <section ref={sectionRef} className="relative h-[280vh]">
+      <section ref={sectionRef} className="relative h-[400vh]">
         <div className="sticky top-0 h-screen overflow-hidden">
           <div
             ref={splashRef}

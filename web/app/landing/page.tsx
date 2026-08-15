@@ -7,7 +7,7 @@ const features = [
     icon: ScanText,
     title: "Lectura inteligente del SNIG",
     description:
-      "Olvidate de tipear. Subí el PDF de tu Guía de Tránsito y el sistema extrae automáticamente todo el anexo de caravanas en un segundo.",
+      "Olvidate de cargar datos a mano. Subí el PDF de tu Guía Electrónica y el sistema extrae automáticamente todo el anexo de caravanas en un segundo.",
   },
   {
     icon: FileSpreadsheet,
@@ -23,7 +23,7 @@ const features = [
   },
   {
     icon: Receipt,
-    title: "Liquidaciones de Frigorífico",
+    title: "Liquidaciones",
     description:
       "Subí el PDF de la liquidación de la industria. El sistema extrae los kilos y montos reales para asociarlos automáticamente a tu lote.",
   },
@@ -35,9 +35,9 @@ const features = [
   },
   {
     icon: Sparkles,
-    title: "Preguntale a la IA",
+    title: "Búsqueda inteligente",
     description:
-      "Consultas en lenguaje natural sobre tu rodeo. Pedile reportes o preguntale cuántos novillos tenés listos, como si chatearas con un asesor.",
+      "Encontrá la información de tus animales al instante. Usá tus propias palabras para filtrar datos y consultar el estado general del establecimiento.",
   },
 ];
 
@@ -47,6 +47,15 @@ export default function OnboardingPage() {
       <LogoScrollHero />
 
       <section className="mx-auto max-w-5xl px-4 py-24">
+        <div className="mx-auto mb-12 mt-48 max-w-2xl text-center">
+          <h2 className="text-3xl font-bold text-balance sm:text-4xl">
+            Diseñado para simplificar tu día a día
+          </h2>
+          <p className="mt-3 text-muted-foreground text-balance">
+            Conocé las herramientas que automatizan la gestión de tu rodeo y te ahorran horas de
+            trabajo.
+          </p>
+        </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <Card key={feature.title}>
