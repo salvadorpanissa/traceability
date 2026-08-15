@@ -126,7 +126,7 @@ export function ReproductiveStatusCatalogForm({
             <tr className="border-b text-left">
               <th className="py-1 pr-2">Nombre</th>
               {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-              <th className="py-1 pr-2" />
+              <th className="w-px whitespace-nowrap py-1 pr-2" />
             </tr>
           </thead>
           <tbody>
@@ -137,26 +137,30 @@ export function ReproductiveStatusCatalogForm({
                     <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
                   </td>
                   {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="flex gap-1 py-1 pr-2">
-                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                      Guardar
-                    </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                      Cancelar
-                    </Button>
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <div className="flex gap-1 whitespace-nowrap">
+                      <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
+                        Guardar
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
+                        Cancelar
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 <tr key={entry.id} className="border-b last:border-0">
                   <td className="py-1 pr-2">{entry.name}</td>
                   {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="flex gap-1 py-1 pr-2">
-                    <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                      Editar
-                    </Button>
-                    <Button type="button" size="sm" variant="destructive" onClick={() => handleArchive(entry.id)}>
-                      Eliminar
-                    </Button>
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <div className="flex gap-1 whitespace-nowrap">
+                      <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
+                        Editar
+                      </Button>
+                      <Button type="button" size="sm" variant="destructive" onClick={() => handleArchive(entry.id)}>
+                        Eliminar
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               )
