@@ -1,36 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { DataTable, type DataTableColumn, type DataTableFilter } from "@/components/ui/data-table";
 import { sexLabel, statusLabel } from "@/lib/dashboard/animal-labels";
-import { AnimalEditDialog } from "@/components/animals/animal-edit-dialog";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
-import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
-import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 const PAGE_SIZE = 100;
 
-export function AnimalsTable({
-  rows: initialRows,
-  owners,
-  categoriesByEstablishmentId,
-  reproductiveStatusesByEstablishmentId,
-  locale,
-}: {
-  rows: AnimalLookupDetail[];
-  owners: OwnerCatalogEntry[];
-  categoriesByEstablishmentId: Record<string, CategoryCatalogEntry[]>;
-  reproductiveStatusesByEstablishmentId: Record<string, ReproductiveStatusCatalogEntry[]>;
-  locale: Locale;
-}) {
-  const [rows, setRows] = useState(initialRows);
-
-  function handleSaved(updated: AnimalLookupDetail) {
-    setRows((prev) => prev.map((row) => (row.animalId === updated.animalId ? updated : row)));
-  }
-
+export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; locale: Locale }) {
   const columns: DataTableColumn<AnimalLookupDetail>[] = [
     {
       key: "tag",
@@ -109,14 +88,9 @@ export function AnimalsTable({
       key: "actions",
       header: translate(locale, "animals.actions"),
       render: (row) => (
-        <AnimalEditDialog
-          animal={row}
-          owners={owners}
-          categories={categoriesByEstablishmentId[row.currentEstablishmentId ?? ""] ?? []}
-          reproductiveStatuses={reproductiveStatusesByEstablishmentId[row.currentEstablishmentId ?? ""] ?? []}
-          locale={locale}
-          onSaved={handleSaved}
-        />
+        <Button size="sm" variant="ghost" render={<Link href={`/animals/${row.animalId}`} />} nativeButton={false}>
+          {translate(locale, "animals.edit")}
+        </Button>
       ),
     },
   ];

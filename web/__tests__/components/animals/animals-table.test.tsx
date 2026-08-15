@@ -3,16 +3,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnimalsTable } from "@/components/animals/animals-table";
 import type { AnimalLookupDetail } from "@/lib/dal/animal-access";
-import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
 afterEach(cleanup);
-
-const owners: OwnerCatalogEntry[] = [
-  { id: "o1", name: "SASG" },
-  { id: "o2", name: "AIP" },
-];
-
-const categoriesByEstablishmentId = {};
 
 function makeAnimal(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail {
   return {
@@ -45,9 +37,7 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a3", currentTag: "AR3", status: "dead" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const table = within(screen.getByRole("table"));
 
     expect(table.getByText("AR1")).toBeInTheDocument();
@@ -64,9 +54,7 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a2", currentTag: "AR2", ownerName: "AIP" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const user = userEvent.setup();
     const search = screen.getByPlaceholderText(/buscar por caravana/i);
 
@@ -83,9 +71,7 @@ describe("AnimalsTable", () => {
   it("does not match category through the search box, since that has its own filter", async () => {
     const rows = [makeAnimal({ animalId: "a1", currentTag: "AR1", categoryName: "Vaca de cría" })];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const user = userEvent.setup();
 
     await user.type(screen.getByPlaceholderText(/buscar por caravana/i), "Vaca de cría");
@@ -94,9 +80,7 @@ describe("AnimalsTable", () => {
   });
 
   it("shows an empty-state message when there are no animals", () => {
-    render(
-      <AnimalsTable rows={[]} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={[]} locale="es" />);
     expect(screen.getByText("No hay animales para mostrar.")).toBeInTheDocument();
   });
 
@@ -106,9 +90,7 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a2", currentTag: "AR2", status: "sold" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText("Estado"), "Vendida");
@@ -124,9 +106,7 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a3", currentTag: "AR3", establishmentName: "Campo Sur", paddockName: "Potrero 9" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const user = userEvent.setup();
 
     const potreroSelect = screen.getByLabelText("Potrero") as HTMLSelectElement;
@@ -145,9 +125,7 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a2", currentTag: "AR2", establishmentName: "Campo Sur", paddockName: "Potrero 9" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText("Potrero"), "Potrero 9");
@@ -166,13 +144,19 @@ describe("AnimalsTable", () => {
       makeAnimal({ animalId: "a2", currentTag: "AR2", notes: null, reproductiveStatusName: "Vacía" }),
     ];
 
-    render(
-      <AnimalsTable rows={rows} owners={owners} categoriesByEstablishmentId={categoriesByEstablishmentId} reproductiveStatusesByEstablishmentId={{}} locale="es" />
-    );
+    render(<AnimalsTable rows={rows} locale="es" />);
     const table = within(screen.getByRole("table"));
 
     expect(table.getByText("Cojera leve")).toBeInTheDocument();
     expect(table.getByText("Preñada")).toBeInTheDocument();
     expect(table.getByText("Vacía")).toBeInTheDocument();
+  });
+
+  it("links Editar to the animal's detail page instead of opening a dialog", () => {
+    const rows = [makeAnimal({ animalId: "a1", currentTag: "AR1" })];
+
+    render(<AnimalsTable rows={rows} locale="es" />);
+
+    expect(screen.getByRole("button", { name: "Editar" })).toHaveAttribute("href", "/animals/a1");
   });
 });
