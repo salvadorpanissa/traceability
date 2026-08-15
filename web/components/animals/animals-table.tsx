@@ -117,6 +117,11 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       label: translate(locale, "animalLookup.sex"),
       value: (row) => sexLabel(row.sex, locale),
     },
+    {
+      key: "reproductiveStatus",
+      label: translate(locale, "animalLookup.reproductiveStatus"),
+      value: (row) => row.reproductiveStatusName ?? "",
+    },
   ];
 
   return (
