@@ -287,7 +287,7 @@ export function DataTable<T>({
                 <tr className="border-b text-left">
                   {expandable ? <th className="w-8 py-1" /> : null}
                   {columns.map((column) => (
-                    <th key={column.key} className="py-1 pr-2">
+                    <th key={column.key} className="py-1 pr-2 font-medium">
                       {column.sortValue ? (
                         <button
                           type="button"

@@ -110,7 +110,7 @@ export function PaddockCatalogForm({
           <tr className="border-b text-left">
             <th className="py-1 pr-2">Nombre</th>
             <th className="py-1 pr-2">Campo</th>
-            <th className="py-1 pr-2" />
+            <th className="w-px whitespace-nowrap py-1 pr-2" />
           </tr>
         </thead>
         <tbody>
@@ -121,20 +121,22 @@ export function PaddockCatalogForm({
                   <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </td>
                 <td className="py-1 pr-2">{establishmentNameById.get(entry.establishmentId) ?? ""}</td>
-                <td className="flex gap-1 py-1 pr-2">
-                  <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                    Guardar
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                    Cancelar
-                  </Button>
+                <td className="whitespace-nowrap py-1 pr-2">
+                  <div className="flex gap-1 whitespace-nowrap">
+                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
+                      Guardar
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
+                      Cancelar
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ) : (
               <tr key={entry.id} className="border-b last:border-0">
                 <td className="py-1 pr-2">{entry.name}</td>
                 <td className="py-1 pr-2">{establishmentNameById.get(entry.establishmentId) ?? ""}</td>
-                <td className="py-1 pr-2">
+                <td className="whitespace-nowrap py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
                   </Button>

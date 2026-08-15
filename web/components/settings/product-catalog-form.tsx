@@ -163,7 +163,7 @@ export function ProductCatalogForm({
             <th className="py-1 pr-2">Vía</th>
             <th className="py-1 pr-2">Días de retiro</th>
             {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-            <th className="py-1 pr-2" />
+            <th className="w-px whitespace-nowrap py-1 pr-2" />
           </tr>
         </thead>
         <tbody>
@@ -195,13 +195,15 @@ export function ProductCatalogForm({
                   />
                 </td>
                 {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="flex gap-1 py-1 pr-2">
-                  <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                    Guardar
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                    Cancelar
-                  </Button>
+                <td className="whitespace-nowrap py-1 pr-2">
+                  <div className="flex gap-1 whitespace-nowrap">
+                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
+                      Guardar
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
+                      Cancelar
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -212,7 +214,7 @@ export function ProductCatalogForm({
                 <td className="py-1 pr-2">{entry.defaultRoute ?? "—"}</td>
                 <td className="py-1 pr-2">{entry.defaultWithdrawalDays ?? "—"}</td>
                 {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="py-1 pr-2">
+                <td className="whitespace-nowrap py-1 pr-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
                     Editar
                   </Button>

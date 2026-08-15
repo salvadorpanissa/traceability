@@ -14,6 +14,10 @@ vi.mock("@/app/(protected)/animals/actions", () => ({
   updateAnimalAction: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 const baseAnimal: AnimalLookupDetail = {
   animalId: "a1",
   currentTag: "AR1",
@@ -147,22 +151,24 @@ describe("AnimalDetail", () => {
     expect(table.getByText("1 ene. 2026")).toBeInTheDocument();
   });
 
-  it("links to recaravaneo and registrar muerte for a living animal, after the Guardar button, using its current tag", () => {
+  it("opens recaravaneo and registrar muerte modals for a living animal, after the Guardar button, using its current tag", async () => {
+    const user = userEvent.setup();
     const { container } = render(
       <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
     const card = container.querySelector('[data-slot="card"]');
     const saveButton = screen.getByRole("button", { name: "Guardar" });
-    const retagLink = screen.getByRole("link", { name: "Recaravanear" });
-    const deathLink = screen.getByRole("link", { name: "Registrar muerte" });
+    const retagButton = screen.getByRole("button", { name: "Recaravanear" });
+    screen.getByRole("button", { name: "Registrar muerte" });
 
-    expect(retagLink).toHaveAttribute("href", "/activities/retag?tag=AR1");
-    expect(deathLink).toHaveAttribute("href", "/activities/death?tag=AR1");
-    expect(card).toContainElement(retagLink);
-    expect(saveButton.compareDocumentPosition(retagLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card).toContainElement(retagButton);
+    expect(saveButton.compareDocumentPosition(retagButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(retagButton);
+    expect(screen.getByLabelText("Caravana actual")).toHaveValue("AR1");
   });
 
-  it("hides the recaravaneo and muerte links for an animal that's already dead", () => {
+  it("hides the recaravaneo and muerte buttons for an animal that's already dead", () => {
     render(
       <AnimalDetail
         animal={{ ...baseAnimal, status: "dead" }}
@@ -175,8 +181,8 @@ describe("AnimalDetail", () => {
       />
     );
 
-    expect(screen.queryByRole("link", { name: "Recaravanear" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Registrar muerte" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Recaravanear" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar muerte" })).not.toBeInTheDocument();
   });
 
   it("shows each sanidad note below the card, with its date, potrero, and product", () => {

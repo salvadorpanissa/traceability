@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RetagForm } from "@/components/activities/retag-form";
+import { DeathForm } from "@/components/activities/death-form";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { sexLabel, statusLabel } from "@/lib/dashboard/animal-labels";
 import { formatShortDate, toSentenceCase } from "@/lib/utils";
@@ -42,6 +46,19 @@ export function AnimalDetail({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [retagOpen, setRetagOpen] = useState(false);
+  const [deathOpen, setDeathOpen] = useState(false);
+  const router = useRouter();
+
+  function handleRetagOpenChange(open: boolean) {
+    setRetagOpen(open);
+    if (!open) router.refresh();
+  }
+
+  function handleDeathOpenChange(open: boolean) {
+    setDeathOpen(open);
+    if (!open) router.refresh();
+  }
 
   async function handleSave() {
     setIsSaving(true);
@@ -185,12 +202,30 @@ export function AnimalDetail({
 
           {animal.status === "alive" ? (
             <div className="flex gap-4">
-              <Link href={`/activities/retag?tag=${encodeURIComponent(currentTag)}`} className="text-sm underline">
+              <button type="button" className="text-sm underline" onClick={() => setRetagOpen(true)}>
                 {translate(locale, "animals.retag")}
-              </Link>
-              <Link href={`/activities/death?tag=${encodeURIComponent(currentTag)}`} className="text-sm underline">
+              </button>
+              <button type="button" className="text-sm underline" onClick={() => setDeathOpen(true)}>
                 {translate(locale, "animalLookup.registerDeath")}
-              </Link>
+              </button>
+
+              <Dialog open={retagOpen} onOpenChange={handleRetagOpenChange}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{translate(locale, "animals.retag")}</DialogTitle>
+                  </DialogHeader>
+                  <RetagForm initialTag={currentTag} />
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={deathOpen} onOpenChange={handleDeathOpenChange}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{translate(locale, "animalLookup.registerDeath")}</DialogTitle>
+                  </DialogHeader>
+                  <DeathForm initialTag={currentTag} />
+                </DialogContent>
+              </Dialog>
             </div>
           ) : null}
 

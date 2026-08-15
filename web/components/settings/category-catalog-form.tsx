@@ -204,7 +204,7 @@ export function CategoryCatalogForm({
               <th className="py-1 pr-2">Sexo</th>
               <th className="py-1 pr-2">Edad mín. (meses)</th>
               {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-              <th className="py-1 pr-2" />
+              <th className="w-px whitespace-nowrap py-1 pr-2" />
             </tr>
           </thead>
           <tbody>
@@ -235,13 +235,15 @@ export function CategoryCatalogForm({
                     />
                   </td>
                   {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="flex gap-1 py-1 pr-2">
-                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                      Guardar
-                    </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                      Cancelar
-                    </Button>
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <div className="flex gap-1 whitespace-nowrap">
+                      <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
+                        Guardar
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
+                        Cancelar
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -252,13 +254,15 @@ export function CategoryCatalogForm({
                   </td>
                   <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
                   {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="flex gap-1 py-1 pr-2">
-                    <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                      Editar
-                    </Button>
-                    <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
-                      Eliminar
-                    </Button>
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <div className="flex gap-1 whitespace-nowrap">
+                      <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
+                        Editar
+                      </Button>
+                      <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
+                        Eliminar
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               )
