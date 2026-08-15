@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { getAnimalEditState, updateAnimalDetails, type AnimalLookupDetail } from "@/lib/dal/animal-access";
 import { confirmSingleRecategorize } from "@/lib/activities/recategorize-single";
 import { isUniqueViolationError } from "@/lib/dal/unique-violation";
+import { getReproductiveStatusFarmId } from "@/lib/dal/reproductive-status-catalog";
 
 export type UpdateAnimalActionResult = { ok: true; animal: AnimalLookupDetail } | { ok: false; error: string };
 
@@ -17,6 +18,7 @@ const updateAnimalSchema = z.object({
   ownerId: z.string().uuid().nullable(),
   secondaryTag: z.string().trim().nullable(),
   categoryId: z.string().uuid().nullable(),
+  reproductiveStatusId: z.string().uuid().nullable(),
 });
 
 export async function updateAnimalAction(
@@ -42,12 +44,21 @@ export async function updateAnimalAction(
       });
     }
 
+    if (parsed.data.reproductiveStatusId) {
+      const statusFarmId = await getReproductiveStatusFarmId(parsed.data.reproductiveStatusId);
+      const animalFarmId = await getEstablishmentFarmId(state.establishmentId);
+      if (!statusFarmId || statusFarmId !== animalFarmId) {
+        throw new Error("El estado reproductivo no pertenece al campo de este animal");
+      }
+    }
+
     const updated = await updateAnimalDetails(parsed.data.animalId, {
       sex: parsed.data.sex,
       breed: parsed.data.breed || null,
       birthDate: parsed.data.birthDate || null,
       ownerId: parsed.data.ownerId,
       secondaryTag: parsed.data.secondaryTag || null,
+      reproductiveStatusId: parsed.data.reproductiveStatusId,
     });
     if (!updated) return { ok: false, error: "Animal no encontrado" };
     return { ok: true, animal: updated };

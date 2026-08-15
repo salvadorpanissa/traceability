@@ -17,7 +17,9 @@ import {
   owner,
   dicose,
   ownTag,
+  reproductiveStatus,
 } from "@/db/schema";
+import { applyColumnMapping } from "@/lib/activities/column-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
@@ -122,7 +124,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].status).toBe("new");
     }
@@ -202,7 +204,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.productSuggestions).toEqual([
         { rawValue: "ASPERSIN", matchedProductId: null },
         { rawValue: "Aftosa", matchedProductId: matchedProduct.id },
@@ -229,7 +231,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(false);
       if (!result.eventDateNeeded) {
         expect(result.rows[0].eventDate).toBe("2026-03-10");
@@ -250,7 +252,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(true);
     }
   });
@@ -269,7 +271,7 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded) {
       expect(result.eventDateNeeded).toBe(false);
       if (!result.eventDateNeeded) {
         expect(result.rows[0].eventDate).toBe("2026-02-01");
@@ -291,9 +293,133 @@ describe("previewHealthBatch", () => {
 
     const result = await previewHealthBatch(formData);
     expect(result.mappingNeeded).toBe(false);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    if (!result.mappingNeeded && !result.valueLegendNeeded && !result.eventDateNeeded) {
       expect(result.rows[0].status).toBe("foreign");
     }
+  });
+
+  it("asks for a value legend when a reproductiveStatus column has no map covering its distinct values yet", async () => {
+    const { seededFarm } = await seedManagerSession();
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha", "Preñez"],
+      [
+        ["AR000000000090", "2026-02-01", "1"],
+        ["AR000000000091", "2026-02-01", "2"],
+      ]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+        { header: "Preñez", meaning: "reproductiveStatus" },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result).toMatchObject({ mappingNeeded: false, valueLegendNeeded: true, distinctValues: ["1", "2"] });
+  });
+
+  it("proceeds past the legend once the value map covers every distinct value", async () => {
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    await seedOwnTag("AR000000000092", seededFarm.id, "AIP");
+    const [statusA] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
+    const [statusB] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Vacía" }).returning();
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "Fecha", "Preñez"],
+      [["AR000000000092", "2026-02-01", "1"]]
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+    formData.set(
+      "mapping",
+      JSON.stringify([
+        { header: "IDE", meaning: "tag" },
+        { header: "Fecha", meaning: "date" },
+        {
+          header: "Preñez",
+          meaning: "reproductiveStatus",
+          reproductiveStatusValueMap: { "1": statusA.id, "2": statusB.id },
+        },
+      ])
+    );
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) expect(result.valueLegendNeeded).toBe(false);
+  });
+
+  it("proceeds past the legend and resolves to null when a distinct value is explicitly mapped to sin dato", async () => {
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    await seedOwnTag("AR000000000093", seededFarm.id, "AIP");
+    await seedOwnTag("AR000000000094", seededFarm.id, "AIP 2");
+    const [statusA] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
+    const headers = ["IDE", "Fecha", "Preñez"];
+    const rawRows = [
+      ["AR000000000093", "2026-02-01", "1"],
+      ["AR000000000094", "2026-02-01", "2"],
+    ];
+    const buffer = await buildWorkbookBuffer(headers, rawRows);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+    const mapping = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Fecha", meaning: "date" },
+      {
+        header: "Preñez",
+        meaning: "reproductiveStatus",
+        reproductiveStatusValueMap: { "1": statusA.id, "2": "" },
+      },
+    ];
+    formData.set("mapping", JSON.stringify(mapping));
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result.mappingNeeded).toBe(false);
+    if (!result.mappingNeeded) expect(result.valueLegendNeeded).toBe(false);
+
+    const mappedRows = applyColumnMapping(headers, rawRows, mapping as never);
+    expect(mappedRows[0].reproductiveStatusId).toBe(statusA.id);
+    expect(mappedRows[1].reproductiveStatusId).toBeNull();
+  });
+
+  it("re-shows the legend instead of silently applying another farm's status IDs on a matching header+code collision", async () => {
+    const { seededFarm: farmAEstablishment, seededFarmGroup: farmA } = await seedManagerSession();
+    const [statusFarmA] = await testDb.insert(reproductiveStatus).values({ farmId: farmA.id, name: "Preñada" }).returning();
+    const headers = ["IDE", "Fecha", "Preñez"];
+    const mapping = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Fecha", meaning: "date" },
+      { header: "Preñez", meaning: "reproductiveStatus", reproductiveStatusValueMap: { "1": statusFarmA.id } },
+    ];
+    await testDb.insert(columnMapping).values({ headerSignature: JSON.stringify(headers), mapping });
+
+    // Farm B has a matching header signature (same vet template) and the
+    // same raw code "1", but never granted access to farm A's status ID.
+    const [farmB] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
+    const [farmBEstablishment] = await testDb.insert(establishment).values({ farmId: farmB.id, name: "Cuatro Cerros" }).returning();
+    const [manager] = await testDb.select().from(userAccount);
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: farmB.id });
+
+    const buffer = await buildWorkbookBuffer(headers, [["AR000000000095", "2026-02-01", "1"]]);
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", farmBEstablishment.id);
+    formData.set("eventDate", "2026-02-01");
+
+    const result = await previewHealthBatch(formData);
+
+    expect(result).toMatchObject({ mappingNeeded: false, valueLegendNeeded: true });
   });
 });
 

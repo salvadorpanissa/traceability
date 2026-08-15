@@ -19,6 +19,8 @@ function row(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail {
     ownerName: null,
     secondaryTag: null,
     notes: null,
+    reproductiveStatusId: null,
+    reproductiveStatusName: null,
     ...overrides,
   };
 }

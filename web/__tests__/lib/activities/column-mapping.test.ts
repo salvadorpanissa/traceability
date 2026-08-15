@@ -4,6 +4,7 @@ import {
   applyColumnMapping,
   applyOwnTagColumnMapping,
   extractProductColumnValues,
+  extractDistinctColumnValues,
   type ColumnMapping,
 } from "@/lib/activities/column-mapping";
 
@@ -43,6 +44,7 @@ describe("applyColumnMapping", () => {
         notes: null,
         secondaryTag: null,
         breed: null,
+        reproductiveStatusId: null,
       },
       {
         tag: "223456789012345",
@@ -53,6 +55,7 @@ describe("applyColumnMapping", () => {
         notes: null,
         secondaryTag: null,
         breed: null,
+        reproductiveStatusId: null,
       },
     ]);
   });
@@ -86,6 +89,7 @@ describe("applyColumnMapping with sex and owner columns", () => {
         notes: null,
         secondaryTag: null,
         breed: null,
+        reproductiveStatusId: null,
       },
     ]);
   });
@@ -107,6 +111,7 @@ describe("applyColumnMapping with sex and owner columns", () => {
         notes: null,
         secondaryTag: null,
         breed: null,
+        reproductiveStatusId: null,
       },
     ]);
   });
@@ -133,6 +138,7 @@ describe("applyColumnMapping with a notes column", () => {
         notes: "Cojera leve",
         secondaryTag: null,
         breed: null,
+        reproductiveStatusId: null,
       },
     ]);
   });
@@ -170,6 +176,7 @@ describe("applyColumnMapping with secondaryTag and breed columns", () => {
         notes: null,
         secondaryTag: "CHIP-001",
         breed: "Angus",
+        reproductiveStatusId: null,
       },
     ]);
   });
@@ -244,5 +251,70 @@ describe("extractProductColumnValues", () => {
   it("returns an empty array when no column is mapped as product", () => {
     const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
     expect(extractProductColumnValues(headers, rows, mapping)).toEqual([]);
+  });
+});
+
+describe("applyColumnMapping — reproductiveStatus", () => {
+  it("resolves the raw value through the value map, trimmed", () => {
+    const headers = ["IDE", "Preñez"];
+    const rows = [
+      ["123456789012345", " 1 "],
+      ["223456789012345", "2"],
+      ["323456789012345", ""],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      {
+        header: "Preñez",
+        meaning: "reproductiveStatus",
+        reproductiveStatusValueMap: { "1": "status-pregnant-id", "2": "status-empty-id" },
+      },
+    ];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result.map((r) => r.reproductiveStatusId)).toEqual(["status-pregnant-id", "status-empty-id", null]);
+  });
+
+  it("resolves to null when the mapping has no legend yet", () => {
+    const headers = ["IDE", "Preñez"];
+    const rows = [["123456789012345", "1"]];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Preñez", meaning: "reproductiveStatus" },
+    ];
+
+    const result = applyColumnMapping(headers, rows, mapping);
+
+    expect(result[0].reproductiveStatusId).toBeNull();
+  });
+});
+
+describe("extractDistinctColumnValues", () => {
+  it("returns unique, trimmed, non-empty raw values for the given meaning", () => {
+    const headers = ["IDE", "Preñez"];
+    const rows = [
+      ["1", "1"],
+      ["2", " 2 "],
+      ["3", "1"],
+      ["4", ""],
+      ["5", "  "],
+    ];
+    const mapping: ColumnMapping[] = [
+      { header: "IDE", meaning: "tag" },
+      { header: "Preñez", meaning: "reproductiveStatus" },
+    ];
+
+    const values = extractDistinctColumnValues(headers, rows, mapping, "reproductiveStatus");
+
+    expect(values).toEqual(["1", "2"]);
+  });
+
+  it("returns an empty array when no column has that meaning", () => {
+    const headers = ["IDE"];
+    const rows = [["1"]];
+    const mapping: ColumnMapping[] = [{ header: "IDE", meaning: "tag" }];
+
+    expect(extractDistinctColumnValues(headers, rows, mapping, "reproductiveStatus")).toEqual([]);
   });
 });

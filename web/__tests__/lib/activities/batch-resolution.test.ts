@@ -147,6 +147,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
 
@@ -177,6 +178,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
 
@@ -203,6 +205,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
 
@@ -229,6 +232,7 @@ describe("resolveBatchRows", () => {
         sex: "H",
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         birthDate: "2019-01-01",
       },
     ];
@@ -251,6 +255,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -271,6 +276,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
       {
         tag: "AR000000000005",
@@ -279,6 +285,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const resolved = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
@@ -296,6 +303,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -316,6 +324,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -336,6 +345,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
@@ -355,6 +365,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
@@ -374,6 +385,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -398,6 +410,7 @@ describe("resolveBatchRows", () => {
         sex: "MACHO",
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -419,6 +432,7 @@ describe("resolveBatchRows", () => {
         sex: "???",
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -444,6 +458,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: "Gómez",
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -468,6 +483,7 @@ describe("resolveBatchRows", () => {
         sex: "M",
         ownerName: "Gómez",
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -491,6 +507,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
@@ -507,6 +524,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(rows, null, seededFarm.id);
@@ -527,6 +545,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: "Cojera leve",
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -547,6 +566,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: "Revisar próxima vez",
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -570,6 +590,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: "Gómez",
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
     const [resolved] = await resolveBatchRows(
@@ -602,6 +623,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
 
@@ -626,6 +648,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         breed: "Angus",
         secondaryTag: "CHIP-090",
       },
@@ -653,6 +676,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         breed: "Hereford",
         secondaryTag: "CHIP-091",
       },
@@ -687,6 +711,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
       },
     ];
 
@@ -708,6 +733,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         secondaryTag: "CHIP-DUP",
       },
       {
@@ -717,6 +743,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         secondaryTag: "CHIP-DUP",
       },
     ];
@@ -747,6 +774,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         secondaryTag: "CHIP-TAKEN",
       },
     ];
@@ -777,6 +805,7 @@ describe("resolveBatchRows", () => {
         sex: null,
         ownerName: null,
         notes: null,
+        reproductiveStatusId: null,
         secondaryTag: "CHIP-096",
       },
     ];

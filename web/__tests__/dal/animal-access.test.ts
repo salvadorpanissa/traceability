@@ -19,6 +19,7 @@ import {
   eventRetag,
   eventRecategorize,
   owner,
+  reproductiveStatus,
 } from "@/db/schema";
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -1396,10 +1397,12 @@ describe("getAnimalEditState", () => {
 });
 
 describe("updateAnimalDetails", () => {
-  it("updates sex, breed, birth date, owner, and the current secondary tag", async () => {
+  it("updates sex, breed, birth date, owner, secondary tag, and reproductive status", async () => {
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000080" });
     const [newOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
+    const [farmGroup] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [status] = await testDb.insert(reproductiveStatus).values({ farmId: farmGroup.id, name: "Preñada" }).returning();
     // updateAnimalDetails re-reads the animal through animal_current_state,
     // which (like in production) only reflects a row once it's been
     // refreshed — every real animal gets this via its creation event.
@@ -1411,6 +1414,7 @@ describe("updateAnimalDetails", () => {
       birthDate: "2022-06-15",
       ownerId: newOwner.id,
       secondaryTag: "CHIP-NEW",
+      reproductiveStatusId: status.id,
     });
 
     expect(updated).toMatchObject({
@@ -1419,6 +1423,8 @@ describe("updateAnimalDetails", () => {
       birthDate: "2022-06-15",
       ownerName: "AIP",
       secondaryTag: "CHIP-NEW",
+      reproductiveStatusId: status.id,
+      reproductiveStatusName: "Preñada",
     });
   });
 
@@ -1437,6 +1443,7 @@ describe("updateAnimalDetails", () => {
       birthDate: null,
       ownerId: null,
       secondaryTag: "CHIP-UPDATED",
+      reproductiveStatusId: null,
     });
 
     const rows = await testDb
@@ -1454,7 +1461,14 @@ describe("updateAnimalDetails", () => {
     await testDb.insert(animalTagHistory).values({ animalId: animalB.id, tag: "AR000000000083" });
 
     await expect(
-      updateAnimalDetails(animalB.id, { sex: null, breed: null, birthDate: null, ownerId: null, secondaryTag: "CHIP-TAKEN" }),
+      updateAnimalDetails(animalB.id, {
+        sex: null,
+        breed: null,
+        birthDate: null,
+        ownerId: null,
+        secondaryTag: "CHIP-TAKEN",
+        reproductiveStatusId: null,
+      }),
     ).rejects.toThrow();
   });
 });

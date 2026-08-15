@@ -16,6 +16,7 @@ import {
   eventTransfer,
   eventHealth,
   paddock,
+  reproductiveStatus,
 } from "@/db/schema";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { HealthProduct } from "@/lib/activities/health";
@@ -323,6 +324,78 @@ describe("confirmHealthBatch", () => {
       .from(animalTagHistory)
       .where(eq(animalTagHistory.animalId, createdAnimal.id));
     expect(tagRow.secondaryTag).toBe("CHIP-081");
+  });
+
+  it("overwrites reproductive status on an existing animal, unlike breed/secondaryTag's gap-fill", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" }).returning();
+    const [oldStatus] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Vacía" }).returning();
+    const [newStatus] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({ reproductiveStatusId: oldStatus.id }).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000082" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000082",
+        eventDate: "2026-02-01",
+        notes: null,
+        reproductiveStatusId: newStatus.id,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentEstablishmentId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: null,
+    });
+
+    const [stored] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(stored.reproductiveStatusId).toBe(newStatus.id);
+  });
+
+  it("leaves reproductive status untouched when the row carries no value", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb.insert(product).values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" }).returning();
+    const [status] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
+    const [createdAnimal] = await testDb.insert(animal).values({ reproductiveStatusId: status.id }).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000083" });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000083",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentEstablishmentId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: null,
+    });
+
+    const [stored] = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(stored.reproductiveStatusId).toBe(status.id);
   });
 
   it("does not overwrite an existing animal's breed", async () => {

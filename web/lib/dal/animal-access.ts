@@ -197,6 +197,8 @@ export type AnimalLookupDetail = AnimalCurrentStateWithNames & {
   ownerName: string | null;
   secondaryTag: string | null;
   notes: string | null;
+  reproductiveStatusId: string | null;
+  reproductiveStatusName: string | null;
 };
 
 type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
@@ -206,6 +208,8 @@ type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
   owner_name: string | null;
   secondary_tag: string | null;
   notes: string | null;
+  reproductive_status_id: string | null;
+  reproductive_status_name: string | null;
 };
 
 function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
@@ -217,6 +221,8 @@ function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
     ownerName: row.owner_name,
     secondaryTag: row.secondary_tag,
     notes: row.notes,
+    reproductiveStatusId: row.reproductive_status_id,
+    reproductiveStatusName: row.reproductive_status_name,
   };
 }
 
@@ -253,6 +259,8 @@ const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
       order by ath2.valid_from desc
       limit 1
     ) as secondary_tag,
+    a.reproductive_status_id,
+    rs.name as reproductive_status_name,
     ${NOTES_SUBQUERY}
   from animal_current_state acs
   left join establishment e on e.id = acs.current_establishment_id
@@ -260,6 +268,7 @@ const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
   left join category c on c.id = acs.current_category_id
   left join animal a on a.id = acs.animal_id
   left join owner o on o.id = a.owner_id
+  left join reproductive_status rs on rs.id = a.reproductive_status_id
 `;
 
 // Same shape and per-animal fields as findAnimalDetailByTag, but for every
@@ -318,6 +327,8 @@ export async function findAnimalDetailByTag(
         order by ath2.valid_from desc
         limit 1
       ) as secondary_tag,
+      a.reproductive_status_id,
+      rs.name as reproductive_status_name,
       ${NOTES_SUBQUERY}
     from animal_tag_history ath
     join animal_current_state acs on acs.animal_id = ath.animal_id
@@ -326,6 +337,7 @@ export async function findAnimalDetailByTag(
     left join category c on c.id = acs.current_category_id
     left join animal a on a.id = acs.animal_id
     left join owner o on o.id = a.owner_id
+    left join reproductive_status rs on rs.id = a.reproductive_status_id
     where ath.tag = ${tag}
   `;
 
@@ -379,6 +391,7 @@ export type AnimalDetailsPatch = {
   birthDate: string | null;
   ownerId: string | null;
   secondaryTag: string | null;
+  reproductiveStatusId: string | null;
 };
 
 // Direct corrections to fields that live on `animal`/`animal_tag_history`

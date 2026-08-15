@@ -12,6 +12,7 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      reproductiveStatusId?: string | null;
       secondaryTag?: string | null;
       breed?: string | null;
       status: "existing";
@@ -25,6 +26,7 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      reproductiveStatusId?: string | null;
       secondaryTag?: string | null;
       breed?: string | null;
       status: "age-resolved";
@@ -37,6 +39,7 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      reproductiveStatusId?: string | null;
       secondaryTag?: string | null;
       breed?: string | null;
       status: "age-unresolvable";
@@ -48,6 +51,7 @@ export type RecategorizeResolvedRow =
       tag: string;
       eventDate: string;
       notes: string | null;
+      reproductiveStatusId?: string | null;
       secondaryTag?: string | null;
       breed?: string | null;
       status: "error";
@@ -121,19 +125,20 @@ export async function resolveRecategorizeBatchRows(
   for (const row of rows) {
     const eventDate = resolveEventDate(row.date, formEventDate);
     const notes = row.notes;
+    const reproductiveStatusId = row.reproductiveStatusId ?? null;
     const secondaryTag = row.secondaryTag ?? null;
     const breed = row.breed ?? null;
 
     if (!eventDate) {
-      result.push({ tag: row.tag, eventDate: "", notes, secondaryTag, breed, status: "error", reason: "Falta la fecha" });
+      result.push({ tag: row.tag, eventDate: "", notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "Falta la fecha" });
       continue;
     }
     if (!row.tag) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Falta la caravana" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "Falta la caravana" });
       continue;
     }
     if ((tagCounts.get(row.tag) ?? 0) > 1) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana duplicada en el archivo" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "Caravana duplicada en el archivo" });
       continue;
     }
     if (secondaryTag && (secondaryTagCounts.get(secondaryTag) ?? 0) > 1) {
@@ -141,6 +146,7 @@ export async function resolveRecategorizeBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        reproductiveStatusId,
         secondaryTag,
         breed,
         status: "error",
@@ -158,6 +164,7 @@ export async function resolveRecategorizeBatchRows(
           tag: row.tag,
           eventDate,
           notes,
+          reproductiveStatusId,
           secondaryTag,
           breed,
           status: "error",
@@ -168,7 +175,7 @@ export async function resolveRecategorizeBatchRows(
     }
 
     if (!animalId) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "Caravana no encontrada" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "Caravana no encontrada" });
       continue;
     }
 
@@ -184,15 +191,15 @@ export async function resolveRecategorizeBatchRows(
     const state = stateResult.rows[0];
 
     if (!state || state.status !== "alive") {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "El animal está vendido o muerto" });
       continue;
     }
     if (!state.current_establishment_id) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "El animal no tiene campo asignado" });
       continue;
     }
     if (state.current_farm_id !== farmId) {
-      result.push({ tag: row.tag, eventDate, notes, secondaryTag, breed, status: "error", reason: "El animal no pertenece a este grupo de campos" });
+      result.push({ tag: row.tag, eventDate, notes, reproductiveStatusId, secondaryTag, breed, status: "error", reason: "El animal no pertenece a este grupo de campos" });
       continue;
     }
 
@@ -205,6 +212,7 @@ export async function resolveRecategorizeBatchRows(
             tag: row.tag,
             eventDate,
             notes,
+            reproductiveStatusId,
             secondaryTag,
             breed,
             status: "age-resolved",
@@ -220,6 +228,7 @@ export async function resolveRecategorizeBatchRows(
         tag: row.tag,
         eventDate,
         notes,
+        reproductiveStatusId,
         secondaryTag,
         breed,
         status: "age-unresolvable",
@@ -234,6 +243,7 @@ export async function resolveRecategorizeBatchRows(
       tag: row.tag,
       eventDate,
       notes,
+      reproductiveStatusId,
       secondaryTag,
       breed,
       status: "existing",
