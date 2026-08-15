@@ -36,6 +36,7 @@ const dictionaries = {
     "dashboard.recentHealthHead": "cabezas",
     "dashboard.recentHealthEmpty": "No hay sanidades registradas en los últimos 3 meses.",
     "dashboard.recentHealthCompleted": "COMPLETADO",
+    "dashboard.recentHealthEventDateLabel": "Realizado el",
     "dashboard.recentHealthVoid": "Anular",
     "dashboard.recentHealthVoidConfirm": "¿Seguro que querés anular esta sanidad? Esta acción no se puede deshacer.",
     "dashboard.recentHealthVoidError": "No se pudo anular. Probá de nuevo.",

@@ -18,6 +18,26 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("@/app/(protected)/activities/retag/actions", () => ({
+  lookupRetagCandidateAction: vi.fn().mockResolvedValue({
+    status: "alive",
+    establishmentName: "Campo Norte",
+    paddockName: "Potrero 1",
+    categoryName: "Vaca de cría",
+  }),
+  confirmRetagAction: vi.fn(),
+}));
+
+vi.mock("@/app/(protected)/activities/death/actions", () => ({
+  lookupDeathCandidateAction: vi.fn().mockResolvedValue({
+    status: "alive",
+    establishmentName: "Campo Norte",
+    paddockName: "Potrero 1",
+    categoryName: "Vaca de cría",
+  }),
+  confirmDeathAction: vi.fn(),
+}));
+
 const baseAnimal: AnimalLookupDetail = {
   animalId: "a1",
   currentTag: "AR1",
@@ -165,7 +185,8 @@ describe("AnimalDetail", () => {
     expect(saveButton.compareDocumentPosition(retagButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await user.click(retagButton);
-    expect(screen.getByLabelText("Caravana actual")).toHaveValue("AR1");
+    expect(screen.queryByLabelText("Caravana actual")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Caravana nueva")).toBeInTheDocument();
   });
 
   it("hides the recaravaneo and muerte buttons for an animal that's already dead", () => {

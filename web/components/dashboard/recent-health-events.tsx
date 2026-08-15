@@ -96,7 +96,10 @@ export function RecentHealthEvents({
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-muted-foreground">{batch.eventDate}</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-muted-foreground">{t("dashboard.recentHealthEventDateLabel")}</span>
+                  <span className="text-sm">{formatShortDate(batch.eventDate)}</span>
+                </div>
                 <Button
                   type="button"
                   variant="destructive"

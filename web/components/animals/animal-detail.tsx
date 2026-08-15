@@ -214,7 +214,7 @@ export function AnimalDetail({
                   <DialogHeader>
                     <DialogTitle>{translate(locale, "animals.retag")}</DialogTitle>
                   </DialogHeader>
-                  <RetagForm initialTag={currentTag} />
+                  <RetagForm initialTag={currentTag} hideContext />
                 </DialogContent>
               </Dialog>
 
@@ -223,7 +223,7 @@ export function AnimalDetail({
                   <DialogHeader>
                     <DialogTitle>{translate(locale, "animalLookup.registerDeath")}</DialogTitle>
                   </DialogHeader>
-                  <DeathForm initialTag={currentTag} />
+                  <DeathForm initialTag={currentTag} hideContext />
                 </DialogContent>
               </Dialog>
             </div>
@@ -278,7 +278,7 @@ export function AnimalDetail({
                   </td>
                   <td className="py-1 align-top">{formatShortDate(entry.eventDate)}</td>
                   <td className="py-1 align-top">{entry.withdrawalEndDate ? formatShortDate(entry.withdrawalEndDate) : "—"}</td>
-                  <td className="py-1 align-top">{entry.notes}</td>
+                  <td className="py-1 align-top">{toSentenceCase(entry.notes)}</td>
                 </tr>
               ))}
             </tbody>

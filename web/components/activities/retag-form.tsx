@@ -13,7 +13,7 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function RetagForm({ initialTag }: { initialTag?: string }) {
+export function RetagForm({ initialTag, hideContext = false }: { initialTag?: string; hideContext?: boolean }) {
   const [tag, setTag] = useState(initialTag ?? "");
   const [searchedTag, setSearchedTag] = useState<string | null>(null);
   const [state, setState] = useState<AnimalCurrentStateWithNames | null>(null);
@@ -66,26 +66,28 @@ export function RetagForm({ initialTag }: { initialTag?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="retag-tag">Caravana actual</Label>
-        <div className="flex gap-2">
-          <Input
-            id="retag-tag"
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void handleSearch(tag);
-              }
-            }}
-            className="max-w-xs"
-          />
-          <Button type="button" onClick={() => void handleSearch(tag)} disabled={isSubmitting || tag.trim().length === 0}>
-            Buscar
-          </Button>
+      {hideContext ? null : (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="retag-tag">Caravana actual</Label>
+          <div className="flex gap-2">
+            <Input
+              id="retag-tag"
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSearch(tag);
+                }
+              }}
+              className="max-w-xs"
+            />
+            <Button type="button" onClick={() => void handleSearch(tag)} disabled={isSubmitting || tag.trim().length === 0}>
+              Buscar
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {searched && !state ? <p className="text-sm text-muted-foreground">No se encontró esa caravana.</p> : null}
 
@@ -97,22 +99,35 @@ export function RetagForm({ initialTag }: { initialTag?: string }) {
 
       {state && state.status === "alive" && !confirmed ? (
         <div className="flex flex-col gap-4">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <dt className="text-muted-foreground">Campo</dt>
-            <dd>{state.establishmentName ?? "Sin campo"}</dd>
-            <dt className="text-muted-foreground">Potrero</dt>
-            <dd>{state.paddockName ?? "Sin potrero"}</dd>
-            <dt className="text-muted-foreground">Categoría</dt>
-            <dd>{state.categoryName ?? "Sin categoría"}</dd>
-          </dl>
+          {hideContext ? null : (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <dt className="text-muted-foreground">Campo</dt>
+              <dd>{state.establishmentName ?? "Sin campo"}</dd>
+              <dt className="text-muted-foreground">Potrero</dt>
+              <dd>{state.paddockName ?? "Sin potrero"}</dd>
+              <dt className="text-muted-foreground">Categoría</dt>
+              <dd>{state.categoryName ?? "Sin categoría"}</dd>
+            </dl>
+          )}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="retag-date">Fecha</Label>
-            <Input id="retag-date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="max-w-xs" />
+            <Input
+              id="retag-date"
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              className={hideContext ? "w-full" : "max-w-xs"}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="retag-new-tag">Caravana nueva</Label>
-            <Input id="retag-new-tag" value={newTag} onChange={(e) => setNewTag(e.target.value)} className="max-w-xs" />
+            <Input
+              id="retag-new-tag"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              className={hideContext ? "w-full" : "max-w-xs"}
+            />
           </div>
 
           <Button type="button" disabled={isSubmitting || !eventDate || newTag.trim().length === 0} onClick={handleConfirm}>

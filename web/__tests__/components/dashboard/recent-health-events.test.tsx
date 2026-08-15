@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecentHealthEvents } from "@/components/dashboard/recent-health-events";
 import { voidHealthBatchAction, getHealthBatchDetailAction } from "@/app/(protected)/activities/health/actions";
@@ -134,8 +134,9 @@ describe("RecentHealthEvents", () => {
 
     await user.click(screen.getByText("FLOK"));
 
-    await waitFor(() => expect(screen.getByText("10 ago. 2026")).toBeInTheDocument());
-    expect(screen.getByText("11 ago. 2026")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByText("10 ago. 2026")).toBeInTheDocument());
+    expect(within(dialog).getByText("11 ago. 2026")).toBeInTheDocument();
   });
 
   it("does not open the detail modal when clicking the void button", async () => {

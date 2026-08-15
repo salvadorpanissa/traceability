@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { lookupAnimalByTagAction } from "@/app/(protected)/dashboard/animal-lookup-actions";
 
@@ -37,10 +36,11 @@ export function AnimalLookup({ locale }: { locale: Locale }) {
 
   return (
     <div className="flex flex-col gap-2" data-testid="animal-lookup">
-      <Label htmlFor="animal-lookup-tag">{translate(locale, "animalLookup.title")}</Label>
+      <h2 className="mb-3 text-lg font-semibold">{translate(locale, "animalLookup.title")}</h2>
       <div className="flex gap-2">
         <Input
           id="animal-lookup-tag"
+          aria-label={translate(locale, "animalLookup.title")}
           value={tag}
           onChange={(e) => {
             setTag(e.target.value);
