@@ -80,11 +80,6 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       sortValue: (row) => row.birthDate,
     },
     {
-      key: "notes",
-      header: translate(locale, "livestock.notes"),
-      render: (row) => row.notes ?? "—",
-    },
-    {
       key: "actions",
       header: translate(locale, "animals.actions"),
       render: (row) => (

@@ -234,6 +234,7 @@ const NOTES_SUBQUERY = sql`
     select string_agg(ev.notes, ' | ' order by ev.event_date, ev.created_at)
     from event ev
     where ev.animal_id = acs.animal_id and ev.notes is not null
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = ev.id)
   ) as notes
 `;
 
@@ -453,6 +454,7 @@ export async function animalHealthNotesFor(animalId: string): Promise<AnimalHeal
     left join establishment est on est.id = ev.establishment_id
     left join paddock p on p.id = eh.paddock_id
     where ev.animal_id = ${animalId} and ev.notes is not null
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = ev.id)
     order by ev.event_date desc, ev.created_at desc
   `);
   return result.rows.map((row) => ({
