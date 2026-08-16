@@ -116,3 +116,33 @@ describe("loginAction", () => {
     );
   });
 });
+
+describe("googleSignInAction", () => {
+  beforeEach(() => {
+    signInMock.mockClear();
+  });
+
+  it("signs in with the google provider and a safe redirect", async () => {
+    const { googleSignInAction } = await import("@/app/login/actions");
+
+    await googleSignInAction("/select-establishment");
+
+    expect(signInMock).toHaveBeenCalledWith("google", { redirectTo: "/select-establishment" });
+  });
+
+  it("falls back to /dashboard for an unsafe returnTo", async () => {
+    const { googleSignInAction } = await import("@/app/login/actions");
+
+    await googleSignInAction("//evil.com");
+
+    expect(signInMock).toHaveBeenCalledWith("google", { redirectTo: "/dashboard" });
+  });
+
+  it("falls back to /dashboard when returnTo is null", async () => {
+    const { googleSignInAction } = await import("@/app/login/actions");
+
+    await googleSignInAction(null);
+
+    expect(signInMock).toHaveBeenCalledWith("google", { redirectTo: "/dashboard" });
+  });
+});
