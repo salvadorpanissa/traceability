@@ -48,7 +48,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return { id: user.id, name: user.name, email: user.email, role: user.roleName };
       },
     }),
-    Google,
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+    }),
   ],
   callbacks: {
     jwt: async ({ token, user, account, profile }) => {
