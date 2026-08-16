@@ -67,6 +67,7 @@ const dictionaries = {
     "eventType.recategorize": "Recategorización",
     "eventType.sale": "Venta",
     "eventType.death": "Muerte",
+    "login.tagline": "Tu rodeo bajo control total",
     "login.email": "Email",
     "login.password": "Contraseña",
     "login.submit": "Ingresar",

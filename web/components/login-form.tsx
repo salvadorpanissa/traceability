@@ -6,6 +6,7 @@ import { loginAction, googleSignInAction, type LoginState } from "@/app/login/ac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleIcon } from "@/components/icons/google-icon";
 import { useLocale } from "@/lib/i18n/context";
 
 const initialState: LoginState = { error: null };
@@ -17,8 +18,8 @@ export function LoginForm() {
   const { t } = useLocale();
 
   return (
-    <div className="flex flex-col gap-4">
-      <form action={formAction} className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      <form action={formAction} className="flex flex-col gap-5">
         <input type="hidden" name="returnTo" value={returnTo} />
         <div className="flex flex-col gap-2">
           <Label htmlFor="email">{t("login.email")}</Label>
@@ -28,7 +29,9 @@ export function LoginForm() {
           <Label htmlFor="password">{t("login.password")}</Label>
           <Input id="password" name="password" type="password" required autoComplete="current-password" />
         </div>
-        {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+        {state.error ? (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>
+        ) : null}
         <Button type="submit" disabled={pending}>
           {pending ? t("login.submitPending") : t("login.submit")}
         </Button>
@@ -40,6 +43,7 @@ export function LoginForm() {
       </div>
       <form action={() => googleSignInAction(returnTo)}>
         <Button type="submit" variant="outline" className="w-full">
+          <GoogleIcon className="size-4" />
           {t("login.google")}
         </Button>
       </form>
