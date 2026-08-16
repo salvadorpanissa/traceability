@@ -65,4 +65,20 @@ describe("user_account and user_farm", () => {
       testDb.insert(userFarm).values({ userId: user.id, farmId: farmNorteGroup.id }),
     ).rejects.toThrow();
   });
+
+  it("allows a null password_hash for Google-only accounts", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+
+    const [user] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Google User",
+        email: "google-user@example.com",
+        passwordHash: null,
+        roleId: managerRole.id,
+      })
+      .returning();
+
+    expect(user.passwordHash).toBeNull();
+  });
 });

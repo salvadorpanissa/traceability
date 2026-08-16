@@ -71,6 +71,8 @@ const dictionaries = {
     "login.password": "Contraseña",
     "login.submit": "Ingresar",
     "login.submitPending": "Ingresando...",
+    "login.orDivider": "o",
+    "login.google": "Continuar con Google",
     "settings.theme": "Tema",
     "settings.menu": "Configuración",
     "settings.themeLight": "Claro",

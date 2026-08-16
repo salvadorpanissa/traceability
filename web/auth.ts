@@ -1,9 +1,11 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { userAccount, role } from "@/db/schema";
+import { findOrCreateUserForGoogle } from "@/lib/dal/user-provisioning";
 
 // Fixed dummy bcrypt hash (not a real credential) used to compare against when
 // no user is found, so authorize() takes the same amount of time whether or
@@ -46,9 +48,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return { id: user.id, name: user.name, email: user.email, role: user.roleName };
       },
     }),
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+    }),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
+    jwt: async ({ token, user, account, profile }) => {
+      if (account?.provider === "google" && profile?.email) {
+        const provisioned = await findOrCreateUserForGoogle(profile.email, profile.name ?? profile.email);
+        token.sub = provisioned.id;
+        token.role = provisioned.role;
+        return token;
+      }
       if (user) token.role = user.role;
       return token;
     },
