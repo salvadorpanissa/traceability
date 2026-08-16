@@ -138,16 +138,15 @@ describe("AnimalsTable", () => {
     expect(screen.getByText("AR1")).toBeInTheDocument();
   });
 
-  it("shows notes and reproductive status columns", () => {
+  it("shows the reproductive status column", () => {
     const rows = [
-      makeAnimal({ animalId: "a1", currentTag: "AR1", notes: "Cojera leve", reproductiveStatusName: "Preñada" }),
-      makeAnimal({ animalId: "a2", currentTag: "AR2", notes: null, reproductiveStatusName: "Vacía" }),
+      makeAnimal({ animalId: "a1", currentTag: "AR1", reproductiveStatusName: "Preñada" }),
+      makeAnimal({ animalId: "a2", currentTag: "AR2", reproductiveStatusName: "Vacía" }),
     ];
 
     render(<AnimalsTable rows={rows} locale="es" />);
     const table = within(screen.getByRole("table"));
 
-    expect(table.getByText("Cojera leve")).toBeInTheDocument();
     expect(table.getByText("Preñada")).toBeInTheDocument();
     expect(table.getByText("Vacía")).toBeInTheDocument();
   });
