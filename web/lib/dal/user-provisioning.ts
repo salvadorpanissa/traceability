@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { userAccount, role } from "@/db/schema";
 
@@ -12,7 +12,7 @@ export async function findOrCreateUserForGoogle(email: string, name: string): Pr
     .select({ id: userAccount.id, name: userAccount.name, email: userAccount.email, roleName: role.name })
     .from(userAccount)
     .innerJoin(role, eq(userAccount.roleId, role.id))
-    .where(eq(userAccount.email, email))
+    .where(sql`lower(${userAccount.email}) = lower(${email})`)
     .limit(1);
 
   if (existing) {
