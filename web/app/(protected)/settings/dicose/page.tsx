@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Tip } from "@/components/ui/tip";
 import { DicoseRegistrationForm } from "@/components/settings/dicose-registration-form";
 import { listDicoseRegistrations } from "@/lib/dal/dicose";
 import { listOwnersByFarms } from "@/lib/dal/owner-catalog";
@@ -18,13 +19,19 @@ export default async function DicoseSettingsPage() {
   const owners = await listOwnersByFarms(farms.map((f) => f.id));
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <DicoseRegistrationForm
-        registrations={registrations}
-        owners={owners}
-        establishments={establishments}
-        farms={farms}
-      />
-    </Card>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <Card>
+        <DicoseRegistrationForm
+          registrations={registrations}
+          owners={owners}
+          establishments={establishments}
+          farms={farms}
+        />
+      </Card>
+      <Tip>
+        Si querés registrar caravanas propias, primero tenés que registrar el DICOSE del dueño
+        acá.
+      </Tip>
+    </div>
   );
 }

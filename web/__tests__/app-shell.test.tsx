@@ -62,6 +62,23 @@ describe("AppShell", () => {
     expect(screen.queryByRole("link", { name: "Muerte" })).not.toBeInTheDocument();
   });
 
+  it("hides the operational nav and campo settings link for an admin session", async () => {
+    mockedPathname = "/dashboard";
+
+    render(
+      <LocaleProvider initialLocale="es">
+        <AppShell userName="Admin" isAdmin>
+          <p>contenido</p>
+        </AppShell>
+      </LocaleProvider>
+    );
+
+    expect(screen.queryByRole("link", { name: "Sanidad" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Venta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Configuración del campo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abrir navegación" })).not.toBeInTheDocument();
+  });
+
   it("only marks Liquidación as active on /activities/sale-settlement, not Venta", async () => {
     mockedPathname = "/activities/sale-settlement";
 

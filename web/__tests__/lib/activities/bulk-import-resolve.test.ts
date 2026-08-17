@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
-import { farm, establishment, animalTagHistory, animal } from "@/db/schema";
+import { farm, establishment, animalTagHistory, animal, role, userAccount, userFarm } from "@/db/schema";
 import type { MappedImportRow } from "@/lib/activities/bulk-import-mapping";
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -11,6 +11,18 @@ const { resolveImportRows } = await import("@/lib/activities/bulk-import");
 beforeEach(async () => {
   await resetTestDb();
 });
+
+// Admin sees every establecimiento unfiltered, so using an admin session
+// here reproduces the pre-scoping behavior for tests that aren't about
+// scoping itself.
+async function seedAdmin(): Promise<{ id: string }> {
+  const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+  const [admin] = await testDb
+    .insert(userAccount)
+    .values({ name: "Admin", email: "admin@example.com", passwordHash: "x", roleId: adminRole.id })
+    .returning();
+  return admin;
+}
 
 function baseRow(overrides: Partial<MappedImportRow> = {}): MappedImportRow {
   return {
@@ -30,6 +42,7 @@ function baseRow(overrides: Partial<MappedImportRow> = {}): MappedImportRow {
 
 describe("resolveImportRows", () => {
   it("resolves a valid row against an existing establishment, normalizing sex and dates", async () => {
+    const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -39,7 +52,7 @@ describe("resolveImportRows", () => {
       .values({ farmId: seededFarmGroup.id, name: "San Antonio" })
       .returning();
 
-    const [resolved] = await resolveImportRows([baseRow()]);
+    const [resolved] = await resolveImportRows([baseRow()], admin.id, "admin");
 
     expect(resolved).toEqual({
       status: "valid",
@@ -57,6 +70,7 @@ describe("resolveImportRows", () => {
   });
 
   it("errors a row with no tag", async () => {
+    const admin = await seedAdmin();
     const [group2] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -64,7 +78,7 @@ describe("resolveImportRows", () => {
     await testDb
       .insert(establishment)
       .values({ farmId: group2.id, name: "San Antonio" });
-    const [resolved] = await resolveImportRows([baseRow({ tag: "" })]);
+    const [resolved] = await resolveImportRows([baseRow({ tag: "" })], admin.id, "admin");
     expect(resolved).toEqual({
       status: "error",
       tag: "",
@@ -73,6 +87,7 @@ describe("resolveImportRows", () => {
   });
 
   it("errors every row sharing a tag that's duplicated within the file", async () => {
+    const admin = await seedAdmin();
     const [group3] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -82,7 +97,7 @@ describe("resolveImportRows", () => {
       .values({ farmId: group3.id, name: "San Antonio" });
     const rows = [baseRow(), baseRow()];
 
-    const resolved = await resolveImportRows(rows);
+    const resolved = await resolveImportRows(rows, admin.id, "admin");
 
     expect(resolved).toEqual([
       {
@@ -99,6 +114,7 @@ describe("resolveImportRows", () => {
   });
 
   it("errors a row whose tag already exists in the system", async () => {
+    const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -112,7 +128,7 @@ describe("resolveImportRows", () => {
       .insert(animalTagHistory)
       .values({ animalId: existingAnimal.id, tag: "858000048233520" });
 
-    const [resolved] = await resolveImportRows([baseRow()]);
+    const [resolved] = await resolveImportRows([baseRow()], admin.id, "admin");
 
     expect(resolved).toEqual({
       status: "error",
@@ -123,9 +139,12 @@ describe("resolveImportRows", () => {
   });
 
   it("errors a row whose Estancia doesn't match any existing establishment", async () => {
-    const [resolved] = await resolveImportRows([
-      baseRow({ establishmentName: "Estancia Inexistente" }),
-    ]);
+    const admin = await seedAdmin();
+    const [resolved] = await resolveImportRows(
+      [baseRow({ establishmentName: "Estancia Inexistente" })],
+      admin.id,
+      "admin"
+    );
     expect(resolved).toEqual({
       status: "error",
       tag: "858000048233520",
@@ -134,6 +153,7 @@ describe("resolveImportRows", () => {
   });
 
   it("falls back to today's date when Fecha alta en sistema is missing or unparseable, instead of erroring the row", async () => {
+    const admin = await seedAdmin();
     const [group5] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -143,16 +163,19 @@ describe("resolveImportRows", () => {
       .values({ farmId: group5.id, name: "San Antonio" });
     const today = new Date().toISOString().slice(0, 10);
 
-    const [missing] = await resolveImportRows([baseRow({ eventDate: null })]);
-    const [unparseable] = await resolveImportRows([
-      baseRow({ eventDate: "not-a-date" }),
-    ]);
+    const [missing] = await resolveImportRows([baseRow({ eventDate: null })], admin.id, "admin");
+    const [unparseable] = await resolveImportRows(
+      [baseRow({ eventDate: "not-a-date" })],
+      admin.id,
+      "admin"
+    );
 
     expect(missing).toMatchObject({ status: "valid", eventDate: today });
     expect(unparseable).toMatchObject({ status: "valid", eventDate: today });
   });
 
   it("leaves sex and birth date null when they don't match a known value, without erroring the row", async () => {
+    const admin = await seedAdmin();
     const [group6] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -160,9 +183,11 @@ describe("resolveImportRows", () => {
     await testDb
       .insert(establishment)
       .values({ farmId: group6.id, name: "San Antonio" });
-    const [resolved] = await resolveImportRows([
-      baseRow({ sex: "??", birthDate: "no-date" }),
-    ]);
+    const [resolved] = await resolveImportRows(
+      [baseRow({ sex: "??", birthDate: "no-date" })],
+      admin.id,
+      "admin"
+    );
     expect(resolved).toMatchObject({
       status: "valid",
       sex: null,
@@ -171,6 +196,7 @@ describe("resolveImportRows", () => {
   });
 
   it("errors every row sharing a secondaryTag that's duplicated within the file", async () => {
+    const admin = await seedAdmin();
     const [group7] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -183,7 +209,7 @@ describe("resolveImportRows", () => {
       baseRow({ tag: "TAG2", secondaryTag: "CHIP1" }),
     ];
 
-    const resolved = await resolveImportRows(rows);
+    const resolved = await resolveImportRows(rows, admin.id, "admin");
 
     expect(resolved).toEqual([
       {
@@ -200,6 +226,7 @@ describe("resolveImportRows", () => {
   });
 
   it("errors a row whose secondaryTag already exists in animal_tag_history", async () => {
+    const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "San Antonio" })
@@ -215,9 +242,11 @@ describe("resolveImportRows", () => {
       secondaryTag: "CHIP1",
     });
 
-    const [resolved] = await resolveImportRows([
-      baseRow({ tag: "TAG1", secondaryTag: "CHIP1" }),
-    ]);
+    const [resolved] = await resolveImportRows(
+      [baseRow({ tag: "TAG1", secondaryTag: "CHIP1" })],
+      admin.id,
+      "admin"
+    );
 
     expect(resolved).toEqual({
       status: "error",
@@ -225,5 +254,48 @@ describe("resolveImportRows", () => {
       reason: "Chip secundario ya asignado a otro animal",
     });
     void seededFarm;
+  });
+
+  describe("scoping (manager vs. admin)", () => {
+    it("resolves a manager's own establecimiento by name", async () => {
+      const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+      const [ownGroup] = await testDb.insert(farm).values({ name: "Grupo Propio" }).returning();
+      const [ownEstablishment] = await testDb
+        .insert(establishment)
+        .values({ farmId: ownGroup.id, name: "San Antonio" })
+        .returning();
+      const [manager] = await testDb
+        .insert(userAccount)
+        .values({ name: "Manager", email: "manager@example.com", passwordHash: "x", roleId: managerRole.id })
+        .returning();
+      await testDb.insert(userFarm).values({ userId: manager.id, farmId: ownGroup.id });
+
+      const [resolved] = await resolveImportRows([baseRow()], manager.id, "manager");
+
+      expect(resolved).toMatchObject({ status: "valid", establishmentId: ownEstablishment.id });
+    });
+
+    it("refuses to resolve another cliente's establecimiento by name, even though it exists", async () => {
+      const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+      const [ownGroup] = await testDb.insert(farm).values({ name: "Grupo Propio" }).returning();
+      const [manager] = await testDb
+        .insert(userAccount)
+        .values({ name: "Manager", email: "manager2@example.com", passwordHash: "x", roleId: managerRole.id })
+        .returning();
+      await testDb.insert(userFarm).values({ userId: manager.id, farmId: ownGroup.id });
+
+      // Another cliente's campo happens to have an establecimiento with the
+      // same name the manager is importing.
+      const [otherGroup] = await testDb.insert(farm).values({ name: "Otro Cliente" }).returning();
+      await testDb.insert(establishment).values({ farmId: otherGroup.id, name: "San Antonio" });
+
+      const [resolved] = await resolveImportRows([baseRow()], manager.id, "manager");
+
+      expect(resolved).toEqual({
+        status: "error",
+        tag: "858000048233520",
+        reason: "Estancia no reconocida",
+      });
+    });
   });
 });

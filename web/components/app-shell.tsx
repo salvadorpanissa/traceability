@@ -54,9 +54,11 @@ const navItems: NavItem[] = [
 
 export function AppShell({
   userName,
+  isAdmin = false,
   children,
 }: {
   userName: string;
+  isAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const { t } = useLocale();
@@ -84,18 +86,20 @@ export function AppShell({
       <header className="border-b bg-background px-4 py-3 md:px-6">
         <div className="flex items-center gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3 md:flex-none">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="md:hidden"
-              aria-label={isMobileNavOpen ? t("appShell.closeNavigation") : t("appShell.openNavigation")}
-              aria-expanded={isMobileNavOpen}
-              aria-controls="mobile-navigation"
-              onClick={() => setIsMobileNavOpen((previous) => !previous)}
-            >
-              {isMobileNavOpen ? <X /> : <Menu />}
-            </Button>
+            {isAdmin ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="md:hidden"
+                aria-label={isMobileNavOpen ? t("appShell.closeNavigation") : t("appShell.openNavigation")}
+                aria-expanded={isMobileNavOpen}
+                aria-controls="mobile-navigation"
+                onClick={() => setIsMobileNavOpen((previous) => !previous)}
+              >
+                {isMobileNavOpen ? <X /> : <Menu />}
+              </Button>
+            )}
             <Link
               href="/dashboard"
               className="flex items-center gap-1.5 text-base font-bold md:text-lg"
@@ -113,39 +117,43 @@ export function AppShell({
             <ThemeToggle />
           </div>
 
-          <nav
-            aria-label={t("appShell.navigation")}
-            className="hidden flex-1 items-center justify-center gap-1 md:flex"
-          >
-            {navItems.map((item) => {
-              const isActive = item.isActive(pathname);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={isActive ? "page" : undefined}
-                  onClick={() => {
-                    setIsMobileNavOpen(false);
-                    setIsUserMenuOpen(false);
-                  }}
-                  className={cn(
-                    "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive ? "bg-muted text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  {t(item.labelKey)}
-                </Link>
-              );
-            })}
-          </nav>
+          {isAdmin ? null : (
+            <nav
+              aria-label={t("appShell.navigation")}
+              className="hidden flex-1 items-center justify-center gap-1 md:flex"
+            >
+              {navItems.map((item) => {
+                const isActive = item.isActive(pathname);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => {
+                      setIsMobileNavOpen(false);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className={cn(
+                      "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isActive ? "bg-muted text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {t(item.labelKey)}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
 
           <div className="flex min-w-0 items-center justify-end gap-2 md:gap-3">
-            <FarmSettingsButton
-              onNavigate={() => {
-                setIsMobileNavOpen(false);
-                setIsUserMenuOpen(false);
-              }}
-            />
+            {isAdmin ? null : (
+              <FarmSettingsButton
+                onNavigate={() => {
+                  setIsMobileNavOpen(false);
+                  setIsUserMenuOpen(false);
+                }}
+              />
+            )}
 
             <div className="relative" ref={userMenuRef}>
               <Button
@@ -168,7 +176,7 @@ export function AppShell({
           </div>
         </div>
 
-        {isMobileNavOpen ? (
+        {!isAdmin && isMobileNavOpen ? (
           <div id="mobile-navigation" className="mt-3 border-t pt-3 md:hidden">
             <nav aria-label={t("appShell.navigation")} className="flex flex-col gap-1">
               {navItems.map((item) => {

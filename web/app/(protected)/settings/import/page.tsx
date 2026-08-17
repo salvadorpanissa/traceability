@@ -1,23 +1,29 @@
-import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tip } from "@/components/ui/tip";
 import { ImportForm } from "@/components/settings/import-form";
 import { requireSession } from "@/lib/dal/session";
-import { isAdmin } from "@/lib/dal/farm-access";
 
 export default async function ImportSettingsPage() {
-  const session = await requireSession();
-  if (!isAdmin(session.user.role)) {
-    redirect("/settings");
-  }
+  await requireSession();
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Importar caravanas existentes</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ImportForm />
-      </CardContent>
-    </Card>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Importar animales</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ImportForm />
+        </CardContent>
+      </Card>
+      <Tip>
+        Esta herramienta permite incorporar a la plataforma los animales que ya tiene registrados
+        en otro sistema o planilla, sin necesidad de cargarlos uno por uno. También es posible
+        incorporar animales de forma individual a través de las actividades habituales — por
+        ejemplo, al registrar un evento de Sanidad, Traslado o Venta con una caravana que todavía
+        no existe en el sistema, el animal se da de alta automáticamente con los datos de esa
+        actividad.
+      </Tip>
+    </div>
   );
 }

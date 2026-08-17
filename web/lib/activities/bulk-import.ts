@@ -13,6 +13,7 @@ import {
   owner,
   paddock,
 } from "@/db/schema";
+import { listSelectableEstablishments } from "@/lib/dal/farm-access";
 import type { MappedImportRow } from "@/lib/activities/bulk-import-mapping";
 import { normalizeSex } from "@/lib/activities/sex-normalization";
 import { normalizeDate } from "@/lib/activities/date-normalization";
@@ -34,7 +35,11 @@ export type ResolvedImportRow =
     }
   | { status: "error"; tag: string; reason: string };
 
-export async function resolveImportRows(rows: MappedImportRow[]): Promise<ResolvedImportRow[]> {
+export async function resolveImportRows(
+  rows: MappedImportRow[],
+  userId: string,
+  role: string | undefined
+): Promise<ResolvedImportRow[]> {
   const tagCounts = new Map<string, number>();
   for (const row of rows) {
     if (!row.tag) continue;
@@ -66,7 +71,11 @@ export async function resolveImportRows(rows: MappedImportRow[]): Promise<Resolv
     secondaryTagHistoryRows.filter((r): r is { secondaryTag: string; animalId: string } => !!r.secondaryTag).map((r) => [r.secondaryTag, r.animalId])
   );
 
-  const establishmentRows = await db.select({ id: establishment.id, name: establishment.name }).from(establishment);
+  // Scoped to the requesting user's own campos — an admin sees every
+  // establecimiento, a manager only theirs, so a name that matches an
+  // establecimiento belonging to a different cliente's campo is treated the
+  // same as an unknown name below, never resolved across account boundaries.
+  const establishmentRows = await listSelectableEstablishments(userId, role);
   const establishmentIdByName = new Map(establishmentRows.map((f) => [f.name.trim(), f.id]));
 
   const result: ResolvedImportRow[] = [];
