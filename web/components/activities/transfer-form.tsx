@@ -121,7 +121,6 @@ export function TransferForm({ establishments }: { establishments: { id: string;
   async function handleConfirm() {
     if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
     await confirmTransferBatchAction({
-      headerSignature: preview.headerSignature,
       mapping: preview.mapping,
       destinationEstablishmentId,
       destinationPaddockId,

@@ -38,7 +38,6 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     mappingNeeded: false,
     valueLegendNeeded: false,
     eventDateNeeded: false,
-    headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
     rows: [
       {
@@ -185,14 +184,12 @@ describe("HealthForm", () => {
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: true,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
     });
     vi.mocked(previewHealthBatch).mockResolvedValueOnce({
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: false,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
@@ -283,7 +280,6 @@ describe("HealthForm", () => {
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: false,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
@@ -332,7 +328,6 @@ describe("HealthForm", () => {
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: false,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
@@ -391,7 +386,6 @@ describe("HealthForm", () => {
       .mockResolvedValueOnce({
         mappingNeeded: false,
         valueLegendNeeded: true,
-        headerSignature: "sig-1",
         mapping: [
           { header: "IDE", meaning: "tag" },
           { header: "Fecha", meaning: "date" },
@@ -403,7 +397,6 @@ describe("HealthForm", () => {
         mappingNeeded: false,
         valueLegendNeeded: false,
         eventDateNeeded: false,
-        headerSignature: "sig-1",
         mapping: [
           { header: "IDE", meaning: "tag" },
           { header: "Fecha", meaning: "date" },
@@ -439,7 +432,6 @@ describe("HealthForm", () => {
       mappingNeeded: false as const,
       valueLegendNeeded: false as const,
       eventDateNeeded: false as const,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" as const }],
       rows: [
         {
@@ -492,7 +484,6 @@ describe("HealthForm", () => {
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: true,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
     });
 
@@ -511,7 +502,6 @@ describe("HealthForm", () => {
       mappingNeeded: false,
       valueLegendNeeded: false,
       eventDateNeeded: false,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {

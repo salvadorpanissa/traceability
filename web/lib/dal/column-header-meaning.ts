@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { columnHeaderMeaning } from "@/db/schema";
 import type { ColumnMapping } from "@/lib/activities/column-mapping";
@@ -19,12 +19,12 @@ export async function rememberedInitialMapping(headers: string[]): Promise<Colum
 // Called once a mapping is confirmed, so the next file — for this or any
 // other activity — gets these same headers pre-filled.
 export async function rememberColumnMeanings(mapping: ColumnMapping[]): Promise<void> {
-  await Promise.all(
-    mapping.map((m) =>
-      db
-        .insert(columnHeaderMeaning)
-        .values({ header: m.header, meaning: m.meaning })
-        .onConflictDoUpdate({ target: columnHeaderMeaning.header, set: { meaning: m.meaning, updatedAt: new Date() } })
-    )
-  );
+  if (mapping.length === 0) return;
+  await db
+    .insert(columnHeaderMeaning)
+    .values(mapping.map((m) => ({ header: m.header, meaning: m.meaning })))
+    .onConflictDoUpdate({
+      target: columnHeaderMeaning.header,
+      set: { meaning: sql`excluded.meaning`, updatedAt: new Date() },
+    });
 }

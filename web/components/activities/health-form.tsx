@@ -123,7 +123,6 @@ export function HealthForm({
   const [headers, setHeaders] = useState<string[]>([]);
   const [workingMapping, setWorkingMapping] = useState<ColumnMapping[] | null>(null);
   const [distinctValues, setDistinctValues] = useState<string[]>([]);
-  const [headerSignature, setHeaderSignature] = useState("");
   const [hydrated, setHydrated] = useState(false);
   // True only for the one file-pick right after a draft is restored — lets
   // handleFileChange auto-continue with the cached mapping instead of
@@ -144,7 +143,6 @@ export function HealthForm({
       setHeaders(draft.headers);
       setWorkingMapping(draft.workingMapping);
       setDistinctValues(draft.distinctValues);
-      setHeaderSignature(draft.headerSignature);
       setReproductiveStatusValueMap(draft.reproductiveStatusValueMap);
       setRows(draft.rows);
       setProducts(draft.products);
@@ -174,7 +172,6 @@ export function HealthForm({
       headers,
       workingMapping,
       distinctValues,
-      headerSignature,
       reproductiveStatusValueMap,
       rows,
       products,
@@ -192,7 +189,6 @@ export function HealthForm({
     headers,
     workingMapping,
     distinctValues,
-    headerSignature,
     reproductiveStatusValueMap,
     rows,
     products,
@@ -215,7 +211,6 @@ export function HealthForm({
     setHeaders([]);
     setWorkingMapping(null);
     setDistinctValues([]);
-    setHeaderSignature("");
     setResumingFromDraft(false);
     if (!selectedEstablishmentId) {
       setPaddocks([]);
@@ -261,7 +256,6 @@ export function HealthForm({
     setHeaders([]);
     setWorkingMapping(null);
     setDistinctValues([]);
-    setHeaderSignature("");
     setResumingFromDraft(false);
   }
 
@@ -277,7 +271,6 @@ export function HealthForm({
     setHeaders([]);
     setWorkingMapping(null);
     setDistinctValues([]);
-    setHeaderSignature("");
     setResumingFromDraft(false);
     if (selectedPaddockId && establishmentId) {
       try {
@@ -318,7 +311,6 @@ export function HealthForm({
       setHeaders(result.headers);
       return;
     }
-    setHeaderSignature(result.headerSignature);
     setWorkingMapping(result.mapping);
     if (result.valueLegendNeeded) {
       setDistinctValues(result.distinctValues);
@@ -404,7 +396,6 @@ export function HealthForm({
   async function handleConfirm() {
     if (step !== "review" || !workingMapping) return;
     await confirmHealthBatchAction({
-      headerSignature,
       mapping: workingMapping,
       products,
       rows,

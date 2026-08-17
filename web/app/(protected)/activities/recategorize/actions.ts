@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
 import { requireFarmAccess } from "@/lib/dal/farm-access";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import { applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import {
   resolveRecategorizeBatchRows,
   type RecategorizeResolvedRow,
@@ -16,11 +16,10 @@ import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/colu
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | { mappingNeeded: false; eventDateNeeded: true; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
       eventDateNeeded: false;
-      headerSignature: string;
       mapping: ColumnMapping[];
       rows: RecategorizeResolvedRow[];
     };
@@ -37,7 +36,6 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
 
   const buffer = await file.arrayBuffer();
   const { headers, rows } = await parseExcelFile(buffer);
-  const headerSignature = computeHeaderSignature(headers);
 
   let mapping: ColumnMapping[];
   if (mappingOverride) {
@@ -48,17 +46,16 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, eventDateNeeded: true, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
   const rows_ = await resolveRecategorizeBatchRows(mappedRows, hasDateColumn ? null : eventDate, operatingFarmId);
 
-  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: rows_ };
+  return { mappingNeeded: false, eventDateNeeded: false, mapping, rows: rows_ };
 }
 
 export async function confirmRecategorizeBatchAction(input: {
-  headerSignature: string;
   mapping: ColumnMapping[];
   farmId: string;
   targetCategoryId: string;

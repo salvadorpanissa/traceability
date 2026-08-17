@@ -10,7 +10,6 @@ const draft: HealthFormDraft = {
   headers: ["Caravana", "Fecha"],
   workingMapping: [{ header: "Caravana", meaning: "tag" }],
   distinctValues: ["preñada"],
-  headerSignature: "sig-1",
   reproductiveStatusValueMap: { "preñada": "status-1" },
   rows: [],
   products: [],

@@ -457,7 +457,6 @@ describe("confirmHealthBatchAction", () => {
       .returning();
 
     await confirmHealthBatchAction({
-      headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
         {
@@ -499,7 +498,6 @@ describe("confirmHealthBatchAction", () => {
       .insert(product)
       .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
       .returning();
-    const headerSignature = JSON.stringify(["IDE", "NOTA"]);
 
     // A first import remembered NOTA as "ignore" (e.g. a mistake).
     await testDb.insert(columnHeaderMeaning).values([
@@ -510,7 +508,6 @@ describe("confirmHealthBatchAction", () => {
     // A later import corrects it to "notes" — the correction must stick,
     // not be silently discarded by the cache.
     await confirmHealthBatchAction({
-      headerSignature,
       mapping: [
         { header: "IDE", meaning: "tag" },
         { header: "NOTA", meaning: "notes" },
@@ -562,7 +559,6 @@ describe("confirmHealthBatchAction", () => {
       .returning();
 
     await confirmHealthBatchAction({
-      headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
         {
@@ -605,7 +601,6 @@ describe("confirmHealthBatchAction", () => {
       .returning();
 
     await confirmHealthBatchAction({
-      headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
         {
@@ -672,7 +667,6 @@ describe("confirmHealthBatchAction", () => {
       .returning();
 
     await confirmHealthBatchAction({
-      headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
         {
@@ -730,7 +724,6 @@ describe("confirmHealthBatchAction", () => {
       .values({ animalId: createdAnimal.id, tag: "AR000000000087" });
 
     await confirmHealthBatchAction({
-      headerSignature: JSON.stringify(["IDE"]),
       mapping: [{ header: "IDE", meaning: "tag" }],
       products: [
         {

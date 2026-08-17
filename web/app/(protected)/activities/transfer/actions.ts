@@ -3,7 +3,7 @@
 import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import { applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
@@ -16,11 +16,10 @@ import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/colu
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | { mappingNeeded: false; eventDateNeeded: true; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
       eventDateNeeded: false;
-      headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
     };
@@ -37,7 +36,6 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
 
   const buffer = await file.arrayBuffer();
   const { headers, rows } = await parseExcelFile(buffer);
-  const headerSignature = computeHeaderSignature(headers);
 
   let mapping: ColumnMapping[];
   if (mappingOverride) {
@@ -48,7 +46,7 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, eventDateNeeded: true, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
@@ -56,11 +54,10 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
     autoForceForeignWithoutOwner: true,
   });
 
-  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
+  return { mappingNeeded: false, eventDateNeeded: false, mapping, rows: resolvedRows };
 }
 
 export async function confirmTransferBatchAction(input: {
-  headerSignature: string;
   mapping: ColumnMapping[];
   destinationEstablishmentId: string;
   destinationPaddockId: string | null;

@@ -5,7 +5,6 @@ import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/fa
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
-  computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
   extractDistinctColumnValues,
@@ -30,16 +29,14 @@ export type PreviewResult =
   | {
       mappingNeeded: false;
       valueLegendNeeded: true;
-      headerSignature: string;
       mapping: ColumnMapping[];
       distinctValues: string[];
     }
-  | { mappingNeeded: false; valueLegendNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | { mappingNeeded: false; valueLegendNeeded: false; eventDateNeeded: true; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
       valueLegendNeeded: false;
       eventDateNeeded: false;
-      headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
       productSuggestions: { rawValue: string; matchedProductId: string | null }[];
@@ -57,7 +54,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 
   const buffer = await file.arrayBuffer();
   const { headers, rows } = await parseExcelFile(buffer);
-  const headerSignature = computeHeaderSignature(headers);
 
   let mapping: ColumnMapping[];
   if (mappingOverride) {
@@ -85,12 +81,12 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
       return mappedId !== "" && !farmStatusIds.has(mappedId);
     });
     if (uncovered) {
-      return { mappingNeeded: false, valueLegendNeeded: true, headerSignature, mapping, distinctValues };
+      return { mappingNeeded: false, valueLegendNeeded: true, mapping, distinctValues };
     }
   }
 
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, valueLegendNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, valueLegendNeeded: false, eventDateNeeded: true, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
@@ -109,7 +105,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
     mappingNeeded: false,
     valueLegendNeeded: false,
     eventDateNeeded: false,
-    headerSignature,
     mapping,
     rows: resolvedRows,
     productSuggestions,
@@ -117,7 +112,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 }
 
 export async function confirmHealthBatchAction(input: {
-  headerSignature: string;
   mapping: ColumnMapping[];
   products: HealthProduct[];
   rows: ResolvedRow[];

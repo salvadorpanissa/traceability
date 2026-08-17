@@ -155,7 +155,6 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
     setConfirmError(null);
     try {
       await confirmRecategorizeBatchAction({
-        headerSignature: preview.headerSignature,
         mapping: preview.mapping,
         farmId,
         targetCategoryId,

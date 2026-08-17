@@ -13,7 +13,6 @@ export type HealthFormDraft = {
   headers: string[];
   workingMapping: ColumnMapping[] | null;
   distinctValues: string[];
-  headerSignature: string;
   reproductiveStatusValueMap: Record<string, string>;
   rows: ResolvedRow[];
   products: HealthProduct[];

@@ -14,7 +14,6 @@ vi.mock("@/app/(protected)/activities/transfer/actions", () => ({
   previewTransferBatch: vi.fn(async () => ({
     mappingNeeded: false,
     eventDateNeeded: false,
-    headerSignature: '["IDE"]',
     mapping: [{ header: "IDE", meaning: "tag" }],
     rows: [
       {
@@ -111,13 +110,11 @@ describe("TransferForm", () => {
     vi.mocked(previewTransferBatch).mockResolvedValueOnce({
       mappingNeeded: false,
       eventDateNeeded: true,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
     });
     vi.mocked(previewTransferBatch).mockResolvedValueOnce({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: '["IDE"]',
       mapping: [{ header: "IDE", meaning: "tag" }],
       rows: [
         {
