@@ -3,11 +3,13 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 
+const FARM_ID = "farm-1";
+
 afterEach(cleanup);
 
 describe("PendingOwnerEditor", () => {
   it("renders one inline-creation row per distinct pending name, pre-filled and editable", async () => {
-    const onCreateOwner = vi.fn(async (name: string) => ({ id: "o1", name }));
+    const onCreateOwner = vi.fn(async (name: string) => ({ id: "o1", name, farmId: FARM_ID }));
     const onResolved = vi.fn();
 
     render(
@@ -21,7 +23,7 @@ describe("PendingOwnerEditor", () => {
   });
 
   it("creates a pending owner and reports the resolved id, then removes that row", async () => {
-    const onCreateOwner = vi.fn(async (name: string) => ({ id: "o2", name }));
+    const onCreateOwner = vi.fn(async (name: string) => ({ id: "o2", name, farmId: FARM_ID }));
     const onResolved = vi.fn();
     const user = userEvent.setup();
 
@@ -56,7 +58,7 @@ describe("PendingOwnerEditor", () => {
   });
 
   it("resolves a pending name by picking an existing owner, without creating a new one", async () => {
-    const onCreateOwner = vi.fn(async (name: string) => ({ id: "should-not-be-used", name }));
+    const onCreateOwner = vi.fn(async (name: string) => ({ id: "should-not-be-used", name, farmId: FARM_ID }));
     const onResolved = vi.fn();
     const user = userEvent.setup();
 
@@ -64,8 +66,8 @@ describe("PendingOwnerEditor", () => {
       <PendingOwnerEditor
         pendingNames={["SA SG"]}
         ownerCatalog={[
-          { id: "o1", name: "SASG" },
-          { id: "o2", name: "AIP" },
+          { id: "o1", name: "SASG", farmId: FARM_ID },
+          { id: "o2", name: "AIP", farmId: FARM_ID },
         ]}
         onCreateOwner={onCreateOwner}
         onResolved={onResolved}

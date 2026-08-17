@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -79,10 +86,13 @@ export function ReproductiveStatusCatalogForm({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Estados reproductivos</CardTitle>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogTrigger render={<Button type="button" />}>
+            + Agregar
+          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nuevo estado reproductivo</DialogTitle>
@@ -108,82 +118,129 @@ export function ReproductiveStatusCatalogForm({
               ) : null}
 
               <Label htmlFor="reproductive-status-name">Nombre</Label>
-              <Input id="reproductive-status-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="reproductive-status-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
 
-              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+              {createError ? (
+                <p className="text-sm text-destructive">{createError}</p>
+              ) : null}
 
-              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
+              <Button
+                type="button"
+                disabled={!farmId || !name}
+                onClick={handleCreate}
+              >
                 Agregar
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left">
-              <th className="py-1 pr-2">Nombre</th>
-              {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-              <th className="w-px whitespace-nowrap py-1 pr-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {activeStatuses.map((entry) =>
-              editingId === entry.id ? (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">
-                    <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                  </td>
-                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="whitespace-nowrap py-1 pr-2">
-                    <div className="flex gap-1 whitespace-nowrap">
-                      <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                        Guardar
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">{entry.name}</td>
-                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="whitespace-nowrap py-1 pr-2">
-                    <div className="flex gap-1 whitespace-nowrap">
-                      <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                        Editar
-                      </Button>
-                      <Button type="button" size="sm" variant="destructive" onClick={() => handleArchive(entry.id)}>
-                        Eliminar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </div>
-      {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
-
-      {archivedStatuses.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">Estados archivados</p>
-          <table className="w-full text-sm text-muted-foreground">
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-1 pr-2">Nombre</th>
+                {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
+                <th className="w-px whitespace-nowrap py-1 pr-2" />
+              </tr>
+            </thead>
             <tbody>
-              {archivedStatuses.map((entry) => (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">{entry.name}</td>
-                </tr>
-              ))}
+              {activeStatuses.map((entry) =>
+                editingId === entry.id ? (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">
+                      <Input
+                        aria-label="Editar nombre"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </td>
+                    {showFarmColumn ? (
+                      <td className="py-1 pr-2">
+                        {farmLabels.get(entry.farmId) ?? ""}
+                      </td>
+                    ) : null}
+                    <td className="whitespace-nowrap py-1 pr-2">
+                      <div className="flex gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!editName}
+                          onClick={() => saveEdit(entry.id)}
+                        >
+                          Guardar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={cancelEdit}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">{entry.name}</td>
+                    {showFarmColumn ? (
+                      <td className="py-1 pr-2">
+                        {farmLabels.get(entry.farmId) ?? ""}
+                      </td>
+                    ) : null}
+                    <td className="whitespace-nowrap py-1 pr-2">
+                      <div className="flex gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEdit(entry)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleArchive(entry.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
-      ) : null}
-    </div>
+        {editError ? (
+          <p className="text-sm text-destructive">{editError}</p>
+        ) : null}
+
+        {archivedStatuses.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              Estados archivados
+            </p>
+            <table className="w-full text-sm text-muted-foreground">
+              <tbody>
+                {archivedStatuses.map((entry) => (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">{entry.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </CardContent>
+    </>
   );
 }

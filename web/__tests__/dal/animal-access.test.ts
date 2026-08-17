@@ -981,7 +981,7 @@ describe("findAnimalDetailByTag", () => {
       .returning();
     const [seededOwner] = await testDb
       .insert(owner)
-      .values({ name: "SASG" })
+      .values({ name: "SASG", farmId: seededFarmGroup.id })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -1224,7 +1224,7 @@ describe("visibleAnimalDetails", () => {
       .returning();
     const [seededOwner] = await testDb
       .insert(owner)
-      .values({ name: "SASG" })
+      .values({ name: "SASG", farmId: seededFarmGroup.id })
       .returning();
     const [admin] = await testDb
       .insert(userAccount)
@@ -1400,8 +1400,8 @@ describe("updateAnimalDetails", () => {
   it("updates sex, breed, birth date, owner, secondary tag, and reproductive status", async () => {
     const [createdAnimal] = await testDb.insert(animal).values({}).returning();
     await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000080" });
-    const [newOwner] = await testDb.insert(owner).values({ name: "AIP" }).returning();
     const [farmGroup] = await testDb.insert(farm).values({ name: "Campo Norte" }).returning();
+    const [newOwner] = await testDb.insert(owner).values({ name: "AIP", farmId: farmGroup.id }).returning();
     const [status] = await testDb.insert(reproductiveStatus).values({ farmId: farmGroup.id, name: "Preñada" }).returning();
     // updateAnimalDetails re-reads the animal through animal_current_state,
     // which (like in production) only reflects a row once it's been

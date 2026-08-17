@@ -121,9 +121,13 @@ async function seedExistingAnimal(tag: string, opts: { sold?: boolean } = {}) {
 }
 
 async function seedOwnTag(tag: string, establishmentId: string, ownerName: string) {
+  const [establishmentRow] = await testDb
+    .select()
+    .from(establishment)
+    .where(eq(establishment.id, establishmentId));
   const [ownerRow] = await testDb
     .insert(owner)
-    .values({ name: ownerName })
+    .values({ name: ownerName, farmId: establishmentRow.farmId })
     .returning();
   const [registration] = await testDb
     .insert(dicose)

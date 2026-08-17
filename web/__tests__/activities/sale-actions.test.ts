@@ -69,7 +69,7 @@ async function seedManagerAndFarm() {
   // (same class of fix applied in prior tasks' test seeds).
   const [seededOwner] = await testDb
     .insert(owner)
-    .values({ name: "Dueño Sembrado" })
+    .values({ name: "Dueño Sembrado", farmId: seededFarmGroup.id })
     .returning();
   const [seededRegistration] = await testDb
     .insert(dicose)
@@ -275,9 +275,9 @@ describe("confirmSaleBatchFromPdfAction", () => {
 
 describe("createOwnerAction", () => {
   it("creates an owner and returns it", async () => {
-    await seedManagerAndFarm();
+    const { seededFarm } = await seedManagerAndFarm();
 
-    const created = await createOwnerAction("AIP");
+    const created = await createOwnerAction(seededFarm.id, "AIP");
 
     expect(created.name).toBe("AIP");
     const [stored] = await testDb

@@ -100,7 +100,7 @@ export function TransferForm({ establishments }: { establishments: { id: string;
   }
 
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    return createOwnerAction(name);
+    return createOwnerAction(destinationEstablishmentId, name);
   }
 
   function handleOwnerResolved(rawName: string, ownerId: string) {

@@ -25,13 +25,13 @@ beforeEach(async () => {
 
 describe("dicose-registration", () => {
   it("creates a registration and returns it with owner/establishment names resolved", async () => {
-    const [createdOwner] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
     const [createdFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Campo San Antonio" })
+      .returning();
+    const [createdOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: createdFarmGroup.id })
       .returning();
     const [createdFarm] = await testDb
       .insert(establishment)
@@ -67,17 +67,17 @@ describe("dicose-registration", () => {
         roleId: adminRole.id,
       })
       .returning();
-    const [ownerAip] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
-    const [ownerSasg] = await testDb
-      .insert(owner)
-      .values({ name: "SASG" })
-      .returning();
     const [createdFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Campo San Antonio" })
+      .returning();
+    const [ownerAip] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: createdFarmGroup.id })
+      .returning();
+    const [ownerSasg] = await testDb
+      .insert(owner)
+      .values({ name: "SASG", farmId: createdFarmGroup.id })
       .returning();
     const [createdFarm] = await testDb
       .insert(establishment)
@@ -117,14 +117,6 @@ describe("dicose-registration", () => {
         roleId: managerRole.id,
       })
       .returning();
-    const [ownerAip] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
-    const [ownerSasg] = await testDb
-      .insert(owner)
-      .values({ name: "SASG" })
-      .returning();
     const [farmNorteGroup] = await testDb
       .insert(farm)
       .values({ name: "Campo Norte" })
@@ -140,6 +132,14 @@ describe("dicose-registration", () => {
     const [farmSur] = await testDb
       .insert(establishment)
       .values({ farmId: farmSurGroup.id, name: "Campo Sur" })
+      .returning();
+    const [ownerAip] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: farmNorteGroup.id })
+      .returning();
+    const [ownerSasg] = await testDb
+      .insert(owner)
+      .values({ name: "SASG", farmId: farmSurGroup.id })
       .returning();
     await testDb
       .insert(userFarm)
@@ -182,13 +182,13 @@ describe("dicose-registration", () => {
 
 describe("findEstablishmentByDicoseCode", () => {
   it("resolves a registered DICOSE code to its establishment", async () => {
-    const [seededOwner] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
     const [seededFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: seededFarmGroup.id })
       .returning();
     const [seededFarm] = await testDb
       .insert(establishment)

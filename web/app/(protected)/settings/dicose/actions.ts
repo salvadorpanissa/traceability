@@ -1,16 +1,9 @@
 "use server";
 
-import { asc } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
-import { db } from "@/db";
-import { establishment } from "@/db/schema";
+import { requireEstablishmentAccess, requireFarmAccess } from "@/lib/dal/farm-access";
 import { createDicoseRegistration, type DicoseEntry } from "@/lib/dal/dicose";
-
-export async function listEstablishments(): Promise<{ id: string; name: string }[]> {
-  await requireSession();
-  return db.select({ id: establishment.id, name: establishment.name }).from(establishment).orderBy(asc(establishment.name));
-}
+import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 
 export async function createDicoseRegistrationAction(input: {
   ownerId: string;
@@ -20,4 +13,10 @@ export async function createDicoseRegistrationAction(input: {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
   return createDicoseRegistration(input);
+}
+
+export async function createOwnerAction(farmId: string, name: string): Promise<OwnerCatalogEntry> {
+  const session = await requireSession();
+  await requireFarmAccess(session.user.id, session.user.role, farmId);
+  return createOwner(farmId, name);
 }

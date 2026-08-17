@@ -168,9 +168,12 @@ export async function listProductsAction(establishmentId: string): Promise<Produ
   return farmId ? listProductsByFarm(farmId) : [];
 }
 
-export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
-  await requireSession();
-  return createOwner(name);
+export async function createOwnerAction(establishmentId: string, name: string): Promise<OwnerCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createOwner(farmId, name);
 }
 
 export async function createHealthPaddockAction(establishmentId: string, name: string): Promise<PaddockCatalogEntry> {

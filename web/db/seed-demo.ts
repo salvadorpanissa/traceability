@@ -182,7 +182,7 @@ async function run() {
     .values({ name: "Juan Pérez", email: managerEmail, passwordHash, roleId: managerRole.id })
     .returning();
 
-  const [demoOwner] = await db.insert(owner).values({ name: "Juan Pérez" }).returning();
+  const [demoOwner] = await db.insert(owner).values({ farmId: demoFarm.id, name: "Juan Pérez" }).returning();
 
   // Assigned at the farm level (not per establecimiento) — a manager on a
   // farm operates every establecimiento it contains.
