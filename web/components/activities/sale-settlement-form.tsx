@@ -106,7 +106,7 @@ export function SaleSettlementForm() {
             <dt className="text-muted-foreground">Peso</dt>
             <dd>{describeBackfill(preview.match.weightKg, preview.weightKg)}</dd>
             <dt className="text-muted-foreground">Caravanas</dt>
-            <dd className="flex flex-wrap gap-x-2 gap-y-1">
+            <dd className="flex max-h-40 flex-wrap gap-x-2 gap-y-1 overflow-y-auto">
               {preview.match.animalTags.map((tag) => (
                 <span key={tag}>{tag}</span>
               ))}

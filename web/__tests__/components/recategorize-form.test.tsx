@@ -42,7 +42,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {
@@ -78,7 +77,6 @@ describe("RecategorizeForm", () => {
 
     await waitFor(() =>
       expect(confirmRecategorizeBatchAction).toHaveBeenCalledWith({
-        headerSignature: "sig",
         mapping: [],
         farmId: "farm-1",
         targetCategoryId: "cat-novillo-plus3",
@@ -105,7 +103,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {
@@ -158,7 +155,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [{ tag: "AR2", eventDate: "2026-03-01", notes: null, status: "error", reason: "Caravana no encontrada" }],
     });
@@ -182,7 +178,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {
@@ -225,7 +220,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {
@@ -273,7 +267,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {
@@ -321,7 +314,6 @@ describe("RecategorizeForm", () => {
     vi.mocked(previewRecategorizeBatch).mockResolvedValue({
       mappingNeeded: false,
       eventDateNeeded: false,
-      headerSignature: "sig",
       mapping: [],
       rows: [
         {

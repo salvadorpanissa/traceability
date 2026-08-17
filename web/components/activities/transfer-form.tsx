@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnMapper } from "@/components/activities/column-mapper";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
+import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { PaddockSelector } from "@/components/activities/paddock-selector";
 import { PdfGuideTransferForm } from "@/components/activities/pdf-guide-transfer-form";
@@ -120,7 +121,6 @@ export function TransferForm({ establishments }: { establishments: { id: string;
   async function handleConfirm() {
     if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
     await confirmTransferBatchAction({
-      headerSignature: preview.headerSignature,
       mapping: preview.mapping,
       destinationEstablishmentId,
       destinationPaddockId,
@@ -212,7 +212,9 @@ export function TransferForm({ establishments }: { establishments: { id: string;
           {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
             <div className="flex flex-col gap-4">
               <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
-              <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+              <ScrollablePreviewTable>
+                <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+              </ScrollablePreviewTable>
               <Button
                 type="button"
                 disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}

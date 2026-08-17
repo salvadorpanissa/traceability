@@ -278,7 +278,6 @@ describe("confirmRecategorizeBatchAction", () => {
     await refreshDerivedState();
 
     await confirmRecategorizeBatchAction({
-      headerSignature: JSON.stringify(["Caravana", "Fecha"]),
       mapping: [
         { header: "Caravana", meaning: "tag" },
         { header: "Fecha", meaning: "date" },

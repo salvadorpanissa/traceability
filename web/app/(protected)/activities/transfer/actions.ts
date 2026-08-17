@@ -1,12 +1,9 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
-import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
+import { applyColumnMapping, type ColumnMapping } from "@/lib/activities/column-mapping";
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
@@ -15,21 +12,17 @@ import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
 import { findEstablishmentByDicoseCode } from "@/lib/dal/dicose";
 import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
 import type { MappedRow } from "@/lib/activities/column-mapping";
+import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/column-header-meaning";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
-  | { mappingNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | { mappingNeeded: false; eventDateNeeded: true; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
       eventDateNeeded: false;
-      headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
     };
-
-function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
-  return mapping.some((m) => m.meaning === "ignore");
-}
 
 export async function previewTransferBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
@@ -43,26 +36,17 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
 
   const buffer = await file.arrayBuffer();
   const { headers, rows } = await parseExcelFile(buffer);
-  const headerSignature = computeHeaderSignature(headers);
 
   let mapping: ColumnMapping[];
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
-    const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
-    if (!existing) {
-      return { mappingNeeded: true, headers, initialMapping: null };
-    }
-    const existingMapping = existing.mapping as ColumnMapping[];
-    if (hasUnconfiguredColumn(existingMapping)) {
-      return { mappingNeeded: true, headers, initialMapping: existingMapping };
-    }
-    mapping = existingMapping;
+    return { mappingNeeded: true, headers, initialMapping: await rememberedInitialMapping(headers) };
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, eventDateNeeded: true, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
@@ -70,11 +54,10 @@ export async function previewTransferBatch(formData: FormData): Promise<PreviewR
     autoForceForeignWithoutOwner: true,
   });
 
-  return { mappingNeeded: false, eventDateNeeded: false, headerSignature, mapping, rows: resolvedRows };
+  return { mappingNeeded: false, eventDateNeeded: false, mapping, rows: resolvedRows };
 }
 
 export async function confirmTransferBatchAction(input: {
-  headerSignature: string;
   mapping: ColumnMapping[];
   destinationEstablishmentId: string;
   destinationPaddockId: string | null;
@@ -83,10 +66,7 @@ export async function confirmTransferBatchAction(input: {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, input.destinationEstablishmentId);
 
-  await db
-    .insert(columnMapping)
-    .values({ headerSignature: input.headerSignature, mapping: input.mapping })
-    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
+  await rememberColumnMeanings(input.mapping);
 
   // Rows for animals already tracked keep their real current location
   // (resolveBatchRows/confirmTransferBatch derive it from animal_current_state);

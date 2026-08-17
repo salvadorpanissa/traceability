@@ -1,14 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { columnMapping } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { parseExcelFile } from "@/lib/activities/excel-parsing";
 import {
-  computeHeaderSignature,
   applyColumnMapping,
   extractProductColumnValues,
   extractDistinctColumnValues,
@@ -19,7 +15,9 @@ import { confirmHealthBatch, voidHealthBatch, type HealthProduct } from "@/lib/a
 import { healthBatchDetail, type HealthBatchDetail } from "@/lib/dashboard/health-batch-summary";
 import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { listPaddocksByEstablishment, getPaddockEstablishmentId, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { listTagsInPaddock } from "@/lib/dal/animal-access";
+import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/column-header-meaning";
 import {
   createReproductiveStatus,
   listReproductiveStatusesByFarm,
@@ -31,24 +29,18 @@ export type PreviewResult =
   | {
       mappingNeeded: false;
       valueLegendNeeded: true;
-      headerSignature: string;
       mapping: ColumnMapping[];
       distinctValues: string[];
     }
-  | { mappingNeeded: false; valueLegendNeeded: false; eventDateNeeded: true; headerSignature: string; mapping: ColumnMapping[] }
+  | { mappingNeeded: false; valueLegendNeeded: false; eventDateNeeded: true; mapping: ColumnMapping[] }
   | {
       mappingNeeded: false;
       valueLegendNeeded: false;
       eventDateNeeded: false;
-      headerSignature: string;
       mapping: ColumnMapping[];
       rows: ResolvedRow[];
       productSuggestions: { rawValue: string; matchedProductId: string | null }[];
     };
-
-function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
-  return mapping.some((m) => m.meaning === "ignore");
-}
 
 export async function previewHealthBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
@@ -62,21 +54,16 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 
   const buffer = await file.arrayBuffer();
   const { headers, rows } = await parseExcelFile(buffer);
-  const headerSignature = computeHeaderSignature(headers);
 
   let mapping: ColumnMapping[];
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
-    const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
-    if (!existing) {
-      return { mappingNeeded: true, headers, initialMapping: null };
-    }
-    const existingMapping = existing.mapping as ColumnMapping[];
-    if (hasUnconfiguredColumn(existingMapping)) {
-      return { mappingNeeded: true, headers, initialMapping: existingMapping };
-    }
-    mapping = existingMapping;
+    // Pre-fill the selects from whatever meaning each header was given
+    // before (possibly in an entirely different combination of columns),
+    // but always let the user look it over and confirm rather than
+    // applying it silently.
+    return { mappingNeeded: true, headers, initialMapping: await rememberedInitialMapping(headers) };
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
@@ -94,12 +81,12 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
       return mappedId !== "" && !farmStatusIds.has(mappedId);
     });
     if (uncovered) {
-      return { mappingNeeded: false, valueLegendNeeded: true, headerSignature, mapping, distinctValues };
+      return { mappingNeeded: false, valueLegendNeeded: true, mapping, distinctValues };
     }
   }
 
   if (!hasDateColumn && !eventDate) {
-    return { mappingNeeded: false, valueLegendNeeded: false, eventDateNeeded: true, headerSignature, mapping };
+    return { mappingNeeded: false, valueLegendNeeded: false, eventDateNeeded: true, mapping };
   }
 
   const mappedRows = applyColumnMapping(headers, rows, mapping);
@@ -118,7 +105,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
     mappingNeeded: false,
     valueLegendNeeded: false,
     eventDateNeeded: false,
-    headerSignature,
     mapping,
     rows: resolvedRows,
     productSuggestions,
@@ -126,7 +112,6 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
 }
 
 export async function confirmHealthBatchAction(input: {
-  headerSignature: string;
   mapping: ColumnMapping[];
   products: HealthProduct[];
   rows: ResolvedRow[];
@@ -137,10 +122,7 @@ export async function confirmHealthBatchAction(input: {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
 
-  await db
-    .insert(columnMapping)
-    .values({ headerSignature: input.headerSignature, mapping: input.mapping })
-    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
+  await rememberColumnMeanings(input.mapping);
 
   await confirmHealthBatch({
     userId: session.user.id,
@@ -186,6 +168,14 @@ export async function listPaddocksAction(establishmentId: string): Promise<Paddo
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
   return listPaddocksByEstablishment(establishmentId);
+}
+
+export async function listTagsInPaddockAction(establishmentId: string, paddockId: string): Promise<string[]> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const paddockEstablishmentId = await getPaddockEstablishmentId(paddockId);
+  if (paddockEstablishmentId !== establishmentId) throw new Error("El potrero no pertenece al campo activo");
+  return listTagsInPaddock(paddockId);
 }
 
 export async function voidHealthBatchAction(batchId: string): Promise<void> {

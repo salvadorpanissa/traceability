@@ -27,19 +27,19 @@ export function TransferPreviewTable({
     <table className="w-full text-sm">
       <thead className="sticky top-0 bg-background">
         <tr className="border-b text-left">
-          <th className="py-1 pr-2">Caravana</th>
-          <th className="py-1 pr-2">Estado</th>
-          <th className="py-1 pr-2">Detalle</th>
-          <th className="py-1 pr-2"></th>
+          <th className="py-1 px-2">Caravana</th>
+          <th className="py-1 px-2">Estado</th>
+          <th className="py-1 px-2">Detalle</th>
+          <th className="py-1 px-2"></th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row, index) => (
           <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-            <td className="py-1 pr-2">{row.tag}</td>
-            <td className="py-1 pr-2">{statusLabel(row)}</td>
-            <td className="py-1 pr-2 text-muted-foreground">{detailText(row)}</td>
-            <td className="py-1 pr-2">
+            <td className="py-1 px-2">{row.tag}</td>
+            <td className="py-1 px-2">{statusLabel(row)}</td>
+            <td className="py-1 px-2 text-muted-foreground">{detailText(row)}</td>
+            <td className="py-1 px-2">
               {row.status === "foreign" ? (
                 <label className="flex items-center gap-1 text-xs">
                   <input type="checkbox" checked={row.forced} onChange={() => onToggleForced(row.tag)} />

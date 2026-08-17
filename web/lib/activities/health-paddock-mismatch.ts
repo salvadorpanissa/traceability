@@ -33,3 +33,10 @@ export function findPaddockMismatches(
   }
   return mismatches;
 }
+
+// Tags officially living in the chosen potrero that never show up in the
+// uploaded batch — a sign the sanidad forgot one.
+export function findMissingFromPaddock(rows: ResolvedRow[], paddockTags: string[]): string[] {
+  const rowTags = new Set(rows.map((row) => row.tag));
+  return paddockTags.filter((tag) => !rowTags.has(tag));
+}

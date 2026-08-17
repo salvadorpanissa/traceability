@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { PaddockTagListCard, PaddockTagListItems } from "@/components/activities/paddock-tag-list-card";
 import type { PaddockMismatch } from "@/lib/activities/health-paddock-mismatch";
 
 export function PaddockMismatchWarning({
@@ -15,20 +16,20 @@ export function PaddockMismatchWarning({
   onDecide: (transfer: boolean) => void;
 }) {
   return (
-    <div className="rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
+    <PaddockTagListCard colorClassName="border-2 border-amber-600 bg-amber-100 dark:border-amber-600 dark:bg-amber-950">
       <p className="mb-2 font-medium">
         {mismatches.length === 1
           ? "Hay 1 caravana que no está en el potrero elegido para esta sanidad:"
           : `Hay ${mismatches.length} caravanas que no están en el potrero elegido para esta sanidad:`}
       </p>
-      <ul className="mb-3 list-disc pl-5">
+      <PaddockTagListItems>
         {mismatches.map((m) => (
           <li key={m.tag}>
             {m.tag} — actualmente en {paddockNameById.get(m.currentPaddockId) ?? "un potrero desconocido"}
           </li>
         ))}
-      </ul>
-      <p className="mb-2">¿Querés trasladarlas también a este potrero?</p>
+      </PaddockTagListItems>
+      <p className="mb-2 mt-3">¿Querés trasladarlas también a este potrero?</p>
       <div className="flex gap-2">
         <Button type="button" variant={decision === true ? "default" : "outline"} onClick={() => onDecide(true)}>
           Sí, trasladarlas también
@@ -37,6 +38,6 @@ export function PaddockMismatchWarning({
           No, dejarlas donde están
         </Button>
       </div>
-    </div>
+    </PaddockTagListCard>
   );
 }

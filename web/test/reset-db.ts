@@ -23,6 +23,6 @@ export async function resetTestDb() {
   await testDb.execute(sql`TRUNCATE TABLE product RESTART IDENTITY CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE reproductive_status RESTART IDENTITY CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE owner RESTART IDENTITY CASCADE`);
-  await testDb.execute(sql`TRUNCATE TABLE column_mapping RESTART IDENTITY CASCADE`);
+  await testDb.execute(sql`TRUNCATE TABLE column_header_meaning RESTART IDENTITY CASCADE`);
   await testDb.execute(sql`TRUNCATE TABLE login_attempt CASCADE`);
 }
