@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ReproductiveStatusCatalogForm } from "@/components/settings/reproductive-status-catalog-form";
 import { listAllReproductiveStatusesForFarms } from "@/lib/dal/reproductive-status-catalog";
 import { listSelectableFarms } from "@/lib/dal/farm-access";
@@ -12,12 +12,7 @@ export default async function ReproductiveStatusSettingsPage() {
 
   return (
     <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Estados reproductivos</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ReproductiveStatusCatalogForm statuses={statuses} farms={farms} />
-      </CardContent>
+      <ReproductiveStatusCatalogForm statuses={statuses} farms={farms} />
     </Card>
   );
 }

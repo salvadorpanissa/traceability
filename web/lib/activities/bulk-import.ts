@@ -143,13 +143,14 @@ export type ImportChunkResult = { createdCount: number };
 async function resolveOwnerId(
   tx: Transaction,
   ownerIdByName: Map<string, string>,
+  farmId: string,
   name: string | null
 ): Promise<string | null> {
   if (!name) return null;
-  const key = name.trim().toLowerCase();
+  const key = `${farmId}:${name.trim().toLowerCase()}`;
   const existing = ownerIdByName.get(key);
   if (existing) return existing;
-  const [created] = await tx.insert(owner).values({ name: name.trim() }).returning();
+  const [created] = await tx.insert(owner).values({ farmId, name: name.trim() }).returning();
   ownerIdByName.set(key, created.id);
   return created.id;
 }
@@ -195,8 +196,8 @@ export async function confirmImportChunk(input: {
   try {
     return await db.transaction(async (tx) => {
       const ownerIdByName = new Map<string, string>();
-      const existingOwners = await tx.select({ id: owner.id, name: owner.name }).from(owner);
-      for (const o of existingOwners) ownerIdByName.set(o.name.trim().toLowerCase(), o.id);
+      const existingOwners = await tx.select({ id: owner.id, name: owner.name, farmId: owner.farmId }).from(owner);
+      for (const o of existingOwners) ownerIdByName.set(`${o.farmId}:${o.name.trim().toLowerCase()}`, o.id);
 
       const categoryIdByFarmAndName = new Map<string, string>();
       const existingCategories = await tx.select({ id: category.id, name: category.name, farmId: category.farmId }).from(category);
@@ -235,7 +236,7 @@ export async function confirmImportChunk(input: {
           .returning();
 
         for (const row of establishmentRows) {
-          const ownerId = await resolveOwnerId(tx, ownerIdByName, row.ownerName);
+          const ownerId = await resolveOwnerId(tx, ownerIdByName, farmId, row.ownerName);
           const categoryId = await resolveCategoryId(tx, categoryIdByFarmAndName, farmId, row.categoryName);
           const paddockId = await resolvePaddockId(tx, paddockIdByEstablishmentAndName, establishmentId, row.paddockName);
 

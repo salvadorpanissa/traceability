@@ -1,7 +1,7 @@
 "use server";
 
 import { requireSession } from "@/lib/dal/session";
-import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
 import { resolveBatchRows, confirmSaleBatch, type ResolvedRow } from "@/lib/activities/sale";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
@@ -119,7 +119,10 @@ export async function confirmSaleBatchFromPdfAction(formData: FormData): Promise
   });
 }
 
-export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
-  await requireSession();
-  return createOwner(name);
+export async function createOwnerAction(establishmentId: string, name: string): Promise<OwnerCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createOwner(farmId, name);
 }

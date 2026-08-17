@@ -156,7 +156,7 @@ describe("createNewAnimal", () => {
     const { seededFarm, seededFarmGroup, user, batch } = await seedFarmAndUser();
     const [createdOwner] = await testDb
       .insert(owner)
-      .values({ name: "Pérez" })
+      .values({ name: "Pérez", farmId: seededFarmGroup.id })
       .returning();
     const row: Extract<ResolvedRow, { status: "new" }> = {
       tag: "AR000000000062",

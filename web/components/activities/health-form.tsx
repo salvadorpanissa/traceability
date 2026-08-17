@@ -185,7 +185,7 @@ export function HealthForm({
   }
 
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    const created = await createOwnerAction(name);
+    const created = await createOwnerAction(establishmentId, name);
     setOwnerCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     return created;
   }

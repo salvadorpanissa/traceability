@@ -59,8 +59,8 @@ const baseAnimal: AnimalLookupDetail = {
 };
 
 const owners: OwnerCatalogEntry[] = [
-  { id: "o1", name: "SASG" },
-  { id: "o2", name: "AIP" },
+  { id: "o1", name: "SASG", farmId: "f1" },
+  { id: "o2", name: "AIP", farmId: "f1" },
 ];
 
 const categories: CategoryCatalogEntry[] = [

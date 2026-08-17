@@ -1,26 +1,30 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { DicoseRegistrationForm } from "@/components/settings/dicose-registration-form";
 import { listDicoseRegistrations } from "@/lib/dal/dicose";
-import { listOwners } from "@/lib/dal/owner-catalog";
-import { listEstablishments } from "@/app/(protected)/settings/dicose/actions";
+import { listOwnersByFarms } from "@/lib/dal/owner-catalog";
+import {
+  listSelectableEstablishments,
+  listSelectableFarms,
+} from "@/lib/dal/farm-access";
 import { requireSession } from "@/lib/dal/session";
 
 export default async function DicoseSettingsPage() {
   const session = await requireSession();
-  const [registrations, owners, establishments] = await Promise.all([
+  const [registrations, farms, establishments] = await Promise.all([
     listDicoseRegistrations(session.user.id, session.user.role),
-    listOwners(),
-    listEstablishments(),
+    listSelectableFarms(session.user.id, session.user.role),
+    listSelectableEstablishments(session.user.id, session.user.role),
   ]);
+  const owners = await listOwnersByFarms(farms.map((f) => f.id));
 
   return (
     <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Registrar DICOSE</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <DicoseRegistrationForm registrations={registrations} owners={owners} establishments={establishments} />
-      </CardContent>
+      <DicoseRegistrationForm
+        registrations={registrations}
+        owners={owners}
+        establishments={establishments}
+        farms={farms}
+      />
     </Card>
   );
 }

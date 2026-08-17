@@ -59,13 +59,13 @@ function pdfFormData(buffer: ArrayBuffer): FormData {
 describe("previewTransferBatchFromPdf", () => {
   it("resolves origin/destination farms from DICOSE and returns the parsed rows", async () => {
     await seedAdminSession();
-    const [seededOwner] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
     const [originFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Campo San Antonio" })
+      .returning();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: originFarmGroup.id })
       .returning();
     const [originFarm] = await testDb
       .insert(establishment)
@@ -177,13 +177,13 @@ describe("previewTransferBatchFromPdf", () => {
 describe("confirmTransferBatchFromPdfAction", () => {
   it("confirms the batch with the explicit origin establishment and guide number, and persists the uploaded guide document", async () => {
     await seedAdminSession();
-    const [seededOwner] = await testDb
-      .insert(owner)
-      .values({ name: "AIP" })
-      .returning();
     const [originFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Campo San Antonio" })
+      .returning();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: originFarmGroup.id })
       .returning();
     const [originFarm] = await testDb
       .insert(establishment)

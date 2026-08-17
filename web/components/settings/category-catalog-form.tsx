@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -53,7 +60,9 @@ export function CategoryCatalogForm({
     setEditingId(entry.id);
     setEditName(entry.name);
     setEditSex(entry.sex ?? "");
-    setEditMinAgeMonths(entry.minAgeMonths === null ? "" : String(entry.minAgeMonths));
+    setEditMinAgeMonths(
+      entry.minAgeMonths === null ? "" : String(entry.minAgeMonths),
+    );
     setEditError(null);
   }
 
@@ -125,20 +134,27 @@ export function CategoryCatalogForm({
       return;
     }
 
-    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, active: false } : c)));
+    setCategories((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, active: false } : c)),
+    );
     setAnimalCounts((prev) => {
       const next = { ...prev, [id]: 0 };
-      if (archiveTargetId) next[archiveTargetId] = (next[archiveTargetId] ?? 0) + result.reassigned;
+      if (archiveTargetId)
+        next[archiveTargetId] =
+          (next[archiveTargetId] ?? 0) + result.reassigned;
       return next;
     });
     setArchivingId(null);
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Categorías</CardTitle>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogTrigger render={<Button type="button" />}>
+            + Agregar
+          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nueva categoría</DialogTitle>
@@ -164,7 +180,11 @@ export function CategoryCatalogForm({
               ) : null}
 
               <Label htmlFor="category-name">Nombre</Label>
-              <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="category-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
 
               <Label htmlFor="category-sex">Sexo</Label>
               <select
@@ -178,7 +198,9 @@ export function CategoryCatalogForm({
                 <option value="female">Hembra</option>
               </select>
 
-              <Label htmlFor="category-min-age-months">Edad mínima (meses)</Label>
+              <Label htmlFor="category-min-age-months">
+                Edad mínima (meses)
+              </Label>
               <Input
                 id="category-min-age-months"
                 type="number"
@@ -186,157 +208,211 @@ export function CategoryCatalogForm({
                 onChange={(e) => setMinAgeMonths(e.target.value)}
               />
 
-              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+              {createError ? (
+                <p className="text-sm text-destructive">{createError}</p>
+              ) : null}
 
-              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
+              <Button
+                type="button"
+                disabled={!farmId || !name}
+                onClick={handleCreate}
+              >
                 Agregar
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left">
-              <th className="py-1 pr-2">Nombre</th>
-              <th className="py-1 pr-2">Sexo</th>
-              <th className="py-1 pr-2">Edad mín. (meses)</th>
-              {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-              <th className="w-px whitespace-nowrap py-1 pr-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {activeCategories.map((entry) =>
-              editingId === entry.id ? (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">
-                    <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                  </td>
-                  <td className="py-1 pr-2">
-                    <select
-                      aria-label="Editar sexo"
-                      value={editSex}
-                      onChange={(e) => setEditSex(e.target.value)}
-                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-                    >
-                      <option value="">Ambos / no aplica</option>
-                      <option value="male">Macho</option>
-                      <option value="female">Hembra</option>
-                    </select>
-                  </td>
-                  <td className="py-1 pr-2">
-                    <Input
-                      aria-label="Editar edad mínima"
-                      type="number"
-                      value={editMinAgeMonths}
-                      onChange={(e) => setEditMinAgeMonths(e.target.value)}
-                    />
-                  </td>
-                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="whitespace-nowrap py-1 pr-2">
-                    <div className="flex gap-1 whitespace-nowrap">
-                      <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                        Guardar
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">{entry.name}</td>
-                  <td className="py-1 pr-2">
-                    {entry.sex === "male" ? "Macho" : entry.sex === "female" ? "Hembra" : "—"}
-                  </td>
-                  <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
-                  {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                  <td className="whitespace-nowrap py-1 pr-2">
-                    <div className="flex gap-1 whitespace-nowrap">
-                      <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                        Editar
-                      </Button>
-                      <Button type="button" size="sm" variant="destructive" onClick={() => startArchive(entry.id)}>
-                        Eliminar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </div>
-      {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
-
-      {archivingId
-        ? (() => {
-            const entry = categories.find((c) => c.id === archivingId)!;
-            const count = animalCounts[archivingId] ?? 0;
-            const targetOptions = activeCategories.filter(
-              (c) => c.id !== archivingId && c.farmId === entry.farmId
-            );
-            return (
-              <div className="flex flex-col gap-2 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
-                {count > 0 ? (
-                  <>
-                    <p>
-                      Hay {count} {count === 1 ? "animal" : "animales"} en “{entry.name}”. Elegí a qué categoría
-                      pasarlos:
-                    </p>
-                    <select
-                      aria-label="Pasar animales a"
-                      value={archiveTargetId}
-                      onChange={(e) => setArchiveTargetId(e.target.value)}
-                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-                    >
-                      <option value="">Elegir categoría</option>
-                      {targetOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                ) : (
-                  <p>¿Archivar “{entry.name}”? No tiene animales activos.</p>
-                )}
-                {archiveError ? <p className="text-destructive">{archiveError}</p> : null}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={archiving || (count > 0 && !archiveTargetId)}
-                    onClick={() => confirmArchive(archivingId)}
-                  >
-                    Confirmar
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelArchive}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            );
-          })()
-        : null}
-
-      {archivedCategories.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">Categorías archivadas</p>
-          <table className="w-full text-sm text-muted-foreground">
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-1 pr-2">Nombre</th>
+                <th className="py-1 pr-2">Sexo</th>
+                <th className="py-1 pr-2">Edad mín. (meses)</th>
+                {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
+                <th className="w-px whitespace-nowrap py-1 pr-2" />
+              </tr>
+            </thead>
             <tbody>
-              {archivedCategories.map((entry) => (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-1 pr-2">{entry.name}</td>
-                </tr>
-              ))}
+              {activeCategories.map((entry) =>
+                editingId === entry.id ? (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">
+                      <Input
+                        aria-label="Editar nombre"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <select
+                        aria-label="Editar sexo"
+                        value={editSex}
+                        onChange={(e) => setEditSex(e.target.value)}
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                      >
+                        <option value="">Ambos / no aplica</option>
+                        <option value="male">Macho</option>
+                        <option value="female">Hembra</option>
+                      </select>
+                    </td>
+                    <td className="py-1 pr-2">
+                      <Input
+                        aria-label="Editar edad mínima"
+                        type="number"
+                        value={editMinAgeMonths}
+                        onChange={(e) => setEditMinAgeMonths(e.target.value)}
+                      />
+                    </td>
+                    {showFarmColumn ? (
+                      <td className="py-1 pr-2">
+                        {farmLabels.get(entry.farmId) ?? ""}
+                      </td>
+                    ) : null}
+                    <td className="whitespace-nowrap py-1 pr-2">
+                      <div className="flex gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!editName}
+                          onClick={() => saveEdit(entry.id)}
+                        >
+                          Guardar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={cancelEdit}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">{entry.name}</td>
+                    <td className="py-1 pr-2">
+                      {entry.sex === "male"
+                        ? "Macho"
+                        : entry.sex === "female"
+                          ? "Hembra"
+                          : "—"}
+                    </td>
+                    <td className="py-1 pr-2">{entry.minAgeMonths ?? "—"}</td>
+                    {showFarmColumn ? (
+                      <td className="py-1 pr-2">
+                        {farmLabels.get(entry.farmId) ?? ""}
+                      </td>
+                    ) : null}
+                    <td className="whitespace-nowrap py-1 pr-2">
+                      <div className="flex gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEdit(entry)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => startArchive(entry.id)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
-      ) : null}
-    </div>
+        {editError ? (
+          <p className="text-sm text-destructive">{editError}</p>
+        ) : null}
+
+        {archivingId
+          ? (() => {
+              const entry = categories.find((c) => c.id === archivingId)!;
+              const count = animalCounts[archivingId] ?? 0;
+              const targetOptions = activeCategories.filter(
+                (c) => c.id !== archivingId && c.farmId === entry.farmId,
+              );
+              return (
+                <div className="flex flex-col gap-2 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
+                  {count > 0 ? (
+                    <>
+                      <p>
+                        Hay {count} {count === 1 ? "animal" : "animales"} en “
+                        {entry.name}”. Elegí a qué categoría pasarlos:
+                      </p>
+                      <select
+                        aria-label="Pasar animales a"
+                        value={archiveTargetId}
+                        onChange={(e) => setArchiveTargetId(e.target.value)}
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                      >
+                        <option value="">Elegir categoría</option>
+                        {targetOptions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <p>¿Archivar “{entry.name}”? No tiene animales activos.</p>
+                  )}
+                  {archiveError ? (
+                    <p className="text-destructive">{archiveError}</p>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={archiving || (count > 0 && !archiveTargetId)}
+                      onClick={() => confirmArchive(archivingId)}
+                    >
+                      Confirmar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={cancelArchive}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()
+          : null}
+
+        {archivedCategories.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              Categorías archivadas
+            </p>
+            <table className="w-full text-sm text-muted-foreground">
+              <tbody>
+                {archivedCategories.map((entry) => (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-1 pr-2">{entry.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </CardContent>
+    </>
   );
 }

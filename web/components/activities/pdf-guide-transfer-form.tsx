@@ -62,7 +62,8 @@ export function PdfGuideTransferForm({}: { establishments: { id: string; name: s
   }
 
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    return createOwnerAction(name);
+    if (!preview?.ok) throw new Error("Subí una guía primero");
+    return createOwnerAction(preview.destinationEstablishmentId, name);
   }
 
   function handleOwnerResolved(rawName: string, ownerId: string) {

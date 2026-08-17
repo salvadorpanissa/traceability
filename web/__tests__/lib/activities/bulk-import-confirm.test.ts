@@ -152,7 +152,7 @@ describe("confirmImportChunk", () => {
       .returning();
     const [existingOwner] = await testDb
       .insert(owner)
-      .values({ name: "SASG" })
+      .values({ name: "SASG", farmId: seededFarmGroup.id })
       .returning();
 
     await confirmImportChunk({

@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { parseLocaleCookie } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
 import { findAnimalDetailById, animalTagHistoryFor, animalHealthNotesFor } from "@/lib/dal/animal-access";
-import { listOwners } from "@/lib/dal/owner-catalog";
-import { listSelectableEstablishments } from "@/lib/dal/farm-access";
+import { listOwnersByFarms } from "@/lib/dal/owner-catalog";
+import { listSelectableEstablishments, listSelectableFarms } from "@/lib/dal/farm-access";
 import { listCategoriesByFarm } from "@/lib/dal/category-catalog";
 import { listReproductiveStatusesByFarm } from "@/lib/dal/reproductive-status-catalog";
 import { AnimalDetail } from "@/components/animals/animal-detail";
@@ -18,12 +18,13 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ i
   const animal = await findAnimalDetailById(session.user.id, session.user.role, id);
   if (!animal) notFound();
 
-  const [tagHistory, healthNotes, owners, establishments] = await Promise.all([
+  const [tagHistory, healthNotes, farms, establishments] = await Promise.all([
     animalTagHistoryFor(id),
     animalHealthNotesFor(id),
-    listOwners(),
+    listSelectableFarms(session.user.id, session.user.role),
     listSelectableEstablishments(session.user.id, session.user.role),
   ]);
+  const owners = await listOwnersByFarms(farms.map((f) => f.id));
 
   const farmId = establishments.find((e) => e.id === animal.currentEstablishmentId)?.farmId;
   const categories = farmId ? await listCategoriesByFarm(farmId) : [];

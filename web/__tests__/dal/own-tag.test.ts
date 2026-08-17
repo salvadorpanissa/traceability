@@ -70,7 +70,7 @@ async function seedRegistration() {
     .returning();
   const [createdOwner] = await testDb
     .insert(owner)
-    .values({ name: "AIP" })
+    .values({ name: "AIP", farmId: seededFarmGroup.id })
     .returning();
   const [registration] = await testDb
     .insert(dicose)
@@ -718,11 +718,11 @@ describe("countAliveAnimalsByOwnerEstablishment", () => {
       .returning();
     const [ownerA] = await testDb
       .insert(owner)
-      .values({ name: "AIP" })
+      .values({ name: "AIP", farmId: farmAGroup.id })
       .returning();
     const [ownerB] = await testDb
       .insert(owner)
-      .values({ name: "Otro" })
+      .values({ name: "Otro", farmId: farmBGroup.id })
       .returning();
 
     await seedAliveAnimal(ownerA.id, farmA.id, admin.id, "AR000000000090");

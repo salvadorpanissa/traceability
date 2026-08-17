@@ -75,7 +75,7 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
     active: true,
   })),
 }));
-const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG" }];
+const ownerCatalog: OwnerCatalogEntry[] = [{ id: "existing-owner", name: "SASG", farmId: "group-1" }];
 const establishments = [{ id: "establishment-1", name: "Campo Norte" }];
 
 async function selectPaddockAndUploadFile(user: ReturnType<typeof userEvent.setup>) {
