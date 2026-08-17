@@ -129,6 +129,7 @@ const dictionaries = {
     "dataTable.collapse": "Contraer",
     "dataTable.showMore": "Mostrar más",
     "dataTable.downloadExcel": "Descargar Excel",
+    "dataTable.columns": "Columnas",
     "livestock.animalsInGroup": "Caravanas",
     "animalLookup.title": "Buscar por caravana",
     "animalLookup.placeholder": "Número de caravana",

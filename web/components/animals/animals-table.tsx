@@ -89,6 +89,7 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
         </Button>
       ),
       width: "w-20",
+      hideable: false,
     },
   ];
 
@@ -139,6 +140,8 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       pageSize={PAGE_SIZE}
       filters={filters}
       emptyMessage={translate(locale, "animals.empty")}
+      columnToggle
+      columnStorageKey="animals-table-columns"
     />
   );
 }
