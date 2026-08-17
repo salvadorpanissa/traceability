@@ -15,69 +15,70 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       key: "tag",
       header: translate(locale, "livestock.tag"),
       render: (row) => row.currentTag ?? "—",
-      sortValue: (row) => row.currentTag,
       searchValue: (row) => row.currentTag ?? "",
+      width: "w-36",
     },
     {
       key: "secondaryTag",
       header: translate(locale, "animalLookup.secondaryTag"),
       render: (row) => row.secondaryTag ?? "—",
-      sortValue: (row) => row.secondaryTag,
+      width: "w-28",
     },
     {
       key: "category",
       header: translate(locale, "livestock.category"),
       render: (row) => row.categoryName ?? translate(locale, "livestock.noCategory"),
-      sortValue: (row) => row.categoryName,
+      width: "w-32",
     },
     {
       key: "establishment",
       header: translate(locale, "livestock.establishment"),
       render: (row) => row.establishmentName ?? translate(locale, "livestock.noEstablishment"),
-      sortValue: (row) => row.establishmentName,
+      width: "w-32",
     },
     {
       key: "paddock",
       header: translate(locale, "livestock.paddock"),
       render: (row) => row.paddockName ?? translate(locale, "livestock.noPaddock"),
-      sortValue: (row) => row.paddockName,
+      width: "w-32",
     },
     {
       key: "status",
       header: translate(locale, "animalLookup.status"),
       render: (row) => statusLabel(row.status, locale),
-      sortValue: (row) => statusLabel(row.status, locale),
+      width: "w-24",
     },
     {
       key: "sex",
       header: translate(locale, "animalLookup.sex"),
       render: (row) => sexLabel(row.sex, locale),
-      sortValue: (row) => sexLabel(row.sex, locale),
+      width: "w-20",
     },
     {
       key: "breed",
       header: translate(locale, "animalLookup.breed"),
       render: (row) => row.breed ?? "—",
-      sortValue: (row) => row.breed,
+      width: "w-28",
     },
     {
       key: "reproductiveStatus",
       header: translate(locale, "animalLookup.reproductiveStatus"),
       render: (row) => row.reproductiveStatusName ?? translate(locale, "animalLookup.noReproductiveStatus"),
-      sortValue: (row) => row.reproductiveStatusName,
+      width: "w-32",
     },
     {
       key: "owner",
       header: translate(locale, "animalLookup.owner"),
       render: (row) => row.ownerName ?? "—",
-      sortValue: (row) => row.ownerName,
       searchValue: (row) => row.ownerName ?? "",
+      width: "w-28",
     },
     {
       key: "birthDate",
       header: translate(locale, "animalLookup.birthDate"),
       render: (row) => row.birthDate ?? "—",
       sortValue: (row) => row.birthDate,
+      width: "w-28",
     },
     {
       key: "actions",
@@ -87,6 +88,7 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
           {translate(locale, "animals.edit")}
         </Button>
       ),
+      width: "w-20",
     },
   ];
 
