@@ -288,6 +288,13 @@
       "when": 1786835243322,
       "tag": "0040_mysterious_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786979409157,
+      "tag": "0041_short_firebrand",
+      "breakpoints": true
     }
   ]
 }

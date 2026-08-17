@@ -81,10 +81,15 @@ async function seedManagerSession() {
   return { manager, seededFarm, seededFarmGroup };
 }
 
-async function seedOwnTag(tag: string, establishmentId: string, ownerName: string) {
+async function seedOwnTag(
+  tag: string,
+  establishmentId: string,
+  ownerName: string,
+  farmId: string,
+) {
   const [createdOwner] = await testDb
     .insert(owner)
-    .values({ name: ownerName })
+    .values({ name: ownerName, farmId })
     .returning();
   const [registration] = await testDb
     .insert(dicose)
@@ -111,7 +116,7 @@ describe("previewHealthBatch", () => {
 
   it("applies a submitted mapping and resolves rows", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
-    await seedOwnTag("AR000000000081", seededFarm.id, "AIP");
+    await seedOwnTag("AR000000000081", seededFarm.id, "AIP", seededFarmGroup.id);
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000081"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -327,7 +332,7 @@ describe("previewHealthBatch", () => {
 
   it("proceeds past the legend once the value map covers every distinct value", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
-    await seedOwnTag("AR000000000092", seededFarm.id, "AIP");
+    await seedOwnTag("AR000000000092", seededFarm.id, "AIP", seededFarmGroup.id);
     const [statusA] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
     const [statusB] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Vacía" }).returning();
     const buffer = await buildWorkbookBuffer(
@@ -359,8 +364,8 @@ describe("previewHealthBatch", () => {
 
   it("proceeds past the legend and resolves to null when a distinct value is explicitly mapped to sin dato", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
-    await seedOwnTag("AR000000000093", seededFarm.id, "AIP");
-    await seedOwnTag("AR000000000094", seededFarm.id, "AIP 2");
+    await seedOwnTag("AR000000000093", seededFarm.id, "AIP", seededFarmGroup.id);
+    await seedOwnTag("AR000000000094", seededFarm.id, "AIP 2", seededFarmGroup.id);
     const [statusA] = await testDb.insert(reproductiveStatus).values({ farmId: seededFarmGroup.id, name: "Preñada" }).returning();
     const headers = ["IDE", "Fecha", "Preñez"];
     const rawRows = [
@@ -638,7 +643,7 @@ describe("confirmHealthBatchAction", () => {
       .returning();
     const [createdOwner] = await testDb
       .insert(owner)
-      .values({ name: "AIP" })
+      .values({ name: "AIP", farmId: otherFarmGroup.id })
       .returning();
     await testDb
       .insert(dicose)
@@ -770,9 +775,9 @@ describe("createProductAction", () => {
 
 describe("createOwnerAction", () => {
   it("creates an owner and returns it", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
 
-    const created = await createOwnerAction("Pérez");
+    const created = await createOwnerAction(seededFarm.id, "Pérez");
 
     expect(created.name).toBe("Pérez");
   });

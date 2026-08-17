@@ -2,10 +2,20 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createProductAction, updateProductAction } from "@/app/(protected)/settings/products/actions";
+import {
+  createProductAction,
+  updateProductAction,
+} from "@/app/(protected)/settings/products/actions";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 
 type Farm = { id: string; name: string };
@@ -61,7 +71,9 @@ export function ProductCatalogForm({
       defaultDose: editDose || null,
       defaultDoseUnit: editDoseUnit || null,
       defaultRoute: editRoute || null,
-      defaultWithdrawalDays: editWithdrawalDays ? Number(editWithdrawalDays) : null,
+      defaultWithdrawalDays: editWithdrawalDays
+        ? Number(editWithdrawalDays)
+        : null,
     });
     if (!result.ok) {
       setEditError(result.error);
@@ -96,10 +108,13 @@ export function ProductCatalogForm({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Productos</CardTitle>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button type="button" />}>+ Agregar</DialogTrigger>
+          <DialogTrigger render={<Button type="button" />}>
+            + Agregar
+          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nuevo producto</DialogTitle>
@@ -125,16 +140,32 @@ export function ProductCatalogForm({
               ) : null}
 
               <Label htmlFor="product-name">Nombre</Label>
-              <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="product-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
 
               <Label htmlFor="product-dose">Dosis</Label>
-              <Input id="product-dose" value={dose} onChange={(e) => setDose(e.target.value)} />
+              <Input
+                id="product-dose"
+                value={dose}
+                onChange={(e) => setDose(e.target.value)}
+              />
 
               <Label htmlFor="product-dose-unit">Unidad de dosis</Label>
-              <Input id="product-dose-unit" value={doseUnit} onChange={(e) => setDoseUnit(e.target.value)} />
+              <Input
+                id="product-dose-unit"
+                value={doseUnit}
+                onChange={(e) => setDoseUnit(e.target.value)}
+              />
 
               <Label htmlFor="product-route">Vía</Label>
-              <Input id="product-route" value={route} onChange={(e) => setRoute(e.target.value)} />
+              <Input
+                id="product-route"
+                value={route}
+                onChange={(e) => setRoute(e.target.value)}
+              />
 
               <Label htmlFor="product-withdrawal-days">Días de retiro</Label>
               <Input
@@ -144,87 +175,133 @@ export function ProductCatalogForm({
                 onChange={(e) => setWithdrawalDays(e.target.value)}
               />
 
-              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+              {createError ? (
+                <p className="text-sm text-destructive">{createError}</p>
+              ) : null}
 
-              <Button type="button" disabled={!farmId || !name} onClick={handleCreate}>
+              <Button
+                type="button"
+                disabled={!farmId || !name}
+                onClick={handleCreate}
+              >
                 Agregar
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="py-1 pr-2">Nombre</th>
-            <th className="py-1 pr-2">Dosis</th>
-            <th className="py-1 pr-2">Unidad de dosis</th>
-            <th className="py-1 pr-2">Vía</th>
-            <th className="py-1 pr-2">Días de retiro</th>
-            {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
-            <th className="w-px whitespace-nowrap py-1 pr-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((entry) =>
-            editingId === entry.id ? (
-              <tr key={entry.id} className="border-b last:border-0">
-                <td className="py-1 pr-2">
-                  <Input aria-label="Editar nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                </td>
-                <td className="py-1 pr-2">
-                  <Input aria-label="Editar dosis" value={editDose} onChange={(e) => setEditDose(e.target.value)} />
-                </td>
-                <td className="py-1 pr-2">
-                  <Input
-                    aria-label="Editar unidad de dosis"
-                    value={editDoseUnit}
-                    onChange={(e) => setEditDoseUnit(e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <Input aria-label="Editar vía" value={editRoute} onChange={(e) => setEditRoute(e.target.value)} />
-                </td>
-                <td className="py-1 pr-2">
-                  <Input
-                    aria-label="Editar días de retiro"
-                    type="number"
-                    value={editWithdrawalDays}
-                    onChange={(e) => setEditWithdrawalDays(e.target.value)}
-                  />
-                </td>
-                {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="whitespace-nowrap py-1 pr-2">
-                  <div className="flex gap-1 whitespace-nowrap">
-                    <Button type="button" size="sm" disabled={!editName} onClick={() => saveEdit(entry.id)}>
-                      Guardar
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="py-1 pr-2">Nombre</th>
+              <th className="py-1 pr-2">Dosis</th>
+              <th className="py-1 pr-2">Unidad de dosis</th>
+              <th className="py-1 pr-2">Vía</th>
+              <th className="py-1 pr-2">Días de retiro</th>
+              {showFarmColumn ? <th className="py-1 pr-2">Campo</th> : null}
+              <th className="w-px whitespace-nowrap py-1 pr-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((entry) =>
+              editingId === entry.id ? (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar nombre"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar dosis"
+                      value={editDose}
+                      onChange={(e) => setEditDose(e.target.value)}
+                    />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar unidad de dosis"
+                      value={editDoseUnit}
+                      onChange={(e) => setEditDoseUnit(e.target.value)}
+                    />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar vía"
+                      value={editRoute}
+                      onChange={(e) => setEditRoute(e.target.value)}
+                    />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <Input
+                      aria-label="Editar días de retiro"
+                      type="number"
+                      value={editWithdrawalDays}
+                      onChange={(e) => setEditWithdrawalDays(e.target.value)}
+                    />
+                  </td>
+                  {showFarmColumn ? (
+                    <td className="py-1 pr-2">
+                      {farmLabels.get(entry.farmId) ?? ""}
+                    </td>
+                  ) : null}
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <div className="flex gap-1 whitespace-nowrap">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!editName}
+                        onClick={() => saveEdit(entry.id)}
+                      >
+                        Guardar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={cancelEdit}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-1 pr-2">{entry.name}</td>
+                  <td className="py-1 pr-2">{entry.defaultDose ?? "—"}</td>
+                  <td className="py-1 pr-2">{entry.defaultDoseUnit ?? "—"}</td>
+                  <td className="py-1 pr-2">{entry.defaultRoute ?? "—"}</td>
+                  <td className="py-1 pr-2">
+                    {entry.defaultWithdrawalDays ?? "—"}
+                  </td>
+                  {showFarmColumn ? (
+                    <td className="py-1 pr-2">
+                      {farmLabels.get(entry.farmId) ?? ""}
+                    </td>
+                  ) : null}
+                  <td className="whitespace-nowrap py-1 pr-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => startEdit(entry)}
+                    >
+                      Editar
                     </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={cancelEdit}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              <tr key={entry.id} className="border-b last:border-0">
-                <td className="py-1 pr-2">{entry.name}</td>
-                <td className="py-1 pr-2">{entry.defaultDose ?? "—"}</td>
-                <td className="py-1 pr-2">{entry.defaultDoseUnit ?? "—"}</td>
-                <td className="py-1 pr-2">{entry.defaultRoute ?? "—"}</td>
-                <td className="py-1 pr-2">{entry.defaultWithdrawalDays ?? "—"}</td>
-                {showFarmColumn ? <td className="py-1 pr-2">{farmLabels.get(entry.farmId) ?? ""}</td> : null}
-                <td className="whitespace-nowrap py-1 pr-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(entry)}>
-                    Editar
-                  </Button>
-                </td>
-              </tr>
-            )
-          )}
-        </tbody>
-      </table>
-      {editError ? <p className="text-sm text-destructive">{editError}</p> : null}
-    </div>
+                  </td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+        {editError ? (
+          <p className="text-sm text-destructive">{editError}</p>
+        ) : null}
+      </CardContent>
+    </>
   );
 }

@@ -6,10 +6,11 @@ config({ path: path.resolve(__dirname, "..", ".env.local"), quiet: true });
 
 const LOCAL_URL = "postgres://traceability:traceability_dev_password@localhost:5432/traceability";
 
-// Parent tables before children: role/owner/category/product/farm have no
-// FK dependencies among this set; user_account depends on role; paddock and
-// user_farm depend on farm; user_farm also depends on user_account.
-const TABLES_IN_ORDER = ["role", "owner", "category", "product", "farm", "user_account", "paddock", "user_farm"];
+// Parent tables before children: role/category/product/farm have no FK
+// dependencies among this set; owner depends on farm; user_account depends
+// on role; paddock and user_farm depend on farm; user_farm also depends on
+// user_account.
+const TABLES_IN_ORDER = ["role", "farm", "owner", "category", "product", "user_account", "paddock", "user_farm"];
 
 // Writes rows with no upsert (fails on duplicate PKs if re-run) into
 // whatever DATABASE_URL resolves to. Requires the operator to pass

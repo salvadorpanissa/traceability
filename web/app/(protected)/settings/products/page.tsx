@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ProductCatalogForm } from "@/components/settings/product-catalog-form";
 import { listProductsForFarms } from "@/lib/dal/product-catalog";
 import { listSelectableFarms } from "@/lib/dal/farm-access";
@@ -12,12 +12,7 @@ export default async function ProductsSettingsPage() {
 
   return (
     <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Productos</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ProductCatalogForm products={products} farms={farms} />
-      </CardContent>
+      <ProductCatalogForm products={products} farms={farms} />
     </Card>
   );
 }

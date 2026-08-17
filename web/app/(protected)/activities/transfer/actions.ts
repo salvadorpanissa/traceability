@@ -10,7 +10,7 @@ import { computeHeaderSignature, applyColumnMapping, type ColumnMapping } from "
 import { resolveBatchRows, confirmTransferBatch, type ResolvedRow } from "@/lib/activities/transfer";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
-import { requireEstablishmentAccess } from "@/lib/dal/farm-access";
+import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { parseSnigGuide } from "@/lib/activities/snig-guide-parsing";
 import { findEstablishmentByDicoseCode } from "@/lib/dal/dicose";
 import { estimateBirthDateFromAge } from "@/lib/activities/date-normalization";
@@ -197,9 +197,12 @@ export async function confirmTransferBatchFromPdfAction(formData: FormData): Pro
   });
 }
 
-export async function createOwnerAction(name: string): Promise<OwnerCatalogEntry> {
-  await requireSession();
-  return createOwner(name);
+export async function createOwnerAction(establishmentId: string, name: string): Promise<OwnerCatalogEntry> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const farmId = await getEstablishmentFarmId(establishmentId);
+  if (!farmId) throw new Error("Campo no encontrado");
+  return createOwner(farmId, name);
 }
 
 export async function listPaddocksAction(establishmentId: string): Promise<PaddockCatalogEntry[]> {

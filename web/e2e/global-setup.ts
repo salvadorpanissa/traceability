@@ -59,17 +59,17 @@ export default async function globalSetup() {
     await client.query(
       "insert into product (name, default_dose_unit, default_withdrawal_days) values ('Ivermectina 1%', 'ml', 21) on conflict do nothing"
     );
-    await client.query("insert into owner (name) values ('Pérez') on conflict do nothing");
     const {
       rows: [{ id: farmId }],
     } = await client.query("select id from farm where name = 'Campo Norte'");
+    await client.query("insert into owner (farm_id, name) values ($1, 'Pérez') on conflict do nothing", [farmId]);
     await client.query("insert into paddock (farm_id, name) values ($1, 'Potrero 1') on conflict do nothing", [
       farmId,
     ]);
 
     const {
       rows: [{ id: e2eOwnerId }],
-    } = await client.query("insert into owner (name) values ('E2E Owner') returning id");
+    } = await client.query("insert into owner (farm_id, name) values ($1, 'E2E Owner') returning id", [farmId]);
     const {
       rows: [{ id: dicoseRegistrationId }],
     } = await client.query(

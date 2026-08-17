@@ -78,13 +78,18 @@ async function seedManagerSession() {
     user: { id: manager.id, role: "manager" },
   } as never);
 
-  return { manager, seededFarm };
+  return { manager, seededFarm, seededFarmGroup };
 }
 
-async function seedOwnTag(tag: string, establishmentId: string, ownerName: string) {
+async function seedOwnTag(
+  tag: string,
+  establishmentId: string,
+  ownerName: string,
+  farmId: string,
+) {
   const [createdOwner] = await testDb
     .insert(owner)
-    .values({ name: ownerName })
+    .values({ name: ownerName, farmId })
     .returning();
   const [registration] = await testDb
     .insert(dicose)
@@ -110,8 +115,8 @@ describe("previewTransferBatch", () => {
   });
 
   it("applies a submitted mapping and resolves rows without saving it yet", async () => {
-    const { seededFarm } = await seedManagerSession();
-    await seedOwnTag("AR000000000021", seededFarm.id, "AIP");
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    await seedOwnTag("AR000000000021", seededFarm.id, "AIP", seededFarmGroup.id);
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000021"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
@@ -393,7 +398,7 @@ describe("confirmTransferBatchAction", () => {
       .returning();
     const [createdOwner] = await testDb
       .insert(owner)
-      .values({ name: "AIP" })
+      .values({ name: "AIP", farmId: otherFarmGroup.id })
       .returning();
     await testDb
       .insert(dicose)
@@ -433,9 +438,9 @@ describe("confirmTransferBatchAction", () => {
 
 describe("createOwnerAction", () => {
   it("creates an owner and returns it", async () => {
-    await seedManagerSession();
+    const { seededFarm } = await seedManagerSession();
 
-    const created = await createOwnerAction("Pérez");
+    const created = await createOwnerAction(seededFarm.id, "Pérez");
 
     expect(created.name).toBe("Pérez");
   });

@@ -64,7 +64,8 @@ export function SaleForm() {
   }
 
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    return createOwnerAction(name);
+    if (!preview?.ok) throw new Error("No hay campo de origen resuelto");
+    return createOwnerAction(preview.originEstablishmentId, name);
   }
 
   function handleOwnerResolved(rawName: string, ownerId: string) {
