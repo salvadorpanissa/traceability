@@ -17,5 +17,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
 
-  return <AppShell userName={session.user.name ?? session.user.email ?? ""}>{children}</AppShell>;
+  return (
+    <AppShell userName={session.user.name ?? session.user.email ?? ""} isAdmin={isAdmin(session.user.role)}>
+      {children}
+    </AppShell>
+  );
 }

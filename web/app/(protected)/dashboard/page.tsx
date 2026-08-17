@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { parseLocaleCookie, translate } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
+import { isAdmin } from "@/lib/dal/farm-access";
 import { visibleAnimalDetails } from "@/lib/dal/animal-access";
 import { summarizeLivestockByPaddock, summarizeLivestockByCategory } from "@/lib/dashboard/livestock-summary";
 import { visibleHealthBatchesSince, countDistinctAnimalsTreatedSince } from "@/lib/dashboard/health-batch-summary";
@@ -12,6 +13,8 @@ import { AnimalLookup } from "@/components/dashboard/animal-lookup";
 import { NaturalLanguageQuery } from "@/components/dashboard/natural-language-query";
 import { findStaleTags } from "@/lib/dashboard/stale-tag-summary";
 import { StaleTagAlerts } from "@/components/dashboard/stale-tag-alerts";
+import { AdminFarmsOverview } from "@/components/dashboard/admin-farms-overview";
+import { listFarmsWithCounts, listManagerCandidates } from "@/lib/dal/admin-overview";
 
 const RECENT_HEALTH_MONTHS = 3;
 const DEFAULT_STALE_TAG_THRESHOLD_DAYS = 100;
@@ -23,10 +26,21 @@ function monthsAgoISODate(months: number, from: Date = new Date()): string {
 }
 
 export default async function DashboardPage() {
+  const session = await requireSession();
+
+  // Admin operates across every cliente's campo at once, so the operational
+  // dashboard below (livestock counts, health events, AI query) would mix
+  // every customer's animals into one number and expose per-establecimiento
+  // detail without any campo boundary. Admin gets a campo-level overview
+  // instead — no cross-account totals, no user info beyond a manager count.
+  if (isAdmin(session.user.role)) {
+    const [farms, managerCandidates] = await Promise.all([listFarmsWithCounts(), listManagerCandidates()]);
+    return <AdminFarmsOverview farms={farms} managerCandidates={managerCandidates} />;
+  }
+
   const cookieStore = await cookies();
   const locale = parseLocaleCookie(cookieStore.get("locale")?.value);
 
-  const session = await requireSession();
   const recentHealthSinceDate = monthsAgoISODate(RECENT_HEALTH_MONTHS);
   const [rows, healthBatches, healthEventsLastMonths, staleTags] = await Promise.all([
     visibleAnimalDetails(session.user.id, session.user.role),
