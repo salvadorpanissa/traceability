@@ -181,7 +181,7 @@ export function SaleForm() {
           {withdrawalWarnings.length > 0 ? (
             <div className="rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm">
               <p className="mb-2 font-medium">Caravanas con carencia de sanidad pendiente:</p>
-              <div className="max-h-40 overflow-y-auto">
+              <ScrollablePreviewTable maxHeight="max-h-40" bordered={false}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left">
@@ -211,7 +211,7 @@ export function SaleForm() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollablePreviewTable>
             </div>
           ) : null}
 
