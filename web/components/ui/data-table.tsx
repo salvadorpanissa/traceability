@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Download } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Menu } from "@base-ui/react/menu";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Columns3, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
@@ -21,6 +22,9 @@ export type DataTableColumn<T> = {
   // Value written to the exported Excel cell. Falls back to sortValue, then
   // searchValue, since either is already a plain string/number in most columns.
   exportValue?: (row: T) => string | number | null;
+  // Set to false to keep this column out of the column-visibility menu and
+  // always render it (e.g. an actions column).
+  hideable?: boolean;
 };
 
 // An extra Excel sheet exported alongside the main table — e.g. the
@@ -94,6 +98,8 @@ export function DataTable<T>({
   exportSheetName = "Datos",
   extraSheets,
   filters,
+  columnToggle = false,
+  columnStorageKey,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -110,14 +116,58 @@ export function DataTable<T>({
   exportSheetName?: string;
   extraSheets?: DataTableExtraSheet[];
   filters?: DataTableFilter<T>[];
+  // Adds a "Columns" menu letting the user hide/show columns on screen.
+  // Export always includes every column regardless of this toggle.
+  columnToggle?: boolean;
+  // localStorage key to remember hidden columns across reloads. Only takes
+  // effect when columnToggle is set.
+  columnStorageKey?: string;
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(0);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+
+  // Starts empty (matching the server-rendered markup) and picks up the
+  // saved selection right after mount, to avoid an SSR/client hydration
+  // mismatch from reading localStorage during the initial render.
+  useEffect(() => {
+    if (!columnStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(columnStorageKey);
+      if (raw) setHiddenColumns(new Set(JSON.parse(raw)));
+    } catch {
+      // Ignore malformed or inaccessible storage — falls back to all columns visible.
+    }
+  }, [columnStorageKey]);
+
+  useEffect(() => {
+    if (!columnStorageKey) return;
+    window.localStorage.setItem(columnStorageKey, JSON.stringify([...hiddenColumns]));
+  }, [columnStorageKey, hiddenColumns]);
 
   const columnByKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
+  const visibleColumns = useMemo(
+    () => (columnToggle ? columns.filter((c) => c.hideable === false || !hiddenColumns.has(c.key)) : columns),
+    [columns, columnToggle, hiddenColumns]
+  );
+
+  function toggleColumn(key: string, checked: boolean) {
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.delete(key);
+      } else {
+        const hideableKeys = columns.filter((c) => c.hideable !== false).map((c) => c.key);
+        const visibleHideableCount = hideableKeys.filter((k) => !next.has(k)).length;
+        if (visibleHideableCount <= 1) return prev; // always keep at least one hideable column visible
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   // A filter with `dependsOn` gets its options from rows narrowed to the
   // parent filter's current selection; every other filter's options come
@@ -230,13 +280,13 @@ export function DataTable<T>({
     URL.revokeObjectURL(url);
   }
 
-  const colSpan = columns.length + (expandable ? 1 : 0);
+  const colSpan = visibleColumns.length + (expandable ? 1 : 0);
   const showingFrom = pageStart + 1;
   const showingTo = pageEnd;
 
   return (
     <div className="flex flex-col gap-2">
-      {searchable || exportable || filters?.length ? (
+      {searchable || exportable || columnToggle || filters?.length ? (
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
           {searchable ? (
             <Input
@@ -265,6 +315,37 @@ export function DataTable<T>({
               ))}
             </select>
           ))}
+          {columnToggle ? (
+            <Menu.Root>
+              <Menu.Trigger
+                render={<Button type="button" variant="outline" size="sm" className={exportable ? "shrink-0" : "ml-auto shrink-0"} />}
+              >
+                <Columns3 className="size-4" />
+                {translate(locale, "dataTable.columns")}
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner sideOffset={4} align="end">
+                  <Menu.Popup className="z-50 min-w-40 rounded-md bg-popover p-1 text-sm text-popover-foreground ring-1 ring-foreground/10">
+                    {columns.filter((c) => c.hideable !== false).map((column) => (
+                      <Menu.CheckboxItem
+                        key={column.key}
+                        checked={!hiddenColumns.has(column.key)}
+                        onCheckedChange={(checked) => toggleColumn(column.key, checked)}
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 outline-none data-highlighted:bg-muted"
+                      >
+                        <span className="flex size-4 items-center justify-center">
+                          <Menu.CheckboxItemIndicator>
+                            <Check className="size-4" />
+                          </Menu.CheckboxItemIndicator>
+                        </span>
+                        {column.header}
+                      </Menu.CheckboxItem>
+                    ))}
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
+          ) : null}
           {exportable ? (
             <Button
               type="button"
@@ -286,11 +367,11 @@ export function DataTable<T>({
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className={`w-full text-sm ${columns.some((c) => c.width) ? "table-fixed" : ""}`}>
+            <table className={`w-full text-sm ${visibleColumns.some((c) => c.width) ? "table-fixed" : ""}`}>
               <thead>
                 <tr className="border-b text-left">
                   {expandable ? <th className="w-8 py-1" /> : null}
-                  {columns.map((column) => (
+                  {visibleColumns.map((column) => (
                     <th key={column.key} className={`py-1 pr-2 font-medium ${column.width ?? ""}`}>
                       {column.sortValue ? (
                         <button
@@ -338,7 +419,7 @@ export function DataTable<T>({
                             </button>
                           </td>
                         ) : null}
-                        {columns.map((column) => (
+                        {visibleColumns.map((column) => (
                           <td key={column.key} className="whitespace-nowrap py-1 pr-2">
                             {column.render(row)}
                           </td>
