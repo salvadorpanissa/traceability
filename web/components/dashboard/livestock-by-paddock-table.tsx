@@ -46,6 +46,7 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
       render: (row) => row.establishmentName ?? translate(locale, "livestock.noEstablishment"),
       sortValue: (row) => row.establishmentName,
       searchValue: (row) => row.establishmentName ?? "",
+      width: "w-[35%]",
     },
     {
       key: "paddock",
@@ -53,12 +54,14 @@ export function LivestockByPaddockTable({ rows, locale }: { rows: LivestockByPad
       render: (row) => row.paddockName ?? translate(locale, "livestock.noPaddock"),
       sortValue: (row) => row.paddockName,
       searchValue: (row) => row.paddockName ?? "",
+      width: "w-[45%]",
     },
     {
       key: "count",
       header: translate(locale, "livestock.summaryCount"),
       render: (row) => row.count,
       sortValue: (row) => row.count,
+      width: "w-[20%]",
     },
   ];
 

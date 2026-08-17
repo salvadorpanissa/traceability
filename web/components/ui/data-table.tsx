@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
@@ -14,6 +14,10 @@ export type DataTableColumn<T> = {
   sortValue?: (row: T) => string | number | null;
   // Omit to exclude the column from the search filter.
   searchValue?: (row: T) => string;
+  // Tailwind width class (e.g. "w-[40%]"). When any column sets this, the
+  // table switches to a fixed layout so column widths stay put across sorts
+  // and pages instead of reflowing with each page's content.
+  width?: string;
   // Value written to the exported Excel cell. Falls back to sortValue, then
   // searchValue, since either is already a plain string/number in most columns.
   exportValue?: (row: T) => string | number | null;
@@ -282,22 +286,28 @@ export function DataTable<T>({
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className={`w-full text-sm ${columns.some((c) => c.width) ? "table-fixed" : ""}`}>
               <thead>
                 <tr className="border-b text-left">
                   {expandable ? <th className="w-8 py-1" /> : null}
                   {columns.map((column) => (
-                    <th key={column.key} className="py-1 pr-2 font-medium">
+                    <th key={column.key} className={`py-1 pr-2 font-medium ${column.width ?? ""}`}>
                       {column.sortValue ? (
                         <button
                           type="button"
                           onClick={() => handleSort(column)}
-                          className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                          className="flex w-full items-center justify-start gap-1 text-left font-medium hover:text-foreground"
                         >
                           {column.header}
-                          <span className="text-xs text-muted-foreground">
-                            {sort?.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : ""}
-                          </span>
+                          {sort?.key === column.key ? (
+                            sort.direction === "asc" ? (
+                              <ChevronUp className="size-3.5 shrink-0" />
+                            ) : (
+                              <ChevronDown className="size-3.5 shrink-0" />
+                            )
+                          ) : (
+                            <ChevronsUpDown className="size-3.5 shrink-0 opacity-40" />
+                          )}
                         </button>
                       ) : (
                         column.header
@@ -329,7 +339,7 @@ export function DataTable<T>({
                           </td>
                         ) : null}
                         {columns.map((column) => (
-                          <td key={column.key} className="py-1 pr-2">
+                          <td key={column.key} className="whitespace-nowrap py-1 pr-2">
                             {column.render(row)}
                           </td>
                         ))}
