@@ -1,8 +1,8 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { columnMapping } from "@/db/schema";
+import { columnHeaderMeaning } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
@@ -65,11 +65,18 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
-    // A saved mapping is only ever a suggestion here — pre-fill the selects
-    // with it, but always let the user look it over and confirm before it's
-    // used, rather than applying it silently.
-    const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
-    return { mappingNeeded: true, headers, initialMapping: existing ? (existing.mapping as ColumnMapping[]) : null };
+    // Column headers rarely repeat in the exact same combination/order
+    // across files, but the same individual header (e.g. "IDE") keeps
+    // showing up — so each header's meaning is remembered on its own and
+    // used to pre-fill the selects here, always for the user to look over
+    // and confirm rather than applying it silently.
+    const remembered = headers.length > 0
+      ? await db.select().from(columnHeaderMeaning).where(inArray(columnHeaderMeaning.header, headers))
+      : [];
+    const meaningByHeader = new Map(remembered.map((r) => [r.header, r.meaning as ColumnMapping["meaning"]]));
+    const initialMapping =
+      meaningByHeader.size > 0 ? headers.map((h) => ({ header: h, meaning: meaningByHeader.get(h) ?? "ignore" })) : null;
+    return { mappingNeeded: true, headers, initialMapping };
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
@@ -130,10 +137,14 @@ export async function confirmHealthBatchAction(input: {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
 
-  await db
-    .insert(columnMapping)
-    .values({ headerSignature: input.headerSignature, mapping: input.mapping })
-    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping: input.mapping } });
+  await Promise.all(
+    input.mapping.map((m) =>
+      db
+        .insert(columnHeaderMeaning)
+        .values({ header: m.header, meaning: m.meaning })
+        .onConflictDoUpdate({ target: columnHeaderMeaning.header, set: { meaning: m.meaning, updatedAt: new Date() } })
+    )
+  );
 
   await confirmHealthBatch({
     userId: session.user.id,

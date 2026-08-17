@@ -2,7 +2,7 @@
 // See __tests__/activities/transfer-actions.test.ts for why this suite needs
 // the plain Node environment instead of the project's default jsdom.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { testDb } from "../../test/db";
 import { resetTestDb } from "../../test/reset-db";
@@ -13,7 +13,7 @@ import {
   userAccount,
   userFarm,
   product,
-  columnMapping,
+  columnHeaderMeaning,
   owner,
   dicose,
   ownTag,
@@ -135,15 +135,12 @@ describe("previewHealthBatch", () => {
     }
   });
 
-  it("pre-fills the mapping step from a previously saved mapping instead of applying it silently", async () => {
+  it("pre-fills the mapping step from each header's individually remembered meaning, instead of applying it silently", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
-    await testDb.insert(columnMapping).values({
-      headerSignature: JSON.stringify(["IDE", "SEXO"]),
-      mapping: [
-        { header: "IDE", meaning: "tag" },
-        { header: "SEXO", meaning: "ignore" },
-      ],
-    });
+    await testDb.insert(columnHeaderMeaning).values([
+      { header: "IDE", meaning: "tag" },
+      { header: "SEXO", meaning: "ignore" },
+    ]);
 
     const buffer = await buildWorkbookBuffer(
       ["IDE", "SEXO"],
@@ -164,16 +161,36 @@ describe("previewHealthBatch", () => {
     }
   });
 
-  it("asks for a mapping again even when no column was left ignored last time, so the user can confirm it", async () => {
+  it("pre-fills only the headers it recognizes when the rest of the combination is new", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
-    await testDb
-      .insert(columnMapping)
-      .values({
-        headerSignature: JSON.stringify(["IDE"]),
-        mapping: [{ header: "IDE", meaning: "tag" }],
-      });
+    await testDb.insert(columnHeaderMeaning).values({ header: "IDE", meaning: "tag" });
 
-    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
+    // "IDE" was seen before (in some other file's combination), "RAZA"
+    // never was — the remembered meaning should still surface for "IDE".
+    const buffer = await buildWorkbookBuffer(
+      ["IDE", "RAZA"],
+      [["AR000000000101", "Angus"]],
+    );
+    const formData = new FormData();
+    formData.set("file", new Blob([buffer]), "lote.xlsx");
+    formData.set("establishmentId", seededFarm.id);
+    formData.set("eventDate", "2026-02-01");
+
+    const result = await previewHealthBatch(formData);
+    expect(result.mappingNeeded).toBe(true);
+    if (result.mappingNeeded) {
+      expect(result.initialMapping).toEqual([
+        { header: "IDE", meaning: "tag" },
+        { header: "RAZA", meaning: "ignore" },
+      ]);
+    }
+  });
+
+  it("asks for a mapping again even when nothing about this header was left ignored last time, so the user can confirm it", async () => {
+    const { seededFarm, seededFarmGroup } = await seedManagerSession();
+    await testDb.insert(columnHeaderMeaning).values({ header: "IDE", meaning: "tag" });
+
+    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000102"]]);
     const formData = new FormData();
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("establishmentId", seededFarm.id);
@@ -469,14 +486,14 @@ describe("confirmHealthBatchAction", () => {
       establishmentId: seededFarm.id,
     });
 
-    const [savedMapping] = await testDb
+    const [savedMeaning] = await testDb
       .select()
-      .from(columnMapping)
-      .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
-    expect(savedMapping).toBeDefined();
+      .from(columnHeaderMeaning)
+      .where(eq(columnHeaderMeaning.header, "IDE"));
+    expect(savedMeaning?.meaning).toBe("tag");
   });
 
-  it("overwrites a previously cached mapping when the user corrects it on a later import", async () => {
+  it("overwrites a previously remembered header meaning when the user corrects it on a later import", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     const [productA] = await testDb
       .insert(product)
@@ -484,14 +501,11 @@ describe("confirmHealthBatchAction", () => {
       .returning();
     const headerSignature = JSON.stringify(["IDE", "NOTA"]);
 
-    // A first import cached NOTA as "ignore" (e.g. a mistake).
-    await testDb.insert(columnMapping).values({
-      headerSignature,
-      mapping: [
-        { header: "IDE", meaning: "tag" },
-        { header: "NOTA", meaning: "ignore" },
-      ],
-    });
+    // A first import remembered NOTA as "ignore" (e.g. a mistake).
+    await testDb.insert(columnHeaderMeaning).values([
+      { header: "IDE", meaning: "tag" },
+      { header: "NOTA", meaning: "ignore" },
+    ]);
 
     // A later import corrects it to "notes" — the correction must stick,
     // not be silently discarded by the cache.
@@ -528,14 +542,11 @@ describe("confirmHealthBatchAction", () => {
       establishmentId: seededFarm.id,
     });
 
-    const [savedMapping] = await testDb
+    const savedMeanings = await testDb
       .select()
-      .from(columnMapping)
-      .where(eq(columnMapping.headerSignature, headerSignature));
-    expect(savedMapping.mapping).toEqual([
-      { header: "IDE", meaning: "tag" },
-      { header: "NOTA", meaning: "notes" },
-    ]);
+      .from(columnHeaderMeaning)
+      .where(inArray(columnHeaderMeaning.header, ["IDE", "NOTA"]));
+    expect(savedMeanings.find((m) => m.header === "NOTA")?.meaning).toBe("notes");
 
     const { event } = await import("@/db/schema");
     const events = await testDb.select().from(event);

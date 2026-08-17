@@ -12,6 +12,7 @@ export * from "./event";
 export * from "./event-children";
 export * from "./paddock";
 export * from "./column-mapping";
+export * from "./column-header-meaning";
 export * from "./dicose";
 export * from "./sale-settlement";
 export * from "./login-attempt";
