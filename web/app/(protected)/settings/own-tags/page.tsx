@@ -13,19 +13,21 @@ export default async function OwnTagsSettingsPage() {
   ]);
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Registrar caravanas propias</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Tip>
-          Puede registrar acá sus caravanas propias aunque todavía no estén asignadas a ningún
-          animal. Quedan disponibles en el sistema y se vinculan automáticamente al animal
-          correspondiente en el momento en que esa caravana se use por primera vez en una
-          actividad.
-        </Tip>
-        <OwnTagUploadForm registrations={registrations} counts={counts} />
-      </CardContent>
-    </Card>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Registrar caravanas propias</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OwnTagUploadForm registrations={registrations} counts={counts} />
+        </CardContent>
+      </Card>
+      <Tip>
+        Puede registrar acá sus caravanas propias aunque todavía no estén asignadas a ningún
+        animal. Quedan disponibles en el sistema y se vinculan automáticamente al animal
+        correspondiente en el momento en que esa caravana se use por primera vez en una
+        actividad.
+      </Tip>
+    </div>
   );
 }
