@@ -18,6 +18,7 @@ import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  sessionStorage.clear();
 });
 
 const catalog: ProductCatalogEntry[] = [
@@ -66,6 +67,7 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
   createOwnerAction: vi.fn(async (name: string) => ({ id: "o1", name })),
   createHealthPaddockAction: vi.fn(async (establishmentId: string, name: string) => ({ id: "pd2", name, establishmentId })),
   listPaddocksAction: vi.fn(async () => [{ id: "pd1", name: "Potrero 1", establishmentId: "establishment-1" }]),
+  listTagsInPaddockAction: vi.fn(async () => []),
   listProductsAction: vi.fn(async () => catalog),
   listReproductiveStatusesAction: vi.fn(async () => []),
   createReproductiveStatusForHealthAction: vi.fn(async (establishmentId: string, name: string) => ({
@@ -89,6 +91,13 @@ async function selectPaddockAndUploadFile(user: ReturnType<typeof userEvent.setu
   await user.click(screen.getByRole("button", { name: /subir/i }));
 }
 
+// Advances from the "Productos" screen to "Caravanas y confirmación" —
+// only enabled once every product row is fully filled.
+async function continueToReview(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).not.toBeDisabled());
+  await user.click(screen.getByRole("button", { name: "Continuar" }));
+}
+
 describe("HealthForm", () => {
   it("shows the preview and lets the user add a product row", async () => {
     render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
@@ -96,7 +105,7 @@ describe("HealthForm", () => {
 
     await selectPaddockAndUploadFile(user);
 
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /agregar producto/i })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: /agregar producto/i }));
     expect(screen.getAllByText("Ivermectina 1%")).not.toHaveLength(0);
@@ -127,7 +136,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText(/producto/i)).toBeInTheDocument());
 
     await user.selectOptions(screen.getByLabelText(/producto/i), "p1");
 
@@ -142,7 +151,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText(/producto/i)).toBeInTheDocument());
 
     // The suggestion matched "Aftosa" (id p1, not in the initial catalog prop) —
     // HealthForm's mocked previewHealthBatch return above stands in for a real
@@ -158,13 +167,12 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
-
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
-
     // The auto-matched product row already has all its fields (productId,
     // dose, doseUnit, route) filled from the matched suggestion's catalog
-    // defaults, so the only thing gating Confirmar in this test is the
-    // pending owner.
+    // defaults, so Productos' Continuar is enabled right away.
+    await continueToReview(user);
+
+    // The only thing gating Confirmar in this test is the pending owner.
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /^crear$/i }));
@@ -215,8 +223,12 @@ describe("HealthForm", () => {
     await user.type(screen.getByLabelText("Fecha del lote"), "2026-04-01");
     await user.click(screen.getByRole("button", { name: /continuar/i }));
 
-    await waitFor(() => expect(screen.getByText("AR000000000097")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText(/producto/i)).toBeInTheDocument());
     expect(screen.queryByLabelText("Fecha del lote")).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/producto/i), "p1");
+    await continueToReview(user);
+
+    await waitFor(() => expect(screen.getByText("AR000000000097")).toBeInTheDocument());
   });
 
   it("lets the user pick an existing owner for a pending name instead of creating a new one, and confirms with the campo derived from the chosen potrero", async () => {
@@ -224,7 +236,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+    await continueToReview(user);
 
     expect(screen.getByRole("button", { name: /confirmar/i })).toBeDisabled();
 
@@ -295,6 +307,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
+    await continueToReview(user);
     await waitFor(() => expect(screen.getByText("AR000000000091")).toBeInTheDocument());
 
     expect(screen.getByText(/actualmente en Potrero 2/)).toBeInTheDocument();
@@ -343,6 +356,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
+    await continueToReview(user);
     await waitFor(() => expect(screen.getByText("AR000000000092")).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: /sí, trasladarlas/i }));
@@ -363,7 +377,7 @@ describe("HealthForm", () => {
     const user = userEvent.setup();
 
     await selectPaddockAndUploadFile(user);
-    await waitFor(() => expect(screen.getByText("AR000000000090")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /agregar producto/i })).toBeInTheDocument());
 
     expect(screen.queryByText(/trasladarlas también a este potrero/i)).not.toBeInTheDocument();
   });
@@ -415,96 +429,117 @@ describe("HealthForm", () => {
     await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(2));
   });
 
-  it("clears the reproductive-status value map when the file changes, so a second file can't silently submit under the first file's mapping", async () => {
-    vi.mocked(listReproductiveStatusesAction).mockResolvedValue([
-      { id: "rs1", farmId: "group-1", name: "Preñada", active: true },
-      { id: "rs2", farmId: "group-1", name: "Vacía", active: true },
-    ]);
-    vi.mocked(previewHealthBatch)
-      // 1) first file uploaded — legend needed
-      .mockResolvedValueOnce({
-        mappingNeeded: false,
-        valueLegendNeeded: true,
-        headerSignature: "sig-1",
-        mapping: [
-          { header: "IDE", meaning: "tag" },
-          { header: "Fecha", meaning: "date" },
-          { header: "Preñez", meaning: "reproductiveStatus" },
-        ],
-        distinctValues: ["1", "2"],
-      })
-      // 2) legend answered for the first file (1 -> rs1, 2 -> rs2)
-      .mockResolvedValueOnce({
-        mappingNeeded: false,
-        valueLegendNeeded: false,
-        eventDateNeeded: false,
-        headerSignature: "sig-1",
-        mapping: [
-          { header: "IDE", meaning: "tag" },
-          { header: "Fecha", meaning: "date" },
-          {
-            header: "Preñez",
-            meaning: "reproductiveStatus",
-            reproductiveStatusValueMap: { "1": "rs1", "2": "rs2" },
-          },
-        ],
-        rows: [],
-        productSuggestions: [],
-      })
-      // 3) second file uploaded, same raw codes — legend needed again
-      .mockResolvedValueOnce({
-        mappingNeeded: false,
-        valueLegendNeeded: true,
-        headerSignature: "sig-1",
-        mapping: [
-          { header: "IDE", meaning: "tag" },
-          { header: "Fecha", meaning: "date" },
-          { header: "Preñez", meaning: "reproductiveStatus" },
-        ],
-        distinctValues: ["1", "2"],
-      })
-      // 4) user immediately continues without re-selecting anything
-      .mockResolvedValueOnce({
-        mappingNeeded: false,
-        valueLegendNeeded: false,
-        eventDateNeeded: false,
-        headerSignature: "sig-1",
-        mapping: [
-          { header: "IDE", meaning: "tag" },
-          { header: "Fecha", meaning: "date" },
-          { header: "Preñez", meaning: "reproductiveStatus" },
-        ],
-        rows: [],
-        productSuggestions: [],
-      });
+  it("lets the user go back from the review step to re-edit the column mapping without losing their choice or re-hitting the server", async () => {
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: true,
+      headers: ["IDE"],
+      initialMapping: null,
+    });
+    const reviewResponse = {
+      mappingNeeded: false as const,
+      valueLegendNeeded: false as const,
+      eventDateNeeded: false as const,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" as const }],
+      rows: [
+        {
+          tag: "AR000000000099",
+          eventDate: "2026-02-01",
+          notes: null,
+          status: "new" as const,
+          categoryId: null,
+          sex: null,
+          birthDate: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      productSuggestions: [],
+    };
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce(reviewResponse).mockResolvedValueOnce(reviewResponse);
 
     render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
     const user = userEvent.setup();
 
-    await selectPaddockAndUploadFile(user);
-    expect(await screen.findByText("A qué estado corresponde cada valor de la columna")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Valor: 1"), "rs1");
-    await user.selectOptions(screen.getByLabelText("Valor: 2"), "rs2");
-    await user.click(screen.getByRole("button", { name: "Continuar" }));
-    await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(2));
+    await user.selectOptions(screen.getByLabelText("Campo"), "establishment-1");
+    await waitFor(() => expect(screen.getByRole("option", { name: "Potrero 1" })).toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText("Potrero"), "pd1");
+    const file = new File(["dummy"], "lote.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await user.upload(screen.getByLabelText(/archivo/i), file);
+    await user.click(screen.getByRole("button", { name: /subir/i }));
 
-    const secondFile = new File(["dummy2"], "lote2.xlsx", {
+    await waitFor(() => expect(screen.getByLabelText("IDE")).toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText("IDE"), "tag");
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /agregar producto/i })).toBeInTheDocument());
+    expect(previewHealthBatch).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole("button", { name: /atrás/i }));
+
+    expect(screen.getByLabelText("IDE")).toHaveValue("tag");
+    expect(previewHealthBatch).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /agregar producto/i })).toBeInTheDocument());
+    expect(previewHealthBatch).toHaveBeenCalledTimes(3);
+  });
+
+  it("survives a page reload while waiting for the fecha, and resumes once the same file is re-picked", async () => {
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      valueLegendNeeded: false,
+      eventDateNeeded: true,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+    });
+
+    const { unmount } = render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
+    const user = userEvent.setup();
+
+    await selectPaddockAndUploadFile(user);
+    await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Fecha del lote"), "2026-04-01");
+
+    // Simulate a reload: unmount without confirming, then mount fresh —
+    // sessionStorage (not cleared by unmount) is what should carry the draft.
+    unmount();
+
+    vi.mocked(previewHealthBatch).mockResolvedValueOnce({
+      mappingNeeded: false,
+      valueLegendNeeded: false,
+      eventDateNeeded: false,
+      headerSignature: '["IDE"]',
+      mapping: [{ header: "IDE", meaning: "tag" }],
+      rows: [
+        {
+          tag: "AR000000000098",
+          eventDate: "2026-04-01",
+          notes: null,
+          status: "new",
+          categoryId: null,
+          sex: null,
+          birthDate: null,
+          ownerId: null,
+          pendingOwnerName: null,
+        },
+      ],
+      productSuggestions: [],
+    });
+
+    render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
+
+    await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toHaveValue("2026-04-01"));
+    expect(screen.getByText(/recuperamos tu progreso/i)).toBeInTheDocument();
+
+    const secondFile = new File(["dummy"], "lote.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     await user.upload(screen.getByLabelText(/archivo/i), secondFile);
-    await user.click(screen.getByRole("button", { name: /subir/i }));
-    expect(await screen.findByText("A qué estado corresponde cada valor de la columna")).toBeInTheDocument();
 
-    // Immediately continue without touching the (blank-looking) selects.
-    await user.click(screen.getByRole("button", { name: "Continuar" }));
-    await waitFor(() => expect(previewHealthBatch).toHaveBeenCalledTimes(4));
-
-    const lastCallFormData = vi.mocked(previewHealthBatch).mock.calls[3][0] as FormData;
-    const submittedMapping = JSON.parse(lastCallFormData.get("mapping") as string) as {
-      meaning: string;
-      reproductiveStatusValueMap?: Record<string, string>;
-    }[];
-    const reproductiveStatusColumn = submittedMapping.find((m) => m.meaning === "reproductiveStatus");
-    expect(reproductiveStatusColumn?.reproductiveStatusValueMap ?? {}).toEqual({});
+    await waitFor(() => expect(screen.getByRole("button", { name: /agregar producto/i })).toBeInTheDocument());
+    expect(screen.queryByText(/recuperamos tu progreso/i)).not.toBeInTheDocument();
   });
 });

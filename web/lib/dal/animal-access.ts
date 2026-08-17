@@ -142,6 +142,17 @@ export async function visibleCurrentStateWithNames(
   return result.rows.map(toAnimalCurrentStateWithNames);
 }
 
+// Tags of every animal currently living in a potrero — used to warn when a
+// sanidad batch leaves out an animal that officially belongs there.
+export async function listTagsInPaddock(paddockId: string): Promise<string[]> {
+  const result = await db.execute<{ current_tag: string | null }>(sql`
+    select current_tag
+    from animal_current_state
+    where current_paddock_id = ${paddockId} and status = 'alive'
+  `);
+  return result.rows.map((r) => r.current_tag).filter((tag): tag is string => tag !== null);
+}
+
 // Looks a tag up in animal_tag_history (not just the current one) so a
 // caravana that was later retagged is still found — the caller can tell
 // from currentTag whether it no longer matches what was searched. Scoped

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColumnMapper } from "@/components/activities/column-mapper";
 import { RecategorizePreviewTable } from "@/components/activities/recategorize-preview-table";
+import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import {
   previewRecategorizeBatch,
   confirmRecategorizeBatchAction,
@@ -309,15 +310,17 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
               </div>
             </div>
           ) : null}
-          <RecategorizePreviewTable
-            rows={rows}
-            targetCategoryName={targetCategoryName}
-            unresolvableDecisions={unresolvableDecisions}
-            onDecisionChange={handleDecisionChange}
-            sexMismatchAnimalIds={sexMismatchAnimalIds}
-            sexMismatchDecisions={sexMismatchDecisions}
-            onSexMismatchDecisionChange={handleSexMismatchDecisionChange}
-          />
+          <ScrollablePreviewTable>
+            <RecategorizePreviewTable
+              rows={rows}
+              targetCategoryName={targetCategoryName}
+              unresolvableDecisions={unresolvableDecisions}
+              onDecisionChange={handleDecisionChange}
+              sexMismatchAnimalIds={sexMismatchAnimalIds}
+              sexMismatchDecisions={sexMismatchDecisions}
+              onSexMismatchDecisionChange={handleSexMismatchDecisionChange}
+            />
+          </ScrollablePreviewTable>
           <Button
             type="button"
             disabled={rows.some((r) => r.status === "error") || !hasConfirmableRow}

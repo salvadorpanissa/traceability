@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
+import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import {
   previewSaleBatchFromPdf,
   confirmSaleBatchFromPdfAction,
@@ -180,39 +181,43 @@ export function SaleForm() {
           {withdrawalWarnings.length > 0 ? (
             <div className="rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm">
               <p className="mb-2 font-medium">Caravanas con carencia de sanidad pendiente:</p>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="py-1 pr-2">Caravana</th>
-                    <th className="py-1 pr-2">Medicamento</th>
-                    <th className="py-1 pr-2">Carencia hasta</th>
-                    <th className="py-1 pr-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {withdrawalWarnings.map((w) => (
-                    <tr key={`${w.tag}-${w.productName}-${w.restrictionEndDate}`}>
-                      <td className="py-1 pr-2">{w.tag}</td>
-                      <td className="py-1 pr-2">{w.productName}</td>
-                      <td className="py-1 pr-2">{w.restrictionEndDate}</td>
-                      <td className="py-1 pr-2">
-                        <label className="flex items-center gap-1 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={forcedWithdrawalTags.has(w.tag)}
-                            onChange={() => handleToggleWithdrawalForced(w.tag)}
-                          />
-                          Vender igual
-                        </label>
-                      </td>
+              <div className="max-h-40 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="py-1 pr-2">Caravana</th>
+                      <th className="py-1 pr-2">Medicamento</th>
+                      <th className="py-1 pr-2">Carencia hasta</th>
+                      <th className="py-1 pr-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {withdrawalWarnings.map((w) => (
+                      <tr key={`${w.tag}-${w.productName}-${w.restrictionEndDate}`}>
+                        <td className="py-1 pr-2">{w.tag}</td>
+                        <td className="py-1 pr-2">{w.productName}</td>
+                        <td className="py-1 pr-2">{w.restrictionEndDate}</td>
+                        <td className="py-1 pr-2">
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={forcedWithdrawalTags.has(w.tag)}
+                              onChange={() => handleToggleWithdrawalForced(w.tag)}
+                            />
+                            Vender igual
+                          </label>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
 
-          <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+          <ScrollablePreviewTable>
+            <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
+          </ScrollablePreviewTable>
           <Button
             type="button"
             disabled={

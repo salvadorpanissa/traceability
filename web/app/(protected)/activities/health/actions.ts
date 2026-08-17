@@ -19,7 +19,8 @@ import { confirmHealthBatch, voidHealthBatch, type HealthProduct } from "@/lib/a
 import { healthBatchDetail, type HealthBatchDetail } from "@/lib/dashboard/health-batch-summary";
 import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
-import { listPaddocksByEstablishment, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { listPaddocksByEstablishment, getPaddockEstablishmentId, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
+import { listTagsInPaddock } from "@/lib/dal/animal-access";
 import {
   createReproductiveStatus,
   listReproductiveStatusesByFarm,
@@ -46,10 +47,6 @@ export type PreviewResult =
       productSuggestions: { rawValue: string; matchedProductId: string | null }[];
     };
 
-function hasUnconfiguredColumn(mapping: ColumnMapping[]): boolean {
-  return mapping.some((m) => m.meaning === "ignore");
-}
-
 export async function previewHealthBatch(formData: FormData): Promise<PreviewResult> {
   const session = await requireSession();
   const operatingEstablishmentId = formData.get("establishmentId") as string;
@@ -68,15 +65,11 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
+    // A saved mapping is only ever a suggestion here — pre-fill the selects
+    // with it, but always let the user look it over and confirm before it's
+    // used, rather than applying it silently.
     const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
-    if (!existing) {
-      return { mappingNeeded: true, headers, initialMapping: null };
-    }
-    const existingMapping = existing.mapping as ColumnMapping[];
-    if (hasUnconfiguredColumn(existingMapping)) {
-      return { mappingNeeded: true, headers, initialMapping: existingMapping };
-    }
-    mapping = existingMapping;
+    return { mappingNeeded: true, headers, initialMapping: existing ? (existing.mapping as ColumnMapping[]) : null };
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
@@ -186,6 +179,14 @@ export async function listPaddocksAction(establishmentId: string): Promise<Paddo
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
   return listPaddocksByEstablishment(establishmentId);
+}
+
+export async function listTagsInPaddockAction(establishmentId: string, paddockId: string): Promise<string[]> {
+  const session = await requireSession();
+  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
+  const paddockEstablishmentId = await getPaddockEstablishmentId(paddockId);
+  if (paddockEstablishmentId !== establishmentId) throw new Error("El potrero no pertenece al campo activo");
+  return listTagsInPaddock(paddockId);
 }
 
 export async function voidHealthBatchAction(batchId: string): Promise<void> {

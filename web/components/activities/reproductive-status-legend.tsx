@@ -9,16 +9,18 @@ import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-stat
 export function ReproductiveStatusLegend({
   distinctValues,
   catalog: initialCatalog,
+  initialValueMap,
   onCreateStatus,
   onChange,
 }: {
   distinctValues: string[];
   catalog: ReproductiveStatusCatalogEntry[];
+  initialValueMap?: Record<string, string>;
   onCreateStatus: (name: string) => Promise<ReproductiveStatusCatalogEntry>;
   onChange: (valueMap: Record<string, string>) => void;
 }) {
   const [catalog, setCatalog] = useState(initialCatalog);
-  const [valueMap, setValueMap] = useState<Record<string, string>>({});
+  const [valueMap, setValueMap] = useState<Record<string, string>>(initialValueMap ?? {});
   const [newStatusName, setNewStatusName] = useState("");
   const [createError, setCreateError] = useState("");
 

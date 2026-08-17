@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HealthForm } from "@/components/activities/health-form";
 import { listOwnersByFarms } from "@/lib/dal/owner-catalog";
 import { listSelectableEstablishments, listSelectableFarms } from "@/lib/dal/farm-access";
@@ -14,13 +13,8 @@ export default async function HealthActivityPage() {
   const ownerCatalog = await listOwnersByFarms(farms.map((f) => f.id));
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Sanidad</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />
-      </CardContent>
-    </Card>
+    <div className="mx-auto w-full max-w-4xl">
+      <HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />
+    </div>
   );
 }

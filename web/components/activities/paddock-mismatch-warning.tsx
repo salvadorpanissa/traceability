@@ -15,13 +15,13 @@ export function PaddockMismatchWarning({
   onDecide: (transfer: boolean) => void;
 }) {
   return (
-    <div className="rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
+    <div className="rounded-lg border-2 border-amber-600 bg-amber-100 p-3 text-sm dark:border-amber-600 dark:bg-amber-950">
       <p className="mb-2 font-medium">
         {mismatches.length === 1
           ? "Hay 1 caravana que no está en el potrero elegido para esta sanidad:"
           : `Hay ${mismatches.length} caravanas que no están en el potrero elegido para esta sanidad:`}
       </p>
-      <ul className="mb-3 list-disc pl-5">
+      <ul className="mb-3 max-h-40 list-disc overflow-y-auto pl-5">
         {mismatches.map((m) => (
           <li key={m.tag}>
             {m.tag} — actualmente en {paddockNameById.get(m.currentPaddockId) ?? "un potrero desconocido"}

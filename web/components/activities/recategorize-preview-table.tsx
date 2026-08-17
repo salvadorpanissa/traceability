@@ -46,10 +46,10 @@ export function RecategorizePreviewTable({
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b text-left">
-          <th className="py-1 pr-2">Caravana</th>
-          <th className="py-1 pr-2">Categoría actual</th>
-          <th className="py-1 pr-2">Categoría nueva</th>
-          <th className="py-1 pr-2">Estado</th>
+          <th className="py-1 px-2">Caravana</th>
+          <th className="py-1 px-2">Categoría actual</th>
+          <th className="py-1 px-2">Categoría nueva</th>
+          <th className="py-1 px-2">Estado</th>
         </tr>
       </thead>
       <tbody>
@@ -60,10 +60,10 @@ export function RecategorizePreviewTable({
             const assigning = !hasSexMismatch || sexDecision === "assignTarget";
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-                <td className="py-1 pr-2">{row.tag || "—"}</td>
-                <td className="py-1 pr-2">{row.currentCategoryName ?? "—"}</td>
-                <td className="py-1 pr-2">{assigning ? targetCategoryName : "—"}</td>
-                <td className="py-1 pr-2">
+                <td className="py-1 px-2">{row.tag || "—"}</td>
+                <td className="py-1 px-2">{row.currentCategoryName ?? "—"}</td>
+                <td className="py-1 px-2">{assigning ? targetCategoryName : "—"}</td>
+                <td className="py-1 px-2">
                   {hasSexMismatch ? (
                     <SexMismatchSelect
                       tag={row.tag}
@@ -80,10 +80,10 @@ export function RecategorizePreviewTable({
           if (row.status === "age-resolved") {
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-                <td className="py-1 pr-2">{row.tag || "—"}</td>
-                <td className="py-1 pr-2">Sin categoría</td>
-                <td className="py-1 pr-2">{row.resolvedCategoryName}</td>
-                <td className="py-1 pr-2">OK (por edad)</td>
+                <td className="py-1 px-2">{row.tag || "—"}</td>
+                <td className="py-1 px-2">Sin categoría</td>
+                <td className="py-1 px-2">{row.resolvedCategoryName}</td>
+                <td className="py-1 px-2">OK (por edad)</td>
               </tr>
             );
           }
@@ -94,10 +94,10 @@ export function RecategorizePreviewTable({
             const assigning = decision === "assignTarget" && (!hasSexMismatch || sexDecision === "assignTarget");
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-                <td className="py-1 pr-2">{row.tag || "—"}</td>
-                <td className="py-1 pr-2">Sin categoría</td>
-                <td className="py-1 pr-2">{assigning ? targetCategoryName : "—"}</td>
-                <td className="py-1 pr-2">
+                <td className="py-1 px-2">{row.tag || "—"}</td>
+                <td className="py-1 px-2">Sin categoría</td>
+                <td className="py-1 px-2">{assigning ? targetCategoryName : "—"}</td>
+                <td className="py-1 px-2">
                   <div className="flex flex-col gap-1">
                     <span>
                       <span className="text-muted-foreground">Sin edad calculable</span>{" "}
@@ -125,10 +125,10 @@ export function RecategorizePreviewTable({
           }
           return (
             <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-              <td className="py-1 pr-2">{row.tag || "—"}</td>
-              <td className="py-1 pr-2">—</td>
-              <td className="py-1 pr-2">—</td>
-              <td className="py-1 pr-2">
+              <td className="py-1 px-2">{row.tag || "—"}</td>
+              <td className="py-1 px-2">—</td>
+              <td className="py-1 px-2">—</td>
+              <td className="py-1 px-2">
                 <span className="text-destructive">{row.reason}</span>
               </td>
             </tr>

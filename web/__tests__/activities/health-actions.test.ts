@@ -135,7 +135,7 @@ describe("previewHealthBatch", () => {
     }
   });
 
-  it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
+  it("pre-fills the mapping step from a previously saved mapping instead of applying it silently", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     await testDb.insert(columnMapping).values({
       headerSignature: JSON.stringify(["IDE", "SEXO"]),
@@ -164,7 +164,7 @@ describe("previewHealthBatch", () => {
     }
   });
 
-  it("applies the saved mapping silently when no column is left ignored", async () => {
+  it("asks for a mapping again even when no column was left ignored last time, so the user can confirm it", async () => {
     const { seededFarm, seededFarmGroup } = await seedManagerSession();
     await testDb
       .insert(columnMapping)
@@ -180,7 +180,10 @@ describe("previewHealthBatch", () => {
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewHealthBatch(formData);
-    expect(result.mappingNeeded).toBe(false);
+    expect(result.mappingNeeded).toBe(true);
+    if (result.mappingNeeded) {
+      expect(result.initialMapping).toEqual([{ header: "IDE", meaning: "tag" }]);
+    }
   });
 
   it("suggests a product row per product-mapped column, matched against the catalog when possible", async () => {
@@ -399,7 +402,7 @@ describe("previewHealthBatch", () => {
   });
 
   it("re-shows the legend instead of silently applying another farm's status IDs on a matching header+code collision", async () => {
-    const { seededFarm: farmAEstablishment, seededFarmGroup: farmA } = await seedManagerSession();
+    const { seededFarmGroup: farmA } = await seedManagerSession();
     const [statusFarmA] = await testDb.insert(reproductiveStatus).values({ farmId: farmA.id, name: "Preñada" }).returning();
     const headers = ["IDE", "Fecha", "Preñez"];
     const mapping = [
@@ -407,10 +410,9 @@ describe("previewHealthBatch", () => {
       { header: "Fecha", meaning: "date" },
       { header: "Preñez", meaning: "reproductiveStatus", reproductiveStatusValueMap: { "1": statusFarmA.id } },
     ];
-    await testDb.insert(columnMapping).values({ headerSignature: JSON.stringify(headers), mapping });
 
-    // Farm B has a matching header signature (same vet template) and the
-    // same raw code "1", but never granted access to farm A's status ID.
+    // Farm B submits a mapping referencing farm A's status ID (e.g. copied
+    // from another vet's file) but was never granted access to it.
     const [farmB] = await testDb.insert(farm).values({ name: "Cuatro Cerros" }).returning();
     const [farmBEstablishment] = await testDb.insert(establishment).values({ farmId: farmB.id, name: "Cuatro Cerros" }).returning();
     const [manager] = await testDb.select().from(userAccount);
@@ -421,6 +423,7 @@ describe("previewHealthBatch", () => {
     formData.set("file", new Blob([buffer]), "lote.xlsx");
     formData.set("establishmentId", farmBEstablishment.id);
     formData.set("eventDate", "2026-02-01");
+    formData.set("mapping", JSON.stringify(mapping));
 
     const result = await previewHealthBatch(formData);
 
