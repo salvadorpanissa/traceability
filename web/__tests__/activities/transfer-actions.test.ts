@@ -14,7 +14,7 @@ import {
   establishment,
   userAccount,
   userFarm,
-  columnMapping,
+  columnHeaderMeaning,
   owner,
   dicose,
   ownTag,
@@ -134,38 +134,16 @@ describe("previewTransferBatch", () => {
       expect(result.rows[0].status).toBe("new");
     }
 
-    const savedMappings = await testDb.select().from(columnMapping);
-    expect(savedMappings).toHaveLength(0);
+    const savedMeanings = await testDb.select().from(columnHeaderMeaning);
+    expect(savedMeanings).toHaveLength(0);
   });
 
-  it("reuses a previously saved mapping for the same header signature", async () => {
+  it("pre-fills the mapping step from each header's individually remembered meaning, instead of applying it silently", async () => {
     const { seededFarm } = await seedManagerSession();
-    await testDb
-      .insert(columnMapping)
-      .values({
-        headerSignature: JSON.stringify(["IDE"]),
-        mapping: [{ header: "IDE", meaning: "tag" }],
-      });
-
-    const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000022"]]);
-    const formData = new FormData();
-    formData.set("file", new Blob([buffer]), "lote.xlsx");
-    formData.set("establishmentId", seededFarm.id);
-    formData.set("eventDate", "2026-02-01");
-
-    const result = await previewTransferBatch(formData);
-    expect(result.mappingNeeded).toBe(false);
-  });
-
-  it("reopens the mapping step, pre-filled, when the saved mapping still has an ignored column", async () => {
-    const { seededFarm } = await seedManagerSession();
-    await testDb.insert(columnMapping).values({
-      headerSignature: JSON.stringify(["IDE", "SEXO"]),
-      mapping: [
-        { header: "IDE", meaning: "tag" },
-        { header: "SEXO", meaning: "ignore" },
-      ],
-    });
+    await testDb.insert(columnHeaderMeaning).values([
+      { header: "IDE", meaning: "tag" },
+      { header: "SEXO", meaning: "ignore" },
+    ]);
 
     const buffer = await buildWorkbookBuffer(
       ["IDE", "SEXO"],
@@ -186,14 +164,9 @@ describe("previewTransferBatch", () => {
     }
   });
 
-  it("applies the saved mapping silently when no column is left ignored", async () => {
+  it("asks for a mapping again even when nothing about this header was left ignored last time, so the user can confirm it", async () => {
     const { seededFarm } = await seedManagerSession();
-    await testDb
-      .insert(columnMapping)
-      .values({
-        headerSignature: JSON.stringify(["IDE"]),
-        mapping: [{ header: "IDE", meaning: "tag" }],
-      });
+    await testDb.insert(columnHeaderMeaning).values({ header: "IDE", meaning: "tag" });
 
     const buffer = await buildWorkbookBuffer(["IDE"], [["AR000000000101"]]);
     const formData = new FormData();
@@ -202,7 +175,10 @@ describe("previewTransferBatch", () => {
     formData.set("eventDate", "2026-02-01");
 
     const result = await previewTransferBatch(formData);
-    expect(result.mappingNeeded).toBe(false);
+    expect(result.mappingNeeded).toBe(true);
+    if (result.mappingNeeded) {
+      expect(result.initialMapping).toEqual([{ header: "IDE", meaning: "tag" }]);
+    }
   });
 
   it("resolves rows immediately when a date column is mapped, without needing a supplied event date", async () => {
@@ -316,11 +292,11 @@ describe("confirmTransferBatchAction", () => {
       ],
     });
 
-    const [savedMapping] = await testDb
+    const [savedMeaning] = await testDb
       .select()
-      .from(columnMapping)
-      .where(eq(columnMapping.headerSignature, JSON.stringify(["IDE"])));
-    expect(savedMapping).toBeDefined();
+      .from(columnHeaderMeaning)
+      .where(eq(columnHeaderMeaning.header, "IDE"));
+    expect(savedMeaning?.meaning).toBe("tag");
   });
 
   it("excludes an unforced foreign row from the confirmed batch", async () => {

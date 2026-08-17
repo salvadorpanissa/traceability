@@ -1,6 +1,5 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
@@ -28,8 +27,7 @@ import {
 } from "@/lib/dal/dicose";
 import { createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { createCategory, type CategoryCatalogEntry } from "@/lib/dal/category-catalog";
-import { db } from "@/db";
-import { columnMapping } from "@/db/schema";
+import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/column-header-meaning";
 
 export type OwnTagPreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -42,8 +40,9 @@ export type OwnTagPreviewResult =
       pendingCategoryNames: string[];
     };
 
-// Namespaced so an own-tags file never collides with a transfer/health cached
-// mapping that happens to share the same header row.
+// Opaque identifier round-tripped through the preview/confirm flow — no
+// longer used to look up a cached mapping (see column-header-meaning.ts),
+// which remembers each header's meaning individually across activities.
 function ownTagHeaderSignature(headers: string[]): string {
   return computeHeaderSignature(["__own_tag__", ...headers]);
 }
@@ -72,12 +71,7 @@ export async function previewOwnTagUpload(dicoseId: string, formData: FormData):
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
-    const [existing] = await db.select().from(columnMapping).where(eq(columnMapping.headerSignature, headerSignature));
-    const existingMapping = existing?.mapping as ColumnMapping[] | undefined;
-    if (!existingMapping || !existingMapping.some((m) => m.meaning === "tag")) {
-      return { mappingNeeded: true, headers, initialMapping: existingMapping ?? null };
-    }
-    mapping = existingMapping;
+    return { mappingNeeded: true, headers, initialMapping: await rememberedInitialMapping(headers) };
   }
 
   const mappedRows = applyOwnTagColumnMapping(headers, rows, mapping);
@@ -120,10 +114,7 @@ export async function confirmOwnTagUpload(
   const session = await requireSession();
   await requireDicoseRegistrationAccess(session, dicoseId);
 
-  await db
-    .insert(columnMapping)
-    .values({ headerSignature, mapping })
-    .onConflictDoUpdate({ target: columnMapping.headerSignature, set: { mapping } });
+  await rememberColumnMeanings(mapping);
 
   return importOwnTags(dicoseId, session.user.id, rows);
 }

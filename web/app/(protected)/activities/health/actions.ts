@@ -1,8 +1,5 @@
 "use server";
 
-import { inArray } from "drizzle-orm";
-import { db } from "@/db";
-import { columnHeaderMeaning } from "@/db/schema";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
@@ -21,6 +18,7 @@ import { listProductsByFarm, createProduct, type ProductCatalogEntry } from "@/l
 import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, getPaddockEstablishmentId, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { listTagsInPaddock } from "@/lib/dal/animal-access";
+import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/column-header-meaning";
 import {
   createReproductiveStatus,
   listReproductiveStatusesByFarm,
@@ -65,18 +63,11 @@ export async function previewHealthBatch(formData: FormData): Promise<PreviewRes
   if (mappingOverride) {
     mapping = JSON.parse(mappingOverride) as ColumnMapping[];
   } else {
-    // Column headers rarely repeat in the exact same combination/order
-    // across files, but the same individual header (e.g. "IDE") keeps
-    // showing up — so each header's meaning is remembered on its own and
-    // used to pre-fill the selects here, always for the user to look over
-    // and confirm rather than applying it silently.
-    const remembered = headers.length > 0
-      ? await db.select().from(columnHeaderMeaning).where(inArray(columnHeaderMeaning.header, headers))
-      : [];
-    const meaningByHeader = new Map(remembered.map((r) => [r.header, r.meaning as ColumnMapping["meaning"]]));
-    const initialMapping =
-      meaningByHeader.size > 0 ? headers.map((h) => ({ header: h, meaning: meaningByHeader.get(h) ?? "ignore" })) : null;
-    return { mappingNeeded: true, headers, initialMapping };
+    // Pre-fill the selects from whatever meaning each header was given
+    // before (possibly in an entirely different combination of columns),
+    // but always let the user look it over and confirm rather than
+    // applying it silently.
+    return { mappingNeeded: true, headers, initialMapping: await rememberedInitialMapping(headers) };
   }
 
   const hasDateColumn = mapping.some((m) => m.meaning === "date");
@@ -137,14 +128,7 @@ export async function confirmHealthBatchAction(input: {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, input.establishmentId);
 
-  await Promise.all(
-    input.mapping.map((m) =>
-      db
-        .insert(columnHeaderMeaning)
-        .values({ header: m.header, meaning: m.meaning })
-        .onConflictDoUpdate({ target: columnHeaderMeaning.header, set: { meaning: m.meaning, updatedAt: new Date() } })
-    )
-  );
+  await rememberColumnMeanings(input.mapping);
 
   await confirmHealthBatch({
     userId: session.user.id,
