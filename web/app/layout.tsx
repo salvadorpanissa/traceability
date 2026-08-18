@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { BackgroundLogo } from "@/components/background-logo";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/toast";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { parseLocaleCookie } from "@/lib/i18n/dictionaries";
 
@@ -41,6 +42,7 @@ export default async function RootLayout({
           <LocaleProvider initialLocale={locale}>
             <BackgroundLogo />
             <div className="flex-1">{children}</div>
+            <Toaster />
           </LocaleProvider>
         </ThemeProvider>
       </body>
