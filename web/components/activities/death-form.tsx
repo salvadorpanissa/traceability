@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/toast";
 import { lookupDeathCandidateAction, confirmDeathAction } from "@/app/(protected)/activities/death/actions";
 import type { AnimalCurrentStateWithNames } from "@/lib/dal/animal-access";
 
@@ -21,13 +22,11 @@ export function DeathForm({ initialTag, hideContext = false }: { initialTag?: st
   const [eventDate, setEventDate] = useState(todayISODate());
   const [cause, setCause] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSearch(searchTag: string) {
     const trimmed = searchTag.trim();
     if (trimmed.length === 0) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       const result = await lookupDeathCandidateAction(trimmed);
@@ -36,7 +35,7 @@ export function DeathForm({ initialTag, hideContext = false }: { initialTag?: st
       setSearched(true);
       setConfirmed(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -52,13 +51,13 @@ export function DeathForm({ initialTag, hideContext = false }: { initialTag?: st
 
   async function handleConfirm() {
     if (!searchedTag) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       await confirmDeathAction({ tag: searchedTag, eventDate, cause: cause.trim() || null });
       setConfirmed(true);
+      toast({ type: "success", title: "Muerte registrada." });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -137,7 +136,6 @@ export function DeathForm({ initialTag, hideContext = false }: { initialTag?: st
       ) : null}
 
       {confirmed ? <p>Muerte registrada.</p> : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

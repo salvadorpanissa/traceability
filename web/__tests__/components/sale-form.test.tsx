@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SaleForm } from "@/components/activities/sale-form";
+import { Toaster } from "@/components/ui/toast";
 
 afterEach(cleanup);
 
@@ -37,6 +38,12 @@ async function uploadGuide(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /subir/i }));
 }
 
+async function confirm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /confirmar/i }));
+  const confirmButtons = await screen.findAllByRole("button", { name: /confirmar/i });
+  await user.click(confirmButtons[confirmButtons.length - 1]);
+}
+
 describe("SaleForm", () => {
   it("shows the preview with origin establishment and guide number, and confirms with optional buyer/price/weight", async () => {
     render(<SaleForm />);
@@ -49,7 +56,7 @@ describe("SaleForm", () => {
     expect(screen.getByText("Campo Norte")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/comprador/i), "Cledinor S.A.");
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirm(user);
 
     const { confirmSaleBatchFromPdfAction } = await import("@/app/(protected)/activities/sale/actions");
     await waitFor(() => expect(confirmSaleBatchFromPdfAction).toHaveBeenCalled());
@@ -61,13 +68,18 @@ describe("SaleForm", () => {
       new Error("La caravana AR000000000300 figura en otro campo; no se puede vender desde acá")
     );
 
-    render(<SaleForm />);
+    render(
+      <>
+        <SaleForm />
+        <Toaster />
+      </>
+    );
     const user = userEvent.setup();
 
     await uploadGuide(user);
     await waitFor(() => expect(screen.getByText("AR000000000300")).toBeInTheDocument());
 
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirm(user);
 
     await waitFor(() => expect(screen.getByText(/figura en otro campo/)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
@@ -115,7 +127,7 @@ describe("SaleForm", () => {
     await user.click(screen.getByRole("checkbox", { name: /vender igual/i }));
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirm(user);
 
     const { confirmSaleBatchFromPdfAction } = await import("@/app/(protected)/activities/sale/actions");
     await waitFor(() => {
