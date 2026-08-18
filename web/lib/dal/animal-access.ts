@@ -427,7 +427,7 @@ export type AnimalHealthNoteEntry = {
   paddockName: string | null;
   productName: string;
   withdrawalEndDate: string | null;
-  notes: string;
+  notes: string | null;
 };
 
 type AnimalHealthNoteRow = {
@@ -436,20 +436,22 @@ type AnimalHealthNoteRow = {
   paddock_name: string | null;
   product_name: string;
   withdrawal_end_date: string | null;
-  notes: string;
+  notes: string | null;
 };
 
 // Sanidad (health) events are the only event type that carries a note
-// alongside a campo/potrero, product, and withdrawal period, so notes shown
-// with their sanidad context on the detail page come only from here — not
-// the flat, all-event-types aggregate on AnimalLookupDetail.notes. The campo
-// comes from the event's own establishment_id (where the animal was at the
-// time of that sanidad), not the animal's current one. The withdrawal end
-// date follows the same event_date + withdrawal_days computation as
-// findPendingWithdrawals (lib/dal/health-withdrawal.ts). Unguarded by
-// establishment access, same as animalTagHistoryFor: callers reach here only
-// after findAnimalDetailById already confirmed the caller can see this
-// animal.
+// alongside a campo/potrero, product, and withdrawal period, so sanidad
+// entries shown on the detail page come only from here — not the flat,
+// all-event-types aggregate on AnimalLookupDetail.notes. Includes events
+// without a note too (notes can be null), since the detail page also uses
+// the newest row here as "última sanidad" regardless of whether it has a
+// note. The campo comes from the event's own establishment_id (where the
+// animal was at the time of that sanidad), not the animal's current one.
+// The withdrawal end date follows the same event_date + withdrawal_days
+// computation as findPendingWithdrawals (lib/dal/health-withdrawal.ts).
+// Unguarded by establishment access, same as animalTagHistoryFor: callers
+// reach here only after findAnimalDetailById already confirmed the caller
+// can see this animal.
 export async function animalHealthNotesFor(animalId: string): Promise<AnimalHealthNoteEntry[]> {
   const result = await db.execute<AnimalHealthNoteRow>(sql`
     select
@@ -464,7 +466,7 @@ export async function animalHealthNotesFor(animalId: string): Promise<AnimalHeal
     join product pr on pr.id = eh.product_id
     left join establishment est on est.id = ev.establishment_id
     left join paddock p on p.id = eh.paddock_id
-    where ev.animal_id = ${animalId} and ev.notes is not null
+    where ev.animal_id = ${animalId}
       and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = ev.id)
     order by ev.event_date desc, ev.created_at desc
   `);

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import {
   previewSaleSettlement,
   linkSaleSettlementAction,
@@ -24,22 +26,21 @@ function describeBackfill(current: string | null, fromSettlement: string | null)
 export function SaleSettlementForm() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<SettlementPreviewResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [linked, setLinked] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.set("file", file);
       const result = await previewSaleSettlement(formData);
       setPreview(result);
-      if (!result.ok) setError(result.error);
+      if (!result.ok) toast({ type: "error", title: result.error });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -47,15 +48,15 @@ export function SaleSettlementForm() {
 
   async function handleLink() {
     if (!file || !preview?.ok) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.set("file", file);
       await linkSaleSettlementAction(formData);
       setLinked(true);
+      toast({ type: "success", title: "Liquidación vinculada." });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -76,15 +77,12 @@ export function SaleSettlementForm() {
           onChange={(selected) => {
             setFile(selected);
             setPreview(null);
-            setError(null);
           }}
         />
       </div>
       <Button type="button" disabled={!file || isSubmitting} onClick={handleUpload}>
         Subir
       </Button>
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {preview?.ok ? (
         <div className="flex flex-col gap-4">
@@ -112,9 +110,18 @@ export function SaleSettlementForm() {
               ))}
             </dd>
           </dl>
-          <Button type="button" disabled={isSubmitting} onClick={handleLink}>
+          <Button type="button" disabled={isSubmitting} onClick={() => setConfirmDialogOpen(true)}>
             Vincular
           </Button>
+          <ConfirmDialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+            title="¿Vincular liquidación?"
+            description="Se va a vincular esta liquidación con la venta correspondiente."
+            confirmLabel="Vincular"
+            cancelLabel="Cancelar"
+            onConfirm={handleLink}
+          />
         </div>
       ) : null}
     </div>

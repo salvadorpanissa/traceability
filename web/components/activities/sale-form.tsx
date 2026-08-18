@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
@@ -41,12 +43,11 @@ export function SaleForm() {
   const [weightKg, setWeightKg] = useState("");
   const [forcedWithdrawalTags, setForcedWithdrawalTags] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       const formData = new FormData();
@@ -56,9 +57,11 @@ export function SaleForm() {
       if (result.ok) {
         setRows(result.rows);
         setForcedWithdrawalTags(new Set());
+      } else {
+        toast({ type: "error", title: result.error });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -94,7 +97,6 @@ export function SaleForm() {
 
   async function handleConfirm() {
     if (!preview?.ok || !file) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       const formData = new FormData();
@@ -108,8 +110,9 @@ export function SaleForm() {
       formData.set("rows", JSON.stringify(rows));
       await confirmSaleBatchFromPdfAction(formData);
       setConfirmed(true);
+      toast({ type: "success", title: "Venta confirmada." });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -146,9 +149,6 @@ export function SaleForm() {
       <Button type="button" disabled={!file || isSubmitting} onClick={handleUpload}>
         Subir
       </Button>
-
-      {preview && !preview.ok ? <p className="text-sm text-destructive">{preview.error}</p> : null}
-      {error && !preview?.ok ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {preview?.ok ? (
         <div className="flex flex-col gap-4">
@@ -227,11 +227,20 @@ export function SaleForm() {
               !hasConfirmableRow ||
               hasUnresolvedWithdrawal
             }
-            onClick={handleConfirm}
+            onClick={() => setConfirmDialogOpen(true)}
           >
             Confirmar
           </Button>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ConfirmDialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+            title="¿Confirmar venta?"
+            description="Se va a registrar la venta de estas caravanas. Esta acción no se puede deshacer."
+            confirmLabel="Confirmar"
+            cancelLabel="Cancelar"
+            variant="destructive"
+            onConfirm={handleConfirm}
+          />
         </div>
       ) : null}
     </div>

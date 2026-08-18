@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AnimalDetail } from "@/components/animals/animal-detail";
+import { Toaster } from "@/components/ui/toast";
 import { updateAnimalAction } from "@/app/(protected)/animals/actions";
 import type { AnimalLookupDetail, AnimalTagHistoryEntry, AnimalHealthNoteEntry } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
@@ -91,26 +92,30 @@ describe("AnimalDetail", () => {
     expect(backLink.compareDocumentPosition(card as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("wraps the read-only summary and the edit form in a centered card, not the full page width", () => {
+  it("wraps the edit form and the summary card in a centered row, not the full page width", () => {
     const { container } = render(
       <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
 
-    const card = container.querySelector('[data-slot="card"]');
-    expect(card).not.toBeNull();
-    expect(card).toContainElement(screen.getByLabelText("Raza"));
-    expect(card?.className).toMatch(/max-w/);
-    expect(card?.className).toMatch(/mx-auto/);
+    const cards = container.querySelectorAll('[data-slot="card"]');
+    const editCard = Array.from(cards).find((card) => card.contains(screen.getByLabelText("Raza")));
+    expect(editCard).not.toBeUndefined();
+    const row = editCard?.parentElement?.parentElement;
+    expect(row?.className).toMatch(/max-w/);
+    expect(row?.className).toMatch(/mx-auto/);
   });
 
-  it("shows the caravana in large text inside the card, as 'Caravana: <tag>'", () => {
+  it("shows the caravana in the summary card, laid out like the other read-only fields", () => {
     const { container } = render(
       <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
 
     const card = container.querySelector('[data-slot="card"]');
-    const tagLine = within(card as HTMLElement).getByText("Caravana: AR1");
-    expect(tagLine.className).toMatch(/text-2xl|text-3xl|text-xl/);
+    const scoped = within(card as HTMLElement);
+    const tagLabel = scoped.getByText("Caravana");
+    const tagValue = scoped.getByText("AR1");
+    expect(tagLabel.className).not.toMatch(/text-2xl|text-3xl|text-xl/);
+    expect(tagLabel.nextElementSibling).toBe(tagValue);
   });
 
   it("shows the fields pre-filled and saves the edited ones", async () => {
@@ -127,6 +132,8 @@ describe("AnimalDetail", () => {
     await user.clear(screen.getByLabelText("Raza"));
     await user.type(screen.getByLabelText("Raza"), "Angus");
     await user.click(screen.getByRole("button", { name: "Guardar" }));
+    const confirmButtons = await screen.findAllByRole("button", { name: "Guardar" });
+    await user.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() =>
       expect(updateAnimalAction).toHaveBeenCalledWith(
@@ -142,47 +149,80 @@ describe("AnimalDetail", () => {
     });
     const user = userEvent.setup();
 
-    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+    render(
+      <>
+        <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+        <Toaster />
+      </>
+    );
     await user.click(screen.getByRole("button", { name: "Guardar" }));
+    const confirmButtons = await screen.findAllByRole("button", { name: "Guardar" });
+    await user.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(screen.getByText("Ese chip secundario ya pertenece a otro animal")).toBeInTheDocument());
   });
 
-  it("does not offer the caravana, campo, potrero, or sexo as editable fields", () => {
+  it("does not offer the caravana, campo, or potrero as editable fields, but does offer sexo", () => {
     render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
     expect(screen.queryByLabelText("Caravana")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Campo")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Potrero")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Sexo")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sexo")).toHaveValue("female");
   });
 
-  it("lists every past tag in a compact history table inside the card", () => {
+  it("does not offer the propietario as an editable field", () => {
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+
+    expect(screen.queryByLabelText("Propietario")).not.toBeInTheDocument();
+    expect(screen.getByText("SASG")).toBeInTheDocument();
+  });
+
+  it("lists every past tag in a compact history table inside the activity card", () => {
     const { container } = render(
       <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
-    const card = container.querySelector('[data-slot="card"]');
     const table = within(screen.getByTestId("tag-history-table"));
+    const cards = container.querySelectorAll('[data-slot="card"]');
+    const activityCard = Array.from(cards).find((card) => card.contains(screen.getByTestId("tag-history-table")));
 
-    expect(card).toContainElement(screen.getByTestId("tag-history-table"));
+    expect(activityCard).not.toBeUndefined();
     expect(table.getByText("AR1")).toBeInTheDocument();
     expect(table.getByText("AR0")).toBeInTheDocument();
     expect(table.getByText("1 feb. 2026")).toBeInTheDocument();
     expect(table.getByText("1 ene. 2026")).toBeInTheDocument();
   });
 
-  it("opens recaravaneo and registrar muerte modals for a living animal, after the Guardar button, using its current tag", async () => {
+  it("hides the tag history table when the animal was never retagged, but keeps the recaravanear/muerte buttons", () => {
+    render(
+      <AnimalDetail
+        animal={baseAnimal}
+        tagHistory={[tagHistory[0]]}
+        healthNotes={healthNotes}
+        owners={owners}
+        categories={categories}
+        reproductiveStatuses={reproductiveStatuses}
+        locale="es"
+      />
+    );
+
+    expect(screen.queryByTestId("tag-history-table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recaravanear" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Registrar muerte" })).toBeInTheDocument();
+  });
+
+  it("opens recaravaneo and registrar muerte modals for a living animal, next to the Guardar button in the edit card", async () => {
     const user = userEvent.setup();
     const { container } = render(
       <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
-    const card = container.querySelector('[data-slot="card"]');
     const saveButton = screen.getByRole("button", { name: "Guardar" });
     const retagButton = screen.getByRole("button", { name: "Recaravanear" });
     screen.getByRole("button", { name: "Registrar muerte" });
+    const cards = container.querySelectorAll('[data-slot="card"]');
+    const editCard = Array.from(cards).find((card) => card.contains(saveButton));
 
-    expect(card).toContainElement(retagButton);
-    expect(saveButton.compareDocumentPosition(retagButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(editCard).toContainElement(retagButton);
 
     await user.click(retagButton);
     expect(screen.queryByLabelText("Caravana actual")).not.toBeInTheDocument();
@@ -253,7 +293,7 @@ describe("AnimalDetail", () => {
   it("shows a fallback when there are no sanidad notes", () => {
     render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
-    expect(screen.getByText("Notas de sanidad")).toBeInTheDocument();
+    expect(screen.getByText("Sanidades realizadas")).toBeInTheDocument();
     expect(screen.getByText("Sin notas de sanidad.")).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SaleSettlementForm } from "@/components/activities/sale-settlement-form";
+import { Toaster } from "@/components/ui/toast";
 
 afterEach(cleanup);
 
@@ -45,6 +46,8 @@ describe("SaleSettlementForm", () => {
     expect(screen.getByText("5.2189 (se va a completar)")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /vincular/i }));
+    const confirmButtons = await screen.findAllByRole("button", { name: /vincular/i });
+    await user.click(confirmButtons[confirmButtons.length - 1]);
 
     const { linkSaleSettlementAction } = await import("@/app/(protected)/activities/sale-settlement/actions");
     await waitFor(() => expect(linkSaleSettlementAction).toHaveBeenCalled());
@@ -57,7 +60,12 @@ describe("SaleSettlementForm", () => {
       error: "No se encontró ninguna venta con la guía D000000",
     });
 
-    render(<SaleSettlementForm />);
+    render(
+      <>
+        <SaleSettlementForm />
+        <Toaster />
+      </>
+    );
     const user = userEvent.setup();
 
     await uploadSettlement(user);
