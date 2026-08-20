@@ -17,10 +17,9 @@ export default async function ImportSettingsPage() {
         </CardContent>
       </Card>
       <Tip>
-        Si la caravana del archivo ya existe, se actualizan sus datos generales. Antes de
-        confirmar podés revisar qué se va a crear y qué se va a editar. Un animal nuevo también
-        puede darse de alta directamente desde una actividad (Sanidad, Traslado, Venta), sin pasar
-        por esta importación.
+        Este formulario permite importar animales que usted tenga registrados en otra aplicación.
+        Si las caravanas existen en el sistema, se actualizan sus datos. Un animal nuevo también puede darse de
+        alta directamente desde una sanidad o traslado, sin pasar por esta importación.
       </Tip>
     </div>
   );
