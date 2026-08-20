@@ -97,6 +97,12 @@ async function continueToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Continuar" }));
 }
 
+async function confirmViaDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /confirmar/i }));
+  const confirmButtons = await screen.findAllByRole("button", { name: /confirmar/i });
+  await user.click(confirmButtons[confirmButtons.length - 1]);
+}
+
 describe("HealthForm", () => {
   it("shows the preview and lets the user add a product row", async () => {
     render(<HealthForm ownerCatalog={ownerCatalog} establishments={establishments} />);
@@ -240,7 +246,7 @@ describe("HealthForm", () => {
     await user.selectOptions(screen.getByLabelText("Usar un propietario existente"), "existing-owner");
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirmViaDialog(user);
 
     const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
     await waitFor(() =>
@@ -313,7 +319,7 @@ describe("HealthForm", () => {
     await user.click(screen.getByRole("button", { name: /no, dej/i }));
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirmViaDialog(user);
 
     const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
     await waitFor(() =>
@@ -357,7 +363,7 @@ describe("HealthForm", () => {
     await user.click(screen.getByRole("button", { name: /sí, trasladarlas/i }));
     expect(screen.getByRole("button", { name: /confirmar/i })).not.toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /confirmar/i }));
+    await confirmViaDialog(user);
 
     const { confirmHealthBatchAction } = await import("@/app/(protected)/activities/health/actions");
     await waitFor(() =>
