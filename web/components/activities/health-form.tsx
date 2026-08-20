@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { ColumnMapper } from "@/components/activities/column-mapper";
+import { StepHeading } from "@/components/activities/step-heading";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
@@ -76,14 +79,6 @@ const STEP_LABELS: Record<HealthFormStep, string> = {
   review: "Caravanas y confirmación",
 };
 
-function StepHeading({ step, position }: { step: HealthFormStep; position: number }) {
-  return (
-    <p className="border-t border-border pt-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-      Paso {position} · {STEP_LABELS[step]}
-    </p>
-  );
-}
-
 function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   const names: string[] = [];
   for (const row of rows) {
@@ -114,6 +109,8 @@ export function HealthForm({
   const [products, setProducts] = useState<HealthProduct[]>([emptyProduct()]);
   const [suggestedNames, setSuggestedNames] = useState<(string | null)[]>([null]);
   const [confirmed, setConfirmed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
   const [paddockTags, setPaddockTags] = useState<string[]>([]);
   const [reproductiveStatusCatalog, setReproductiveStatusCatalog] = useState<ReproductiveStatusCatalogEntry[]>([]);
@@ -393,18 +390,31 @@ export function HealthForm({
   }
 
 
-  async function handleConfirm() {
+  async function doConfirm() {
     if (step !== "review" || !workingMapping) return;
-    await confirmHealthBatchAction({
-      mapping: workingMapping,
-      products,
-      rows,
-      paddockId,
-      establishmentId,
-      transferMismatchedToPaddock: transferMismatched ?? false,
-    });
-    clearHealthFormDraft();
-    setConfirmed(true);
+    setIsSubmitting(true);
+    try {
+      await confirmHealthBatchAction({
+        mapping: workingMapping,
+        products,
+        rows,
+        paddockId,
+        establishmentId,
+        transferMismatchedToPaddock: transferMismatched ?? false,
+      });
+      clearHealthFormDraft();
+      setConfirmed(true);
+      toast({ type: "success", title: "Lote confirmado." });
+    } catch (err) {
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleConfirm() {
+    if (step !== "review" || !workingMapping) return;
+    setConfirmDialogOpen(true);
   }
 
   const mismatches = useMemo(() => findPaddockMismatches(rows, paddockId, establishmentId), [rows, paddockId, establishmentId]);
@@ -495,7 +505,7 @@ export function HealthForm({
 
       {step === "mapping" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading step="mapping" position={stepHistory.length + 1} />
+          <StepHeading label={STEP_LABELS.mapping} position={stepHistory.length + 1} />
           <ColumnMapper
             headers={headers}
             availableMeanings={[
@@ -524,7 +534,7 @@ export function HealthForm({
 
       {step === "legend" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading step="legend" position={stepHistory.length + 1} />
+          <StepHeading label={STEP_LABELS.legend} position={stepHistory.length + 1} />
           <ReproductiveStatusLegend
             distinctValues={distinctValues}
             catalog={reproductiveStatusCatalog}
@@ -547,7 +557,7 @@ export function HealthForm({
 
       {step === "eventDate" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading step="eventDate" position={stepHistory.length + 1} />
+          <StepHeading label={STEP_LABELS.eventDate} position={stepHistory.length + 1} />
           <p className="text-sm text-muted-foreground">
             El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
           </p>
@@ -568,7 +578,7 @@ export function HealthForm({
 
       {step === "products" ? (
         <div className="flex flex-col gap-4">
-          <StepHeading step="products" position={stepHistory.length + 1} />
+          <StepHeading label={STEP_LABELS.products} position={stepHistory.length + 1} />
           <ProductListEditor
             catalog={catalog}
             products={products}
@@ -591,7 +601,7 @@ export function HealthForm({
 
       {step === "review" ? (
         <div className="flex flex-col gap-4">
-          <StepHeading step="review" position={stepHistory.length + 1} />
+          <StepHeading label={STEP_LABELS.review} position={stepHistory.length + 1} />
           <PendingOwnerEditor
             pendingNames={pendingNames}
             ownerCatalog={ownerCatalog}
@@ -618,6 +628,7 @@ export function HealthForm({
             <Button
               type="button"
               disabled={
+                isSubmitting ||
                 rows.some((r) => r.status === "error") ||
                 hasIncompleteProduct ||
                 pendingNames.length > 0 ||
@@ -629,6 +640,16 @@ export function HealthForm({
               Confirmar
             </Button>
           </div>
+          <ConfirmDialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+            title="¿Confirmar sanidad?"
+            description="Se va a registrar este lote de sanidad. Esta acción no se puede deshacer."
+            confirmLabel="Confirmar"
+            cancelLabel="Cancelar"
+            variant="destructive"
+            onConfirm={doConfirm}
+          />
         </div>
       ) : null}
         </CardContent>

@@ -273,6 +273,12 @@ describe("confirmRecategorizeBatchAction", () => {
       "AR1",
       novillo.id,
     );
+    // targetCategoryIdBySex resolves off the animal's fresh DB sex, so this
+    // animal needs a real sex recorded.
+    await testDb
+      .update(animal)
+      .set({ sex: "male" })
+      .where(eq(animal.id, createdAnimal.id));
     // confirmRecategorizeBatch re-reads campo/categoría from
     // animal_current_state, so the seeded events have to be visible there.
     await refreshDerivedState();
@@ -283,7 +289,7 @@ describe("confirmRecategorizeBatchAction", () => {
         { header: "Fecha", meaning: "date" },
       ],
       farmId: seededFarmGroup.id,
-      targetCategoryId: novilloPlus3.id,
+      targetCategoryIdBySex: { male: novilloPlus3.id, female: null },
       rows: [
         {
           tag: "AR1",
@@ -294,11 +300,10 @@ describe("confirmRecategorizeBatchAction", () => {
           currentEstablishmentId: seededFarm.id,
           currentCategoryId: novillo.id,
           currentCategoryName: "Novillo",
-          sex: null,
+          sex: "male",
         },
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     // seedAnimalAtFarm already wrote one "initial" recategorize event (novillo

@@ -58,10 +58,9 @@ export async function previewRecategorizeBatch(formData: FormData): Promise<Prev
 export async function confirmRecategorizeBatchAction(input: {
   mapping: ColumnMapping[];
   farmId: string;
-  targetCategoryId: string;
+  targetCategoryIdBySex: { male: string | null; female: string | null };
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
-  sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
   const session = await requireSession();
 
@@ -71,10 +70,9 @@ export async function confirmRecategorizeBatchAction(input: {
     userId: session.user.id,
     role: session.user.role,
     operatingFarmId: input.farmId,
-    targetCategoryId: input.targetCategoryId,
+    targetCategoryIdBySex: input.targetCategoryIdBySex,
     rows: input.rows,
     unresolvableDecisions: input.unresolvableDecisions,
-    sexMismatchDecisions: input.sexMismatchDecisions,
   });
 }
 

@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { batchOperation, category, event, eventRecategorize } from "@/db/schema";
 import { requireEstablishmentAccess, requireFarmAccess } from "@/lib/dal/farm-access";
@@ -60,12 +60,11 @@ export async function confirmRecategorizeBatch(input: {
   userId: string;
   role: string | undefined;
   operatingFarmId: string;
-  targetCategoryId: string;
+  targetCategoryIdBySex: { male: string | null; female: string | null };
   rows: RecategorizeResolvedRow[];
   unresolvableDecisions: Record<string, UnresolvableDecision>;
-  sexMismatchDecisions: Record<string, UnresolvableDecision>;
 }): Promise<void> {
-  const { userId, role, operatingFarmId, targetCategoryId, rows, unresolvableDecisions, sexMismatchDecisions } = input;
+  const { userId, role, operatingFarmId, targetCategoryIdBySex, rows, unresolvableDecisions } = input;
 
   await requireFarmAccess(userId, role, operatingFarmId);
 
@@ -73,11 +72,28 @@ export async function confirmRecategorizeBatch(input: {
     throw new Error("El lote tiene filas con error; no se puede confirmar");
   }
 
-  const [targetCategoryRow] = await db.select({ sex: category.sex, farmId: category.farmId }).from(category).where(eq(category.id, targetCategoryId));
-  if (!targetCategoryRow || targetCategoryRow.farmId !== operatingFarmId) {
-    throw new Error("La categoría destino no pertenece a este grupo de campos");
+  const targetCategoryIds = [targetCategoryIdBySex.male, targetCategoryIdBySex.female].filter(
+    (id): id is string => id !== null
+  );
+  if (targetCategoryIds.length === 0) {
+    throw new Error("Elegí al menos una categoría destino");
   }
-  const targetCategorySex = targetCategoryRow.sex;
+  const targetCategoryRows =
+    targetCategoryIds.length > 0
+      ? await db.select({ id: category.id, farmId: category.farmId }).from(category).where(inArray(category.id, targetCategoryIds))
+      : [];
+  const targetCategoryFarmById = new Map(targetCategoryRows.map((c) => [c.id, c.farmId]));
+  for (const id of targetCategoryIds) {
+    if (targetCategoryFarmById.get(id) !== operatingFarmId) {
+      throw new Error("La categoría destino no pertenece a este grupo de campos");
+    }
+  }
+
+  function targetCategoryForSex(sex: "male" | "female" | null): string | null {
+    if (sex === "male") return targetCategoryIdBySex.male;
+    if (sex === "female") return targetCategoryIdBySex.female;
+    return null;
+  }
 
   const animalIds = [...new Set(rows.filter((row) => row.status !== "error").map((row) => row.animalId))];
   const freshStateByAnimalId = await loadFreshState(animalIds);
@@ -89,10 +105,6 @@ export async function confirmRecategorizeBatch(input: {
         .from(category)
         .where(and(isNotNull(category.minAgeMonths), eq(category.farmId, operatingFarmId)))
     : [];
-
-  function isSexMismatch(animalSex: "male" | "female" | null): boolean {
-    return targetCategorySex !== null && animalSex !== null && animalSex !== targetCategorySex;
-  }
 
   const plannedChanges: PlannedChange[] = [];
   for (const row of rows) {
@@ -113,11 +125,8 @@ export async function confirmRecategorizeBatch(input: {
       if (state.current_category_id === null || state.current_category_id !== row.currentCategoryId) {
         throw new Error(STALE_BATCH_ERROR);
       }
-      if (state.current_category_id === targetCategoryId) continue;
-      if (isSexMismatch(state.sex)) {
-        const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
-        if (sexDecision === "skip") continue;
-      }
+      const targetCategoryId = targetCategoryForSex(state.sex);
+      if (!targetCategoryId || state.current_category_id === targetCategoryId) continue;
       plannedChanges.push({
         animalId: row.animalId,
         establishmentId,
@@ -165,10 +174,8 @@ export async function confirmRecategorizeBatch(input: {
     if (resolvedCategoryId) throw new Error(STALE_BATCH_ERROR);
     const decision = unresolvableDecisions[row.animalId] ?? "skip";
     if (decision === "skip") continue;
-    if (isSexMismatch(state.sex)) {
-      const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
-      if (sexDecision === "skip") continue;
-    }
+    const targetCategoryId = targetCategoryForSex(state.sex);
+    if (!targetCategoryId) continue;
     plannedChanges.push({
       animalId: row.animalId,
       establishmentId,

@@ -56,6 +56,10 @@ const STEP_LABELS: Record<TransferFormStep, string> = {
   review: "Caravanas y confirmación",
 };
 
+function todayISODate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function TransferForm({ establishments }: { establishments: { id: string; name: string }[] }) {
   const [destinationEstablishmentId, setDestinationEstablishmentId] = useState("");
   const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
@@ -119,7 +123,10 @@ export function TransferForm({ establishments }: { establishments: { id: string;
         return;
       }
       setWorkingMapping(result.mapping);
-      if (result.eventDateNeeded) return;
+      if (result.eventDateNeeded) {
+        setEventDate((prev) => prev || todayISODate());
+        return;
+      }
       setRows(result.rows);
     } catch (err) {
       toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });

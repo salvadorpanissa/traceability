@@ -139,8 +139,10 @@ describe("TransferForm", () => {
     await selectDestinationFarmAndUploadFile(user);
 
     await waitFor(() => expect(screen.getByLabelText("Fecha del lote")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /continuar/i })).toBeDisabled();
+    // Prefilled with today's date, so Continuar starts enabled.
+    expect(screen.getByRole("button", { name: /continuar/i })).not.toBeDisabled();
 
+    await user.clear(screen.getByLabelText("Fecha del lote"));
     await user.type(screen.getByLabelText("Fecha del lote"), "2026-04-01");
     await user.click(screen.getByRole("button", { name: /continuar/i }));
 

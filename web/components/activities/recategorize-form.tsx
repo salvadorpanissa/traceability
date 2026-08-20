@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { ColumnMapper } from "@/components/activities/column-mapper";
+import { StepHeading } from "@/components/activities/step-heading";
 import { RecategorizePreviewTable } from "@/components/activities/recategorize-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import {
@@ -18,21 +21,49 @@ import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 
+type RecategorizeFormStep = "mapping" | "eventDate" | "review";
+
+function stepFromPreview(result: PreviewResult): RecategorizeFormStep {
+  if (result.mappingNeeded) return "mapping";
+  if (result.eventDateNeeded) return "eventDate";
+  return "review";
+}
+
+const STEP_LABELS: Record<RecategorizeFormStep, string> = {
+  mapping: "Mapeo de columnas",
+  eventDate: "Fecha del lote",
+  review: "Caravanas y confirmación",
+};
+
+function todayISODate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// A category can be sex-specific or apply to both (sex === null); the
+// dropdown for each sex offers its own categories plus the sex-agnostic ones.
+function categoriesForSex(categories: CategoryCatalogEntry[], sex: "male" | "female"): CategoryCatalogEntry[] {
+  return categories.filter((c) => c.sex === null || c.sex === sex);
+}
+
 export function RecategorizeForm({ farms }: { farms: { id: string; name: string }[] }) {
   const [farmId, setFarmId] = useState(farms.length === 1 ? farms[0].id : "");
   const [categories, setCategories] = useState<CategoryCatalogEntry[]>([]);
   const [categoryLoadError, setCategoryLoadError] = useState("");
-  const [targetCategoryId, setTargetCategoryId] = useState("");
+  const [maleTargetCategoryId, setMaleTargetCategoryId] = useState("");
+  const [femaleTargetCategoryId, setFemaleTargetCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<RecategorizeResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [globalUnresolvableDefault, setGlobalUnresolvableDefault] = useState<UnresolvableDecision>("skip");
   const [unresolvableOverrides, setUnresolvableOverrides] = useState<Record<string, UnresolvableDecision>>({});
-  const [globalSexMismatchDefault, setGlobalSexMismatchDefault] = useState<UnresolvableDecision>("skip");
-  const [sexMismatchOverrides, setSexMismatchOverrides] = useState<Record<string, UnresolvableDecision>>({});
+  const [step, setStep] = useState<RecategorizeFormStep | null>(null);
+  const [stepHistory, setStepHistory] = useState<RecategorizeFormStep[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [workingMapping, setWorkingMapping] = useState<ColumnMapping[] | null>(null);
 
   async function loadCategories(selectedFarmId: string) {
     setCategoryLoadError("");
@@ -50,7 +81,8 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
 
   async function handleFarmChange(selectedFarmId: string) {
     setFarmId(selectedFarmId);
-    setTargetCategoryId("");
+    setMaleTargetCategoryId("");
+    setFemaleTargetCategoryId("");
     handleFileChange(null);
     await loadCategories(selectedFarmId);
   }
@@ -67,26 +99,50 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
     setPreview(null);
     setRows([]);
     setUnresolvableOverrides({});
-    setSexMismatchOverrides({});
+    setStep(null);
+    setStepHistory([]);
+    setHeaders([]);
+    setWorkingMapping(null);
   }
 
   async function runPreview(mapping?: ColumnMapping[]) {
     if (!file || !farmId) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    formData.set("eventDate", eventDate);
-    formData.set("farmId", farmId);
-    if (mapping) formData.set("mapping", JSON.stringify(mapping));
-    const result = await previewRecategorizeBatch(formData);
-    setPreview(result);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("eventDate", eventDate);
+      formData.set("farmId", farmId);
+      if (mapping) formData.set("mapping", JSON.stringify(mapping));
+      const result = await previewRecategorizeBatch(formData);
+      setStepHistory((prev) => (step ? [...prev, step] : prev));
+      setStep(stepFromPreview(result));
+      setPreview(result);
+      if (result.mappingNeeded) {
+        setHeaders(result.headers);
+        return;
+      }
+      setWorkingMapping(result.mapping);
+      if (result.eventDateNeeded) {
+        setEventDate((prev) => prev || todayISODate());
+        return;
+      }
       setRows(result.rows);
+    } catch (err) {
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     }
   }
 
+  function handleBack() {
+    setStepHistory((prev) => {
+      if (prev.length === 0) return prev;
+      setStep(prev[prev.length - 1]);
+      return prev.slice(0, -1);
+    });
+  }
+
   async function handleSubmitEventDate() {
-    if (!preview || preview.mappingNeeded || !preview.eventDateNeeded) return;
-    await runPreview(preview.mapping);
+    if (step !== "eventDate" || !workingMapping) return;
+    await runPreview(workingMapping);
   }
 
   const unresolvableDecisions = useMemo(() => {
@@ -99,170 +155,172 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
     return decisions;
   }, [rows, unresolvableOverrides, globalUnresolvableDefault]);
 
-  const targetCategorySex = categories.find((c) => c.id === targetCategoryId)?.sex ?? null;
-
-  // A row only needs a sex decision when it's actually headed for
-  // targetCategoryId (an "existing" row changing category, or an
-  // "age-unresolvable" row whose age decision is "assignTarget") AND both
-  // sexes are known and differ — resolveCategoryForAge already guarantees
-  // "age-resolved" rows can never mismatch, so they're never in scope here.
-  const sexMismatchAnimalIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (!targetCategorySex) return ids;
-    for (const row of rows) {
-      if (
-        row.status === "existing" &&
-        row.currentCategoryId !== targetCategoryId &&
-        row.sex &&
-        row.sex !== targetCategorySex
-      ) {
-        ids.add(row.animalId);
-      }
-      if (
-        row.status === "age-unresolvable" &&
-        unresolvableDecisions[row.animalId] === "assignTarget" &&
-        row.sex &&
-        row.sex !== targetCategorySex
-      ) {
-        ids.add(row.animalId);
-      }
-    }
-    return ids;
-  }, [rows, targetCategoryId, targetCategorySex, unresolvableDecisions]);
-
-  const sexMismatchDecisions = useMemo(() => {
-    const decisions: Record<string, UnresolvableDecision> = {};
-    for (const animalId of sexMismatchAnimalIds) {
-      decisions[animalId] = sexMismatchOverrides[animalId] ?? globalSexMismatchDefault;
-    }
-    return decisions;
-  }, [sexMismatchAnimalIds, sexMismatchOverrides, globalSexMismatchDefault]);
-
   function handleDecisionChange(animalId: string, decision: UnresolvableDecision) {
     setUnresolvableOverrides((prev) => ({ ...prev, [animalId]: decision }));
   }
 
-  function handleSexMismatchDecisionChange(animalId: string, decision: UnresolvableDecision) {
-    setSexMismatchOverrides((prev) => ({ ...prev, [animalId]: decision }));
+  function targetCategoryIdForSex(sex: "male" | "female" | null): string | null {
+    if (sex === "male") return maleTargetCategoryId || null;
+    if (sex === "female") return femaleTargetCategoryId || null;
+    return null;
   }
 
-  async function handleConfirm() {
-    if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
-    // Confirm now fails for routine reasons (a campo the user can't touch, a
-    // preview that went stale, one campo of several failing to write), so the
-    // message has to reach the user instead of becoming an unhandled rejection
-    // that silently deadens the button.
-    setConfirmError(null);
+  async function doConfirm() {
+    if (step !== "review" || !workingMapping) return;
+    setIsSubmitting(true);
     try {
       await confirmRecategorizeBatchAction({
-        mapping: preview.mapping,
+        mapping: workingMapping,
         farmId,
-        targetCategoryId,
+        targetCategoryIdBySex: { male: maleTargetCategoryId || null, female: femaleTargetCategoryId || null },
         rows,
         unresolvableDecisions,
-        sexMismatchDecisions,
       });
       setConfirmed(true);
-    } catch (error) {
-      setConfirmError(error instanceof Error ? error.message : "No se pudo confirmar el lote.");
+      toast({ type: "success", title: "Lote confirmado." });
+    } catch (err) {
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
+    } finally {
+      setIsSubmitting(false);
     }
+  }
+
+  function handleConfirm() {
+    if (step !== "review" || !workingMapping) return;
+    setConfirmDialogOpen(true);
   }
 
   if (confirmed) {
     return <p>Lote confirmado.</p>;
   }
 
-  const targetCategoryName = categories.find((c) => c.id === targetCategoryId)?.name ?? "";
+  const maleCategoryName = categories.find((c) => c.id === maleTargetCategoryId)?.name ?? null;
+  const femaleCategoryName = categories.find((c) => c.id === femaleTargetCategoryId)?.name ?? null;
   const hasUnresolvableRows = rows.some((r) => r.status === "age-unresolvable");
-  const hasSexMismatchRows = sexMismatchAnimalIds.size > 0;
   const hasConfirmableRow = rows.some((r) => {
     if (r.status === "age-resolved") return true;
     if (r.status === "existing") {
-      if (r.currentCategoryId === targetCategoryId) return false;
-      if (sexMismatchAnimalIds.has(r.animalId)) return sexMismatchDecisions[r.animalId] === "assignTarget";
+      const target = targetCategoryIdForSex(r.sex);
+      if (!target || r.currentCategoryId === target) return false;
       return true;
     }
     if (r.status === "age-unresolvable") {
       if (unresolvableDecisions[r.animalId] !== "assignTarget") return false;
-      if (sexMismatchAnimalIds.has(r.animalId)) return sexMismatchDecisions[r.animalId] === "assignTarget";
-      return true;
+      return !!targetCategoryIdForSex(r.sex);
     }
     return false;
   });
 
   return (
     <div className="flex flex-col gap-4">
-      {farms.length > 1 ? (
+      {!step ? (
+        <>
+          {farms.length > 1 ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="farm">Campo</Label>
+              <select
+                id="farm"
+                aria-label="Campo"
+                value={farmId}
+                onChange={(e) => handleFarmChange(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Elegir campo</option>
+                {farms.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {categoryLoadError ? <p className="text-sm text-destructive">{categoryLoadError}</p> : null}
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="file">Archivo</Label>
+            <FileInput id="file" disabled={!farmId} file={file} onChange={handleFileChange} />
+          </div>
+          <Button type="button" disabled={!farmId || !file} onClick={() => runPreview()}>
+            Subir
+          </Button>
+        </>
+      ) : null}
+
+      {step === "mapping" ? (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="farm">Campo</Label>
-          <select
-            id="farm"
-            aria-label="Campo"
-            value={farmId}
-            onChange={(e) => handleFarmChange(e.target.value)}
-            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-          >
-            <option value="">Elegir campo</option>
-            {farms.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
+          <StepHeading label={STEP_LABELS.mapping} position={stepHistory.length + 1} />
+          <ColumnMapper
+            headers={headers}
+            availableMeanings={["tag", "date", "notes", "secondaryTag", "breed", "ignore"]}
+            initialMapping={workingMapping ?? (preview?.mappingNeeded ? preview.initialMapping : null)}
+            onSubmit={(mapping) => runPreview(mapping)}
+          />
+          {stepHistory.length > 0 ? (
+            <Button type="button" variant="outline" onClick={handleBack}>
+              Atrás
+            </Button>
+          ) : null}
         </div>
       ) : null}
-      {categoryLoadError ? <p className="text-sm text-destructive">{categoryLoadError}</p> : null}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="targetCategoryId">Categoría destino</Label>
-        <select
-          id="targetCategoryId"
-          value={targetCategoryId}
-          onChange={(e) => setTargetCategoryId(e.target.value)}
-          disabled={!farmId}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Elegir categoría</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="file">Archivo</Label>
-        <FileInput id="file" disabled={!farmId} file={file} onChange={handleFileChange} />
-      </div>
-      <Button type="button" disabled={!farmId || !targetCategoryId || !file} onClick={() => runPreview()}>
-        Subir
-      </Button>
-
-      {preview?.mappingNeeded ? (
-        <ColumnMapper
-          headers={preview.headers}
-          availableMeanings={["tag", "date", "notes", "secondaryTag", "breed", "ignore"]}
-          initialMapping={preview.initialMapping}
-          onSubmit={(mapping) => runPreview(mapping)}
-        />
-      ) : null}
-
-      {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
+      {step === "eventDate" ? (
         <div className="flex flex-col gap-2">
+          <StepHeading label={STEP_LABELS.eventDate} position={stepHistory.length + 1} />
           <p className="text-sm text-muted-foreground">
             El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
           </p>
           <Label htmlFor="eventDate">Fecha del lote</Label>
           <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-          <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
-            Continuar
-          </Button>
+          <div className="flex gap-2">
+            {stepHistory.length > 0 ? (
+              <Button type="button" variant="outline" onClick={handleBack}>
+                Atrás
+              </Button>
+            ) : null}
+            <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
+              Continuar
+            </Button>
+          </div>
         </div>
       ) : null}
 
-      {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
+      {step === "review" ? (
         <div className="flex flex-col gap-4">
+          <StepHeading label={STEP_LABELS.review} position={stepHistory.length + 1} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="maleTargetCategoryId">Categoría destino (machos)</Label>
+              <select
+                id="maleTargetCategoryId"
+                value={maleTargetCategoryId}
+                onChange={(e) => setMaleTargetCategoryId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Sin cambios</option>
+                {categoriesForSex(categories, "male").map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="femaleTargetCategoryId">Categoría destino (hembras)</Label>
+              <select
+                id="femaleTargetCategoryId"
+                value={femaleTargetCategoryId}
+                onChange={(e) => setFemaleTargetCategoryId(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Sin cambios</option>
+                {categoriesForSex(categories, "female").map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           {hasUnresolvableRows ? (
             <div className="flex flex-col gap-1 text-sm">
               <p>Animales sin categoría y sin edad calculable:</p>
@@ -286,48 +344,43 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
               </div>
             </div>
           ) : null}
-          {hasSexMismatchRows ? (
-            <div className="flex flex-col gap-1 text-sm">
-              <p>Animales de sexo distinto al de la categoría destino:</p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={globalSexMismatchDefault === "skip" ? "default" : "outline"}
-                  onClick={() => setGlobalSexMismatchDefault("skip")}
-                >
-                  Omitir
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={globalSexMismatchDefault === "assignTarget" ? "default" : "outline"}
-                  onClick={() => setGlobalSexMismatchDefault("assignTarget")}
-                >
-                  Asignar igual
-                </Button>
-              </div>
-            </div>
-          ) : null}
           <ScrollablePreviewTable>
             <RecategorizePreviewTable
               rows={rows}
-              targetCategoryName={targetCategoryName}
+              targetCategoryNameBySex={{ male: maleCategoryName, female: femaleCategoryName }}
               unresolvableDecisions={unresolvableDecisions}
               onDecisionChange={handleDecisionChange}
-              sexMismatchAnimalIds={sexMismatchAnimalIds}
-              sexMismatchDecisions={sexMismatchDecisions}
-              onSexMismatchDecisionChange={handleSexMismatchDecisionChange}
             />
           </ScrollablePreviewTable>
-          <Button
-            type="button"
-            disabled={rows.some((r) => r.status === "error") || !hasConfirmableRow}
-            onClick={handleConfirm}
-          >
-            Confirmar
-          </Button>
-          {confirmError ? <p className="text-sm text-destructive">{confirmError}</p> : null}
+          <div className="flex gap-2">
+            {stepHistory.length > 0 ? (
+              <Button type="button" variant="outline" onClick={handleBack}>
+                Atrás
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              disabled={
+                isSubmitting ||
+                (!maleTargetCategoryId && !femaleTargetCategoryId) ||
+                rows.some((r) => r.status === "error") ||
+                !hasConfirmableRow
+              }
+              onClick={handleConfirm}
+            >
+              Confirmar
+            </Button>
+          </div>
+          <ConfirmDialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+            title="¿Confirmar recategorización?"
+            description="Se va a registrar este lote de recategorización. Esta acción no se puede deshacer."
+            confirmLabel="Confirmar"
+            cancelLabel="Cancelar"
+            variant="destructive"
+            onConfirm={doConfirm}
+          />
         </div>
       ) : null}
     </div>

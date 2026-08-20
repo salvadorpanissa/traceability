@@ -216,6 +216,7 @@ describe("confirmRecategorizeBatch", () => {
       establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: novillo.id,
+      sex: "male",
     });
     await refreshDerivedState();
 
@@ -223,12 +224,11 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novilloPlus3.id,
+      targetCategoryIdBySex: { male: novilloPlus3.id, female: null },
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: novillo.id }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -267,6 +267,7 @@ describe("confirmRecategorizeBatch", () => {
       establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: other.id,
+      sex: "male",
     });
     await refreshDerivedState();
 
@@ -274,7 +275,7 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [
         existingRow(seededFarm.id, {
           animalId: unchangedAnimalId,
@@ -288,7 +289,6 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(unchangedAnimalId)).toHaveLength(0);
@@ -316,7 +316,7 @@ describe("confirmRecategorizeBatch", () => {
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novillo.id,
+        targetCategoryIdBySex: { male: novillo.id, female: null },
         rows: [
           existingRow(seededFarm.id, {
             animalId,
@@ -324,7 +324,6 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "Ningún animal cambia de categoría; no se puede confirmar",
@@ -355,7 +354,7 @@ describe("confirmRecategorizeBatch", () => {
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novillo.id,
+        targetCategoryIdBySex: { male: novillo.id, female: null },
         rows: [
           existingRow(seededFarm.id, {
             animalId,
@@ -370,7 +369,6 @@ describe("confirmRecategorizeBatch", () => {
           },
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow("El lote tiene filas con error; no se puede confirmar");
 
@@ -399,7 +397,7 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [
         ageResolvedRow(seededFarm.id, {
           animalId,
@@ -407,7 +405,6 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -432,6 +429,7 @@ describe("confirmRecategorizeBatch", () => {
     const animalId = await seedAnimalAtFarm({
       establishmentId: seededFarm.id,
       createdBy: admin.id,
+      sex: "male",
     });
     await refreshDerivedState();
 
@@ -439,10 +437,9 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [unresolvableRow(seededFarm.id, { animalId })],
       unresolvableDecisions: { [animalId]: "assignTarget" },
-      sexMismatchDecisions: {},
     });
 
     const events = await newEventsFor(animalId);
@@ -480,7 +477,7 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [
         unresolvableRow(seededFarm.id, {
           animalId: skippedAnimalId,
@@ -494,7 +491,6 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(skippedAnimalId)).toHaveLength(0);
@@ -516,6 +512,7 @@ describe("confirmRecategorizeBatch", () => {
       establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: other.id,
+      sex: "male",
     });
     await refreshDerivedState();
 
@@ -523,7 +520,7 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [
         existingRow(seededFarm.id, {
           animalId,
@@ -532,7 +529,6 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     const batches = await recategorizeBatches();
@@ -562,11 +558,13 @@ describe("confirmRecategorizeBatch", () => {
       establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: other.id,
+      sex: "male",
     });
     const animalOnSecond = await seedAnimalAtFarm({
       establishmentId: otherEstablishment.id,
       createdBy: admin.id,
       categoryId: other.id,
+      sex: "male",
     });
     await refreshDerivedState();
 
@@ -574,13 +572,12 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: null },
       rows: [
         existingRow(seededFarm.id, { animalId: animalOnFirst, currentCategoryId: other.id, tag: "AR1" }),
         existingRow(otherEstablishment.id, { animalId: animalOnSecond, currentCategoryId: other.id, tag: "AR2" }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(animalOnFirst)).toHaveLength(1);
@@ -626,7 +623,7 @@ describe("confirmRecategorizeBatch", () => {
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novillo.id,
+        targetCategoryIdBySex: { male: novillo.id, female: null },
         rows: [
           existingRow(farmA.id, {
             animalId: animalOnB,
@@ -635,7 +632,6 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "El lote cambió desde que se generó la vista previa; volvé a subir el archivo.",
@@ -697,12 +693,11 @@ describe("confirmRecategorizeBatch", () => {
         userId: manager.id,
         role: "manager",
         operatingFarmId: otherFarmGroup.id,
-        targetCategoryId: novillo.id,
+        targetCategoryIdBySex: { male: novillo.id, female: null },
         rows: [
           existingRow(otherFarm.id, { animalId, currentCategoryId: other.id }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow("No tenés acceso a este grupo de campos");
   });
@@ -768,7 +763,7 @@ describe("confirmRecategorizeBatch", () => {
         userId: manager.id,
         role: "manager",
         operatingFarmId: accessibleFarmGroup.id,
-        targetCategoryId: novillo.id,
+        targetCategoryIdBySex: { male: novillo.id, female: null },
         // ...but the payload claims it's on the accessible one.
         rows: [
           existingRow(accessibleFarm.id, {
@@ -777,7 +772,6 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "El lote cambió desde que se generó la vista previa; volvé a subir el archivo.",
@@ -814,7 +808,7 @@ describe("confirmRecategorizeBatch", () => {
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: target.id,
+        targetCategoryIdBySex: { male: target.id, female: null },
         rows: [
           existingRow(seededFarm.id, {
             animalId,
@@ -822,7 +816,6 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "El lote cambió desde que se generó la vista previa; volvé a subir el archivo.",
@@ -831,8 +824,7 @@ describe("confirmRecategorizeBatch", () => {
     expect(await newEventsFor(animalId)).toHaveLength(0);
     expect(await recategorizeBatches()).toHaveLength(0);
   });
-
-  it("excludes an existing row when the animal's sex doesn't match the target category's sex and the decision is skip (default)", async () => {
+  it("skips an existing row whose sex has no configured target category", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
@@ -850,66 +842,25 @@ describe("confirmRecategorizeBatch", () => {
     });
     await refreshDerivedState();
 
+    // Only a male target is configured; the animal is female, so
+    // targetCategoryIdBySex.female is null and the row is silently skipped —
+    // there's no longer a way to assign a category to the "wrong" sex.
     await expect(
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novilloMacho.id,
+        targetCategoryIdBySex: { male: novilloMacho.id, female: null },
         rows: [
           existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "Ningún animal cambia de categoría; no se puede confirmar",
     );
 
     expect(await newEventsFor(animalId)).toHaveLength(0);
-  });
-
-  it("writes the event for an existing row with mismatched sex when the decision is assignTarget", async () => {
-    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
-    const [vaca] = await testDb
-      .insert(category)
-      .values({ farmId: seededFarmGroup.id, name: "Vaca" })
-      .returning();
-    const [novilloMacho] = await testDb
-      .insert(category)
-      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
-      .returning();
-    const animalId = await seedAnimalAtFarm({
-      establishmentId: seededFarm.id,
-      createdBy: admin.id,
-      categoryId: vaca.id,
-      sex: "female",
-    });
-    await refreshDerivedState();
-
-    await confirmRecategorizeBatch({
-      userId: admin.id,
-      role: "admin",
-      operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novilloMacho.id,
-      rows: [
-        existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
-      ],
-      unresolvableDecisions: {},
-      sexMismatchDecisions: { [animalId]: "assignTarget" },
-    });
-
-    const events = await newEventsFor(animalId);
-    expect(events).toHaveLength(1);
-    const [recat] = await testDb
-      .select()
-      .from(eventRecategorize)
-      .where(eq(eventRecategorize.eventId, events[0].id));
-    expect(recat).toMatchObject({
-      oldCategoryId: vaca.id,
-      newCategoryId: novilloMacho.id,
-      source: "manual",
-    });
   });
 
   it("never asks about sex when the animal has no sex recorded", async () => {
@@ -929,22 +880,27 @@ describe("confirmRecategorizeBatch", () => {
     });
     await refreshDerivedState();
 
-    await confirmRecategorizeBatch({
-      userId: admin.id,
-      role: "admin",
-      operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novilloMacho.id,
-      rows: [
-        existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
-      ],
-      unresolvableDecisions: {},
-      sexMismatchDecisions: {},
-    });
+    // No sex on file means neither targetCategoryIdBySex slot applies — the
+    // row is skipped without any decision being asked for.
+    await expect(
+      confirmRecategorizeBatch({
+        userId: admin.id,
+        role: "admin",
+        operatingFarmId: seededFarmGroup.id,
+        targetCategoryIdBySex: { male: novilloMacho.id, female: null },
+        rows: [
+          existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
+        ],
+        unresolvableDecisions: {},
+      }),
+    ).rejects.toThrow(
+      "Ningún animal cambia de categoría; no se puede confirmar",
+    );
 
-    expect(await newEventsFor(animalId)).toHaveLength(1);
+    expect(await newEventsFor(animalId)).toHaveLength(0);
   });
 
-  it("never asks about sex when the target category has no sex restriction", async () => {
+  it("recategorizes animals of either sex when the same target is configured for both", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
@@ -962,22 +918,23 @@ describe("confirmRecategorizeBatch", () => {
     });
     await refreshDerivedState();
 
+    // Caller points both the male and female slot at the same category —
+    // the equivalent of a target with "no sex restriction".
     await confirmRecategorizeBatch({
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novillo.id,
+      targetCategoryIdBySex: { male: novillo.id, female: novillo.id },
       rows: [
         existingRow(seededFarm.id, { animalId, currentCategoryId: vaca.id }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     expect(await newEventsFor(animalId)).toHaveLength(1);
   });
 
-  it("excludes an age-unresolvable row assigned to the target when its sex doesn't match and the sex decision is skip", async () => {
+  it("skips an age-unresolvable row assigned to the target when its sex has no configured target category", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [novilloMacho] = await testDb
       .insert(category)
@@ -995,10 +952,9 @@ describe("confirmRecategorizeBatch", () => {
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novilloMacho.id,
+        targetCategoryIdBySex: { male: novilloMacho.id, female: null },
         rows: [unresolvableRow(seededFarm.id, { animalId })],
         unresolvableDecisions: { [animalId]: "assignTarget" },
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "Ningún animal cambia de categoría; no se puede confirmar",
@@ -1007,47 +963,12 @@ describe("confirmRecategorizeBatch", () => {
     expect(await newEventsFor(animalId)).toHaveLength(0);
   });
 
-  it("writes the event for an age-unresolvable row assigned to the target despite mismatched sex when the sex decision is assignTarget", async () => {
-    const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
-    const [novilloMacho] = await testDb
-      .insert(category)
-      .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
-      .returning();
-    const animalId = await seedAnimalAtFarm({
-      establishmentId: seededFarm.id,
-      createdBy: admin.id,
-      sex: "female",
-    });
-    await refreshDerivedState();
-
-    await confirmRecategorizeBatch({
-      userId: admin.id,
-      role: "admin",
-      operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: novilloMacho.id,
-      rows: [unresolvableRow(seededFarm.id, { animalId })],
-      unresolvableDecisions: { [animalId]: "assignTarget" },
-      sexMismatchDecisions: { [animalId]: "assignTarget" },
-    });
-
-    const events = await newEventsFor(animalId);
-    expect(events).toHaveLength(1);
-    const [recat] = await testDb
-      .select()
-      .from(eventRecategorize)
-      .where(eq(eventRecategorize.eventId, events[0].id));
-    expect(recat).toMatchObject({
-      oldCategoryId: novilloMacho.id,
-      newCategoryId: novilloMacho.id,
-      source: "initial",
-    });
-  });
-
-  // Design spec requirement: "el sexo usado para el chequeo se re-deriva de
-  // la base y no del valor que mande el cliente en la fila". The preview row
-  // round-trips through the browser like currentEstablishmentId/currentCategoryId do,
-  // so a client could lie about an animal's sex to dodge the mismatch check.
-  it("ignores a client-supplied sex and re-derives it from the database for the mismatch check", async () => {
+  // Design spec requirement: "el sexo usado para elegir la categoría destino
+  // se re-deriva de la base y no del valor que mande el cliente en la fila".
+  // The preview row round-trips through the browser like
+  // currentEstablishmentId/currentCategoryId do, so a client could lie about
+  // an animal's sex to route it to a target it shouldn't reach.
+  it("ignores a client-supplied sex and re-derives it from the database to pick the target category", async () => {
     const { admin, seededFarm, seededFarmGroup } = await seedFarmAndAdmin();
     const [vaca] = await testDb
       .insert(category)
@@ -1057,7 +978,7 @@ describe("confirmRecategorizeBatch", () => {
       .insert(category)
       .values({ farmId: seededFarmGroup.id, name: "Novillo", sex: "male" })
       .returning();
-    // The animal really is female...
+    // The animal really is female, and only a male target is configured...
     const animalId = await seedAnimalAtFarm({
       establishmentId: seededFarm.id,
       createdBy: admin.id,
@@ -1066,14 +987,14 @@ describe("confirmRecategorizeBatch", () => {
     });
     await refreshDerivedState();
 
+    // ...but the payload claims it's male, trying to sneak into the male
+    // slot undetected.
     await expect(
       confirmRecategorizeBatch({
         userId: admin.id,
         role: "admin",
         operatingFarmId: seededFarmGroup.id,
-        targetCategoryId: novilloMacho.id,
-        // ...but the payload claims it's male, matching the target category
-        // and trying to sneak past the mismatch check undetected.
+        targetCategoryIdBySex: { male: novilloMacho.id, female: null },
         rows: [
           existingRow(seededFarm.id, {
             animalId,
@@ -1082,7 +1003,6 @@ describe("confirmRecategorizeBatch", () => {
           }),
         ],
         unresolvableDecisions: {},
-        sexMismatchDecisions: {},
       }),
     ).rejects.toThrow(
       "Ningún animal cambia de categoría; no se puede confirmar",
@@ -1105,6 +1025,7 @@ describe("confirmRecategorizeBatch", () => {
       establishmentId: seededFarm.id,
       createdBy: admin.id,
       categoryId: oldCategory.id,
+      sex: "male",
     });
     await testDb
       .insert(animalTagHistory)
@@ -1115,7 +1036,7 @@ describe("confirmRecategorizeBatch", () => {
       userId: admin.id,
       role: "admin",
       operatingFarmId: seededFarmGroup.id,
-      targetCategoryId: newCategory.id,
+      targetCategoryIdBySex: { male: newCategory.id, female: null },
       rows: [
         existingRow(seededFarm.id, {
           animalId,
@@ -1125,7 +1046,6 @@ describe("confirmRecategorizeBatch", () => {
         }),
       ],
       unresolvableDecisions: {},
-      sexMismatchDecisions: {},
     });
 
     const [updatedAnimal] = await testDb

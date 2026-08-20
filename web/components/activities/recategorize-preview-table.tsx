@@ -1,47 +1,22 @@
 import type { RecategorizeResolvedRow, UnresolvableDecision } from "@/lib/activities/recategorize-resolution";
 
-function SexMismatchSelect({
-  tag,
-  decision,
-  onChange,
-}: {
-  tag: string;
-  decision: UnresolvableDecision;
-  onChange: (decision: UnresolvableDecision) => void;
-}) {
-  return (
-    <span>
-      <span className="text-muted-foreground">Sexo no coincide</span>{" "}
-      <select
-        aria-label={`Decisión de sexo para ${tag}`}
-        value={decision}
-        onChange={(e) => onChange(e.target.value as UnresolvableDecision)}
-        className="h-7 rounded-lg border border-border bg-background px-1 text-xs"
-      >
-        <option value="skip">Omitir</option>
-        <option value="assignTarget">Asignar igual</option>
-      </select>
-    </span>
-  );
-}
-
 export function RecategorizePreviewTable({
   rows,
-  targetCategoryName,
+  targetCategoryNameBySex,
   unresolvableDecisions,
   onDecisionChange,
-  sexMismatchAnimalIds,
-  sexMismatchDecisions,
-  onSexMismatchDecisionChange,
 }: {
   rows: RecategorizeResolvedRow[];
-  targetCategoryName: string;
+  targetCategoryNameBySex: { male: string | null; female: string | null };
   unresolvableDecisions: Record<string, UnresolvableDecision>;
   onDecisionChange: (animalId: string, decision: UnresolvableDecision) => void;
-  sexMismatchAnimalIds: Set<string>;
-  sexMismatchDecisions: Record<string, UnresolvableDecision>;
-  onSexMismatchDecisionChange: (animalId: string, decision: UnresolvableDecision) => void;
 }) {
+  function targetCategoryName(sex: "male" | "female" | null): string | null {
+    if (sex === "male") return targetCategoryNameBySex.male;
+    if (sex === "female") return targetCategoryNameBySex.female;
+    return null;
+  }
+
   return (
     <table className="w-full text-sm">
       <thead>
@@ -55,25 +30,13 @@ export function RecategorizePreviewTable({
       <tbody>
         {rows.map((row, index) => {
           if (row.status === "existing") {
-            const hasSexMismatch = sexMismatchAnimalIds.has(row.animalId);
-            const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
-            const assigning = !hasSexMismatch || sexDecision === "assignTarget";
+            const target = targetCategoryName(row.sex);
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
                 <td className="py-1 px-2">{row.tag || "—"}</td>
                 <td className="py-1 px-2">{row.currentCategoryName ?? "—"}</td>
-                <td className="py-1 px-2">{assigning ? targetCategoryName : "—"}</td>
-                <td className="py-1 px-2">
-                  {hasSexMismatch ? (
-                    <SexMismatchSelect
-                      tag={row.tag}
-                      decision={sexDecision}
-                      onChange={(decision) => onSexMismatchDecisionChange(row.animalId, decision)}
-                    />
-                  ) : (
-                    "OK"
-                  )}
-                </td>
+                <td className="py-1 px-2">{target ?? "—"}</td>
+                <td className="py-1 px-2">{target ? "OK" : "Sin categoría destino para este sexo"}</td>
               </tr>
             );
           }
@@ -89,36 +52,24 @@ export function RecategorizePreviewTable({
           }
           if (row.status === "age-unresolvable") {
             const decision = unresolvableDecisions[row.animalId] ?? "skip";
-            const hasSexMismatch = sexMismatchAnimalIds.has(row.animalId);
-            const sexDecision = sexMismatchDecisions[row.animalId] ?? "skip";
-            const assigning = decision === "assignTarget" && (!hasSexMismatch || sexDecision === "assignTarget");
+            const target = targetCategoryName(row.sex);
+            const assigning = decision === "assignTarget" && !!target;
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
                 <td className="py-1 px-2">{row.tag || "—"}</td>
                 <td className="py-1 px-2">Sin categoría</td>
-                <td className="py-1 px-2">{assigning ? targetCategoryName : "—"}</td>
+                <td className="py-1 px-2">{assigning ? target : "—"}</td>
                 <td className="py-1 px-2">
-                  <div className="flex flex-col gap-1">
-                    <span>
-                      <span className="text-muted-foreground">Sin edad calculable</span>{" "}
-                      <select
-                        aria-label={`Decisión para ${row.tag}`}
-                        value={decision}
-                        onChange={(e) => onDecisionChange(row.animalId, e.target.value as UnresolvableDecision)}
-                        className="h-7 rounded-lg border border-border bg-background px-1 text-xs"
-                      >
-                        <option value="skip">Omitir</option>
-                        <option value="assignTarget">Asignar categoría destino</option>
-                      </select>
-                    </span>
-                    {hasSexMismatch ? (
-                      <SexMismatchSelect
-                        tag={row.tag}
-                        decision={sexDecision}
-                        onChange={(d) => onSexMismatchDecisionChange(row.animalId, d)}
-                      />
-                    ) : null}
-                  </div>
+                  <span className="text-muted-foreground">Sin edad calculable</span>{" "}
+                  <select
+                    aria-label={`Decisión para ${row.tag}`}
+                    value={decision}
+                    onChange={(e) => onDecisionChange(row.animalId, e.target.value as UnresolvableDecision)}
+                    className="h-7 rounded-lg border border-border bg-background px-1 text-xs"
+                  >
+                    <option value="skip">Omitir</option>
+                    <option value="assignTarget">Asignar categoría destino</option>
+                  </select>
                 </td>
               </tr>
             );
