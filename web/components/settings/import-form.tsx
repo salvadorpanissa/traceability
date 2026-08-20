@@ -203,9 +203,9 @@ export function ImportForm() {
     return (
       <div className="flex flex-col gap-3">
         <label htmlFor="import-file" className="text-sm font-medium">
-          Archivo Excel
+          Archivo
         </label>
-        <FileInput id="import-file" aria-label="Archivo Excel" accept=".xlsx" file={file} onChange={setFile} />
+        <FileInput id="import-file" aria-label="Archivo" accept=".xlsx" file={file} onChange={setFile} />
         <Button type="button" disabled={!file || uploading} onClick={handleUpload}>
           Subir
         </Button>

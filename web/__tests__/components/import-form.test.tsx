@@ -58,7 +58,7 @@ describe("ImportForm", () => {
     const file = new File(["contenido"], "base.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    const input = screen.getByLabelText("Archivo") as HTMLInputElement;
     await userEvent.upload(input, file);
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
@@ -106,7 +106,7 @@ describe("ImportForm", () => {
 
     render(<ImportForm />);
 
-    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    const input = screen.getByLabelText("Archivo") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
@@ -159,7 +159,7 @@ describe("ImportForm", () => {
 
     render(<ImportForm />);
 
-    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    const input = screen.getByLabelText("Archivo") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
@@ -200,7 +200,7 @@ describe("ImportForm", () => {
 
     render(<ImportForm />);
 
-    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    const input = screen.getByLabelText("Archivo") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
@@ -241,7 +241,7 @@ describe("ImportForm", () => {
 
     render(<ImportForm />);
 
-    const input = screen.getByLabelText("Archivo Excel") as HTMLInputElement;
+    const input = screen.getByLabelText("Archivo") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
@@ -258,7 +258,7 @@ describe("ImportForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Volver a empezar" }));
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Archivo Excel")).toBeInTheDocument(),
+      expect(screen.getByLabelText("Archivo")).toBeInTheDocument(),
     );
   });
 });
