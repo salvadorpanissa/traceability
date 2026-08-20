@@ -111,7 +111,7 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
     {
       key: "category",
       label: translate(locale, "livestock.category"),
-      value: (row) => row.categoryName ?? "",
+      value: (row) => row.categoryName ?? translate(locale, "livestock.noCategory"),
     },
     {
       key: "establishment",
