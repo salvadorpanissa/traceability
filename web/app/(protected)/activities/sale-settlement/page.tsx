@@ -5,7 +5,7 @@ export default function SaleSettlementPage() {
   return (
     <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
-        <CardTitle>Liquidaciones</CardTitle>
+        <CardTitle>Liquidación</CardTitle>
       </CardHeader>
       <CardContent>
         <SaleSettlementForm />
