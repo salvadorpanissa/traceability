@@ -181,7 +181,57 @@ describe("dicose-registration", () => {
 });
 
 describe("findEstablishmentByDicoseCode", () => {
-  it("resolves a registered DICOSE code to its establishment", async () => {
+  it("resolves a registered DICOSE code to its establishment for a user with access", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Manager",
+        email: "m2@example.com",
+        passwordHash: "x",
+        roleId: managerRole.id,
+      })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: seededFarmGroup.id })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    await testDb.insert(userFarm).values({ userId: manager.id, farmId: seededFarmGroup.id });
+    await testDb
+      .insert(dicose)
+      .values({
+        ownerId: seededOwner.id,
+        establishmentId: seededFarm.id,
+        dicoseCode: "151518192",
+      });
+
+    const result = await findEstablishmentByDicoseCode("151518192", manager.id, "manager");
+
+    expect(result).toEqual({
+      establishmentId: seededFarm.id,
+      establishmentName: "Cuatro Cerros",
+    });
+  });
+
+  it("returns null for a DICOSE code registered on a farm the user has no access to", async () => {
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Sin campo",
+        email: "m3@example.com",
+        passwordHash: "x",
+        roleId: managerRole.id,
+      })
+      .returning();
     const [seededFarmGroup] = await testDb
       .insert(farm)
       .values({ name: "Cuatro Cerros" })
@@ -202,7 +252,41 @@ describe("findEstablishmentByDicoseCode", () => {
         dicoseCode: "151518192",
       });
 
-    const result = await findEstablishmentByDicoseCode("151518192");
+    expect(await findEstablishmentByDicoseCode("151518192", manager.id, "manager")).toBeNull();
+  });
+
+  it("resolves any registered DICOSE code for an admin", async () => {
+    const [adminRole] = await testDb.insert(role).values({ name: "admin" }).returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Admin",
+        email: "a2@example.com",
+        passwordHash: "x",
+        roleId: adminRole.id,
+      })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Cuatro Cerros" })
+      .returning();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ name: "AIP", farmId: seededFarmGroup.id })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Cuatro Cerros" })
+      .returning();
+    await testDb
+      .insert(dicose)
+      .values({
+        ownerId: seededOwner.id,
+        establishmentId: seededFarm.id,
+        dicoseCode: "151518192",
+      });
+
+    const result = await findEstablishmentByDicoseCode("151518192", admin.id, "admin");
 
     expect(result).toEqual({
       establishmentId: seededFarm.id,
@@ -211,6 +295,16 @@ describe("findEstablishmentByDicoseCode", () => {
   });
 
   it("returns null for a DICOSE code with no registration", async () => {
-    expect(await findEstablishmentByDicoseCode("000000000")).toBeNull();
+    const [managerRole] = await testDb.insert(role).values({ name: "manager" }).returning();
+    const [manager] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Manager",
+        email: "m4@example.com",
+        passwordHash: "x",
+        roleId: managerRole.id,
+      })
+      .returning();
+    expect(await findEstablishmentByDicoseCode("000000000", manager.id, "manager")).toBeNull();
   });
 });

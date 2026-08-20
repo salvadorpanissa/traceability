@@ -8,23 +8,27 @@ import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toast";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
+import { PaddockSelector } from "@/components/activities/paddock-selector";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import {
-  previewSaleBatchFromPdf,
-  confirmSaleBatchFromPdfAction,
+  previewGuideAction,
+  confirmGuideAction,
   createOwnerAction,
-  type PdfPreviewResult,
-} from "@/app/(protected)/activities/sale/actions";
-import type { ResolvedRow } from "@/lib/activities/sale";
+  listPaddocksAction,
+  createPaddockAction,
+  type GuidePreviewResult,
+} from "@/app/(protected)/activities/transfer/actions";
+import type { ResolvedRow } from "@/lib/activities/transfer";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
+import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 
-// Local re-implementation rather than importing a runtime value from
-// "@/lib/activities/sale" (only its ResolvedRow *type* is imported above) —
-// that module also pulls in the server-only `db` client, and a "use client"
-// component importing a value from it (not just the type) drags `pg` into
-// the browser bundle. Same pattern as pdf-guide-transfer-form.tsx and
-// health-form.tsx.
+// Local, dependency-free re-implementation rather than importing the runtime
+// export from "@/lib/activities/transfer": that module also pulls in the
+// server-only `db` client (pg), and a "use client" component importing a
+// *value* from it (not just the type) drags pg into the browser bundle,
+// which breaks (pg needs node builtins like "net"/"tls"/"dns"). Same pattern
+// as components/activities/health-form.tsx.
 function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   const names: string[] = [];
   for (const row of rows) {
@@ -34,10 +38,12 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
-export function SaleForm() {
+export function GuideForm() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<PdfPreviewResult | null>(null);
+  const [preview, setPreview] = useState<GuidePreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
+  const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
+  const [destinationPaddockId, setDestinationPaddockId] = useState<string | null>(null);
   const [buyer, setBuyer] = useState("");
   const [price, setPrice] = useState("");
   const [weightKg, setWeightKg] = useState("");
@@ -52,11 +58,14 @@ export function SaleForm() {
     try {
       const formData = new FormData();
       formData.set("file", file);
-      const result = await previewSaleBatchFromPdf(formData);
+      const result = await previewGuideAction(formData);
       setPreview(result);
       if (result.ok) {
         setRows(result.rows);
         setForcedWithdrawalTags(new Set());
+        if (result.kind === "transfer") {
+          setPaddocks(await listPaddocksAction(result.destinationEstablishmentId));
+        }
       } else {
         toast({ type: "error", title: result.error });
       }
@@ -67,9 +76,17 @@ export function SaleForm() {
     }
   }
 
+  async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
+    if (!preview?.ok || preview.kind !== "transfer") throw new Error("Subí una guía primero");
+    const created = await createPaddockAction(preview.destinationEstablishmentId, name);
+    setPaddocks((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
+  }
+
   async function handleCreateOwner(name: string): Promise<OwnerCatalogEntry> {
-    if (!preview?.ok) throw new Error("No hay campo de origen resuelto");
-    return createOwnerAction(preview.originEstablishmentId, name);
+    if (!preview?.ok) throw new Error("Subí una guía primero");
+    const establishmentId = preview.kind === "transfer" ? preview.destinationEstablishmentId : preview.originEstablishmentId;
+    return createOwnerAction(establishmentId, name);
   }
 
   function handleOwnerResolved(rawName: string, ownerId: string) {
@@ -95,22 +112,31 @@ export function SaleForm() {
     });
   }
 
-  async function handleConfirm() {
+  async function doConfirm() {
     if (!preview?.ok || !file) return;
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.set("file", file);
-      formData.set("originEstablishmentId", preview.originEstablishmentId);
+      formData.set("kind", preview.kind);
       formData.set("guideNumber", preview.guideNumber);
-      formData.set("buyer", buyer);
-      formData.set("price", price);
-      formData.set("weightKg", weightKg);
-      formData.set("forcedWithdrawalTags", JSON.stringify(Array.from(forcedWithdrawalTags)));
       formData.set("rows", JSON.stringify(rows));
-      await confirmSaleBatchFromPdfAction(formData);
+
+      if (preview.kind === "transfer") {
+        formData.set("originEstablishmentId", preview.originEstablishmentId);
+        formData.set("destinationEstablishmentId", preview.destinationEstablishmentId);
+        if (destinationPaddockId) formData.set("destinationPaddockId", destinationPaddockId);
+      } else {
+        formData.set("originEstablishmentId", preview.originEstablishmentId);
+        formData.set("buyer", buyer);
+        formData.set("price", price);
+        formData.set("weightKg", weightKg);
+        formData.set("forcedWithdrawalTags", JSON.stringify(Array.from(forcedWithdrawalTags)));
+      }
+
+      await confirmGuideAction(formData);
       setConfirmed(true);
-      toast({ type: "success", title: "Venta confirmada." });
+      toast({ type: "success", title: preview.kind === "transfer" ? "Traslado confirmado." : "Venta confirmada." });
     } catch (err) {
       toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     } finally {
@@ -118,8 +144,13 @@ export function SaleForm() {
     }
   }
 
+  function handleConfirm() {
+    if (!preview?.ok) return;
+    setConfirmDialogOpen(true);
+  }
+
   if (confirmed) {
-    return <p>Venta confirmada.</p>;
+    return <p>{preview?.ok && preview.kind === "sale" ? "Venta confirmada." : "Traslado confirmado."}</p>;
   }
 
   const pendingNames = pendingOwnerNames(rows);
@@ -127,7 +158,7 @@ export function SaleForm() {
     (r) =>
       r.status === "new" || r.status === "existing" || r.status === "wrong_establishment" || (r.status === "foreign" && r.forced)
   );
-  const withdrawalWarnings = preview?.ok ? preview.withdrawalWarnings : [];
+  const withdrawalWarnings = preview?.ok && preview.kind === "sale" ? preview.withdrawalWarnings : [];
   const hasUnresolvedWithdrawal = withdrawalWarnings.some((w) => !forcedWithdrawalTags.has(w.tag));
 
   return (
@@ -150,6 +181,8 @@ export function SaleForm() {
         Subir
       </Button>
 
+      {preview && !preview.ok ? <p className="text-sm text-destructive">{preview.error}</p> : null}
+
       {preview?.ok ? (
         <div className="flex flex-col gap-4">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
@@ -159,22 +192,37 @@ export function SaleForm() {
             <dd>{preview.eventDate}</dd>
             <dt className="text-muted-foreground">Campo origen</dt>
             <dd>{preview.originEstablishmentName}</dd>
+            {preview.kind === "transfer" ? (
+              <>
+                <dt className="text-muted-foreground">Campo destino</dt>
+                <dd>{preview.destinationEstablishmentName}</dd>
+              </>
+            ) : null}
           </dl>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="buyer">Comprador</Label>
-              <Input id="buyer" value={buyer} onChange={(e) => setBuyer(e.target.value)} />
+          {preview.kind === "transfer" ? (
+            <PaddockSelector
+              paddocks={paddocks}
+              paddockId={destinationPaddockId}
+              onChange={setDestinationPaddockId}
+              onCreatePaddock={handleCreatePaddock}
+            />
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="buyer">Comprador</Label>
+                <Input id="buyer" value={buyer} onChange={(e) => setBuyer(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="price">Precio</Label>
+                <Input id="price" type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="weightKg">Peso (kg)</Label>
+                <Input id="weightKg" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="price">Precio</Label>
-              <Input id="price" type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="weightKg">Peso (kg)</Label>
-              <Input id="weightKg" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
-            </div>
-          </div>
+          )}
 
           <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
 
@@ -227,19 +275,23 @@ export function SaleForm() {
               !hasConfirmableRow ||
               hasUnresolvedWithdrawal
             }
-            onClick={() => setConfirmDialogOpen(true)}
+            onClick={handleConfirm}
           >
             Confirmar
           </Button>
           <ConfirmDialog
             open={confirmDialogOpen}
             onOpenChange={setConfirmDialogOpen}
-            title="¿Confirmar venta?"
-            description="Se va a registrar la venta de estas caravanas. Esta acción no se puede deshacer."
+            title={preview.kind === "transfer" ? "¿Confirmar traslado?" : "¿Confirmar venta?"}
+            description={
+              preview.kind === "transfer"
+                ? "Se va a registrar el traslado de estas caravanas. Esta acción no se puede deshacer."
+                : "Se va a registrar la venta de estas caravanas. Esta acción no se puede deshacer."
+            }
             confirmLabel="Confirmar"
             cancelLabel="Cancelar"
             variant="destructive"
-            onConfirm={handleConfirm}
+            onConfirm={doConfirm}
           />
         </div>
       ) : null}

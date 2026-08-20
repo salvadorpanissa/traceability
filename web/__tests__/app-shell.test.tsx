@@ -74,12 +74,11 @@ describe("AppShell", () => {
     );
 
     expect(screen.queryByRole("link", { name: "Sanidad" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Venta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Configuración del campo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Abrir navegación" })).not.toBeInTheDocument();
   });
 
-  it("only marks Liquidación as active on /activities/sale-settlement, not Venta", async () => {
+  it("only marks Liquidación as active on /activities/sale-settlement, not Traslado", async () => {
     mockedPathname = "/activities/sale-settlement";
 
     render(
@@ -91,6 +90,6 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByRole("link", { name: "Liquidación" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Venta" })).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Traslado" })).not.toHaveAttribute("aria-current", "page");
   });
 });

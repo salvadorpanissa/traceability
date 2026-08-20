@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { ColumnMapper } from "@/components/activities/column-mapper";
+import { StepHeading } from "@/components/activities/step-heading";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor";
 import { PaddockSelector } from "@/components/activities/paddock-selector";
-import { PdfGuideTransferForm } from "@/components/activities/pdf-guide-transfer-form";
+import { GuideForm } from "@/components/activities/guide-form";
 import {
   previewTransferBatch,
   confirmTransferBatchAction,
@@ -39,6 +42,20 @@ function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   return Array.from(new Set(names));
 }
 
+type TransferFormStep = "mapping" | "eventDate" | "review";
+
+function stepFromPreview(result: PreviewResult): TransferFormStep {
+  if (result.mappingNeeded) return "mapping";
+  if (result.eventDateNeeded) return "eventDate";
+  return "review";
+}
+
+const STEP_LABELS: Record<TransferFormStep, string> = {
+  mapping: "Mapeo de columnas",
+  eventDate: "Fecha del lote",
+  review: "Caravanas y confirmación",
+};
+
 export function TransferForm({ establishments }: { establishments: { id: string; name: string }[] }) {
   const [destinationEstablishmentId, setDestinationEstablishmentId] = useState("");
   const [paddocks, setPaddocks] = useState<PaddockCatalogEntry[]>([]);
@@ -48,8 +65,14 @@ export function TransferForm({ establishments }: { establishments: { id: string;
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [mode, setMode] = useState<"excel" | "pdf">("excel");
   const [paddockLoadError, setPaddockLoadError] = useState("");
+  const [step, setStep] = useState<TransferFormStep | null>(null);
+  const [stepHistory, setStepHistory] = useState<TransferFormStep[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [workingMapping, setWorkingMapping] = useState<ColumnMapping[] | null>(null);
 
   async function handleDestinationEstablishmentChange(establishmentId: string) {
     setDestinationEstablishmentId(establishmentId);
@@ -58,6 +81,10 @@ export function TransferForm({ establishments }: { establishments: { id: string;
     setPreview(null);
     setRows([]);
     setPaddockLoadError("");
+    setStep(null);
+    setStepHistory([]);
+    setHeaders([]);
+    setWorkingMapping(null);
     if (!establishmentId) {
       setPaddocks([]);
       return;
@@ -77,21 +104,39 @@ export function TransferForm({ establishments }: { establishments: { id: string;
 
   async function runPreview(mapping?: ColumnMapping[]) {
     if (!file || !destinationEstablishmentId) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    formData.set("eventDate", eventDate);
-    formData.set("establishmentId", destinationEstablishmentId);
-    if (mapping) formData.set("mapping", JSON.stringify(mapping));
-    const result = await previewTransferBatch(formData);
-    setPreview(result);
-    if (!result.mappingNeeded && !result.eventDateNeeded) {
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("eventDate", eventDate);
+      formData.set("establishmentId", destinationEstablishmentId);
+      if (mapping) formData.set("mapping", JSON.stringify(mapping));
+      const result = await previewTransferBatch(formData);
+      setStepHistory((prev) => (step ? [...prev, step] : prev));
+      setStep(stepFromPreview(result));
+      setPreview(result);
+      if (result.mappingNeeded) {
+        setHeaders(result.headers);
+        return;
+      }
+      setWorkingMapping(result.mapping);
+      if (result.eventDateNeeded) return;
       setRows(result.rows);
+    } catch (err) {
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
     }
   }
 
+  function handleBack() {
+    setStepHistory((prev) => {
+      if (prev.length === 0) return prev;
+      setStep(prev[prev.length - 1]);
+      return prev.slice(0, -1);
+    });
+  }
+
   async function handleSubmitEventDate() {
-    if (!preview || preview.mappingNeeded || !preview.eventDateNeeded) return;
-    await runPreview(preview.mapping);
+    if (step !== "eventDate" || !workingMapping) return;
+    await runPreview(workingMapping);
   }
 
   async function handleCreatePaddock(name: string): Promise<PaddockCatalogEntry> {
@@ -118,15 +163,28 @@ export function TransferForm({ establishments }: { establishments: { id: string;
     setRows((prev) => prev.map((r) => (r.status === "foreign" && r.tag === tag ? { ...r, forced: !r.forced } : r)));
   }
 
-  async function handleConfirm() {
-    if (!preview || preview.mappingNeeded || preview.eventDateNeeded) return;
-    await confirmTransferBatchAction({
-      mapping: preview.mapping,
-      destinationEstablishmentId,
-      destinationPaddockId,
-      rows,
-    });
-    setConfirmed(true);
+  async function doConfirm() {
+    if (step !== "review" || !workingMapping) return;
+    setIsSubmitting(true);
+    try {
+      await confirmTransferBatchAction({
+        mapping: workingMapping,
+        destinationEstablishmentId,
+        destinationPaddockId,
+        rows,
+      });
+      setConfirmed(true);
+      toast({ type: "success", title: "Traslado confirmado." });
+    } catch (err) {
+      toast({ type: "error", title: err instanceof Error ? err.message : "Ocurrió un error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleConfirm() {
+    if (step !== "review" || !workingMapping) return;
+    setConfirmDialogOpen(true);
   }
 
   if (confirmed) {
@@ -150,78 +208,116 @@ export function TransferForm({ establishments }: { establishments: { id: string;
         </Button>
       </div>
       {mode === "pdf" ? (
-        <PdfGuideTransferForm establishments={establishments} />
+        <GuideForm />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="destinationEstablishment">Campo destino</Label>
-            <select
-              id="destinationEstablishment"
-              aria-label="Campo destino"
-              value={destinationEstablishmentId}
-              onChange={(e) => handleDestinationEstablishmentChange(e.target.value)}
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-            >
-              <option value="">Elegir campo</option>
-              {establishments.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
-          {destinationEstablishmentId ? (
-            <PaddockSelector
-              paddocks={paddocks}
-              paddockId={destinationPaddockId}
-              onChange={setDestinationPaddockId}
-              onCreatePaddock={handleCreatePaddock}
-            />
-          ) : null}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="file">Archivo</Label>
-            <FileInput id="file" file={file} onChange={handleFileChange} />
-          </div>
-          <Button type="button" disabled={!destinationEstablishmentId || !file} onClick={() => runPreview()}>
-            Subir
-          </Button>
-
-          {preview?.mappingNeeded ? (
-            <ColumnMapper
-              headers={preview.headers}
-              availableMeanings={["tag", "date", "category", "sex", "owner", "notes", "secondaryTag", "breed", "ignore"]}
-              initialMapping={preview.initialMapping}
-              onSubmit={(mapping) => runPreview(mapping)}
-            />
+          {!step ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="destinationEstablishment">Campo destino</Label>
+                <select
+                  id="destinationEstablishment"
+                  aria-label="Campo destino"
+                  value={destinationEstablishmentId}
+                  onChange={(e) => handleDestinationEstablishmentChange(e.target.value)}
+                  className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                >
+                  <option value="">Elegir campo</option>
+                  {establishments.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
+              {destinationEstablishmentId ? (
+                <PaddockSelector
+                  paddocks={paddocks}
+                  paddockId={destinationPaddockId}
+                  onChange={setDestinationPaddockId}
+                  onCreatePaddock={handleCreatePaddock}
+                />
+              ) : null}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="file">Archivo</Label>
+                <FileInput id="file" file={file} onChange={handleFileChange} />
+              </div>
+              <Button type="button" disabled={!destinationEstablishmentId || !file} onClick={() => runPreview()}>
+                Subir
+              </Button>
+            </>
           ) : null}
 
-          {preview && !preview.mappingNeeded && preview.eventDateNeeded ? (
+          {step === "mapping" ? (
             <div className="flex flex-col gap-2">
+              <StepHeading label={STEP_LABELS.mapping} position={stepHistory.length + 1} />
+              <ColumnMapper
+                headers={headers}
+                availableMeanings={["tag", "date", "category", "sex", "owner", "notes", "secondaryTag", "breed", "ignore"]}
+                initialMapping={workingMapping ?? (preview?.mappingNeeded ? preview.initialMapping : null)}
+                onSubmit={(mapping) => runPreview(mapping)}
+              />
+              {stepHistory.length > 0 ? (
+                <Button type="button" variant="outline" onClick={handleBack}>
+                  Atrás
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {step === "eventDate" ? (
+            <div className="flex flex-col gap-2">
+              <StepHeading label={STEP_LABELS.eventDate} position={stepHistory.length + 1} />
               <p className="text-sm text-muted-foreground">
                 El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
               </p>
               <Label htmlFor="eventDate">Fecha del lote</Label>
               <Input id="eventDate" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-              <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
-                Continuar
-              </Button>
+              <div className="flex gap-2">
+                {stepHistory.length > 0 ? (
+                  <Button type="button" variant="outline" onClick={handleBack}>
+                    Atrás
+                  </Button>
+                ) : null}
+                <Button type="button" disabled={!eventDate} onClick={handleSubmitEventDate}>
+                  Continuar
+                </Button>
+              </div>
             </div>
           ) : null}
 
-          {preview && !preview.mappingNeeded && !preview.eventDateNeeded ? (
+          {step === "review" ? (
             <div className="flex flex-col gap-4">
+              <StepHeading label={STEP_LABELS.review} position={stepHistory.length + 1} />
               <PendingOwnerEditor pendingNames={pendingNames} onCreateOwner={handleCreateOwner} onResolved={handleOwnerResolved} />
               <ScrollablePreviewTable>
                 <TransferPreviewTable rows={rows} onToggleForced={handleToggleForced} />
               </ScrollablePreviewTable>
-              <Button
-                type="button"
-                disabled={rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}
-                onClick={handleConfirm}
-              >
-                Confirmar
-              </Button>
+              <div className="flex gap-2">
+                {stepHistory.length > 0 ? (
+                  <Button type="button" variant="outline" onClick={handleBack}>
+                    Atrás
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  disabled={isSubmitting || rows.some((r) => r.status === "error") || pendingNames.length > 0 || !hasConfirmableRow}
+                  onClick={handleConfirm}
+                >
+                  Confirmar
+                </Button>
+              </div>
+              <ConfirmDialog
+                open={confirmDialogOpen}
+                onOpenChange={setConfirmDialogOpen}
+                title="¿Confirmar traslado?"
+                description="Se va a registrar el traslado de estas caravanas. Esta acción no se puede deshacer."
+                confirmLabel="Confirmar"
+                cancelLabel="Cancelar"
+                variant="destructive"
+                onConfirm={doConfirm}
+              />
             </div>
           ) : null}
         </div>

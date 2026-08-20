@@ -31,19 +31,14 @@ const navItems: NavItem[] = [
     isActive: (pathname) => pathname.startsWith("/activities/health"),
   },
   {
-    href: "/activities/transfer",
-    labelKey: "appShell.navTransfer",
-    isActive: (pathname) => pathname.startsWith("/activities/transfer"),
-  },
-  {
     href: "/activities/recategorize",
     labelKey: "appShell.navRecategorize",
     isActive: (pathname) => pathname.startsWith("/activities/recategorize"),
   },
   {
-    href: "/activities/sale",
-    labelKey: "appShell.navSale",
-    isActive: (pathname) => pathname === "/activities/sale" || pathname.startsWith("/activities/sale/"),
+    href: "/activities/transfer",
+    labelKey: "appShell.navTransfer",
+    isActive: (pathname) => pathname.startsWith("/activities/transfer"),
   },
   {
     href: "/activities/sale-settlement",

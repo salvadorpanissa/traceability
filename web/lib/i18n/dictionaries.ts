@@ -15,7 +15,6 @@ const dictionaries = {
     "appShell.navHealth": "Sanidad",
     "appShell.navTransfer": "Traslado",
     "appShell.navRecategorize": "Recategorización",
-    "appShell.navSale": "Venta",
     "appShell.navDeath": "Muerte",
     "appShell.navSaleSettlement": "Liquidación",
     "appShell.navDicose": "Registro de DICOSE",
