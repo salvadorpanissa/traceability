@@ -25,6 +25,9 @@ export type DataTableColumn<T> = {
   // Set to false to keep this column out of the column-visibility menu and
   // always render it (e.g. an actions column).
   hideable?: boolean;
+  // Set to false to leave this column out of the Excel export (e.g. an
+  // actions column with no exportable data).
+  exportable?: boolean;
 };
 
 // An extra Excel sheet exported alongside the main table — e.g. the
@@ -258,11 +261,12 @@ export function DataTable<T>({
   async function handleExport() {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
+    const exportColumns = columns.filter((column) => column.exportable !== false);
     const sheet = workbook.addWorksheet(exportSheetName);
-    sheet.addRow(columns.map((column) => column.header));
+    sheet.addRow(exportColumns.map((column) => column.header));
     for (const row of sortedRows) {
       sheet.addRow(
-        columns.map((column) => column.exportValue?.(row) ?? column.sortValue?.(row) ?? column.searchValue?.(row) ?? "")
+        exportColumns.map((column) => column.exportValue?.(row) ?? column.sortValue?.(row) ?? column.searchValue?.(row) ?? "")
       );
     }
     for (const extraSheet of extraSheets ?? []) {
