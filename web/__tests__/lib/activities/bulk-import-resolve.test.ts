@@ -113,7 +113,7 @@ describe("resolveImportRows", () => {
     ]);
   });
 
-  it("errors a row whose tag already exists in the system", async () => {
+  it("resolves a row whose tag already exists in the system as an update, without requiring an Estancia", async () => {
     const admin = await seedAdmin();
     const [seededFarmGroup] = await testDb
       .insert(farm)
@@ -128,12 +128,21 @@ describe("resolveImportRows", () => {
       .insert(animalTagHistory)
       .values({ animalId: existingAnimal.id, tag: "858000048233520" });
 
-    const [resolved] = await resolveImportRows([baseRow()], admin.id, "admin");
+    const [resolved] = await resolveImportRows(
+      [baseRow({ establishmentName: null })],
+      admin.id,
+      "admin"
+    );
 
     expect(resolved).toEqual({
-      status: "error",
+      status: "update",
       tag: "858000048233520",
-      reason: "La caravana ya existe en el sistema",
+      animalId: existingAnimal.id,
+      secondaryTag: null,
+      ownerName: "SASG",
+      breed: "Hereford",
+      sex: "female",
+      birthDate: "2021-01-01",
     });
     void seededFarm;
   });

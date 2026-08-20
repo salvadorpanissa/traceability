@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type SettingsNavItem = { href: string; label: string };
 
 const settingsNavItems: SettingsNavItem[] = [
-  { href: "/settings/import", label: "Importar animales" },
+  { href: "/settings/import", label: "Importar/Editar animales" },
   { href: "/settings/dicose", label: "Registrar DICOSE" },
   { href: "/settings/own-tags", label: "Registrar caravanas propias" },
   { href: "/settings/products", label: "Productos" },

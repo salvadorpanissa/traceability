@@ -10,19 +10,17 @@ export default async function ImportSettingsPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Importar animales</CardTitle>
+          <CardTitle>Importar/Editar animales</CardTitle>
         </CardHeader>
         <CardContent>
           <ImportForm />
         </CardContent>
       </Card>
       <Tip>
-        Esta herramienta permite incorporar a la plataforma los animales que ya tiene registrados
-        en otro sistema o planilla, sin necesidad de cargarlos uno por uno. También es posible
-        incorporar animales de forma individual a través de las actividades habituales — por
-        ejemplo, al registrar un evento de Sanidad, Traslado o Venta con una caravana que todavía
-        no existe en el sistema, el animal se da de alta automáticamente con los datos de esa
-        actividad.
+        Si la caravana del archivo ya existe, se actualizan sus datos generales. Antes de
+        confirmar podés revisar qué se va a crear y qué se va a editar. Un animal nuevo también
+        puede darse de alta directamente desde una actividad (Sanidad, Traslado, Venta), sin pasar
+        por esta importación.
       </Tip>
     </div>
   );

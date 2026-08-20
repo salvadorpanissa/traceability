@@ -1,4 +1,4 @@
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   animal,
@@ -33,6 +33,16 @@ export type ResolvedImportRow =
       birthDate: string | null;
       eventDate: string;
     }
+  | {
+      status: "update";
+      tag: string;
+      animalId: string;
+      secondaryTag: string | null;
+      ownerName: string | null;
+      breed: string | null;
+      sex: "male" | "female" | null;
+      birthDate: string | null;
+    }
   | { status: "error"; tag: string; reason: string };
 
 export async function resolveImportRows(
@@ -49,9 +59,12 @@ export async function resolveImportRows(
   const nonEmptyTags = rows.map((r) => r.tag).filter((tag) => tag.length > 0);
   const existingTagRows =
     nonEmptyTags.length > 0
-      ? await db.select({ tag: animalTagHistory.tag }).from(animalTagHistory).where(inArray(animalTagHistory.tag, nonEmptyTags))
+      ? await db
+          .select({ tag: animalTagHistory.tag, animalId: animalTagHistory.animalId })
+          .from(animalTagHistory)
+          .where(inArray(animalTagHistory.tag, nonEmptyTags))
       : [];
-  const existingTags = new Set(existingTagRows.map((r) => r.tag));
+  const animalIdByExistingTag = new Map(existingTagRows.map((r) => [r.tag, r.animalId]));
 
   const secondaryTagCounts = new Map<string, number>();
   for (const row of rows) {
@@ -88,8 +101,35 @@ export async function resolveImportRows(
       result.push({ status: "error", tag: row.tag, reason: "Caravana duplicada en el archivo" });
       continue;
     }
-    if (existingTags.has(row.tag)) {
-      result.push({ status: "error", tag: row.tag, reason: "La caravana ya existe en el sistema" });
+    if (row.secondaryTag && (secondaryTagCounts.get(row.secondaryTag) ?? 0) > 1) {
+      result.push({ status: "error", tag: row.tag, reason: "Chip secundario duplicado en el archivo" });
+      continue;
+    }
+
+    // A caravana already in the system is an edit, not a new animal: it
+    // only patches the general animal data columns present in the file
+    // (owner/breed/sex/birthDate/secondaryTag) and doesn't require an
+    // estancia, since no creation event is generated for it.
+    const existingAnimalId = animalIdByExistingTag.get(row.tag);
+    if (existingAnimalId) {
+      if (row.secondaryTag) {
+        const secondaryTagOwnerId = animalIdBySecondaryTag.get(row.secondaryTag);
+        if (secondaryTagOwnerId && secondaryTagOwnerId !== existingAnimalId) {
+          result.push({ status: "error", tag: row.tag, reason: "Chip secundario ya asignado a otro animal" });
+          continue;
+        }
+      }
+
+      result.push({
+        status: "update",
+        tag: row.tag,
+        animalId: existingAnimalId,
+        secondaryTag: row.secondaryTag,
+        ownerName: row.ownerName,
+        breed: row.breed,
+        sex: normalizeSex(row.sex),
+        birthDate: row.birthDate ? normalizeDate(row.birthDate) : null,
+      });
       continue;
     }
 
@@ -106,10 +146,6 @@ export async function resolveImportRows(
     // matters far less here than getting the animal into the system at all.
     const eventDate = (row.eventDate ? normalizeDate(row.eventDate) : null) ?? new Date().toISOString().slice(0, 10);
 
-    if (row.secondaryTag && (secondaryTagCounts.get(row.secondaryTag) ?? 0) > 1) {
-      result.push({ status: "error", tag: row.tag, reason: "Chip secundario duplicado en el archivo" });
-      continue;
-    }
     if (row.secondaryTag) {
       const existingAnimalId = animalIdBySecondaryTag.get(row.secondaryTag);
       if (existingAnimalId) {
@@ -309,4 +345,71 @@ export async function confirmImportChunk(input: {
     }
     throw error;
   }
+}
+
+export type ImportUpdateResult = { updatedCount: number };
+
+// Patches general animal data for caravanas already in the system. Only
+// columns present with a value in the file are touched — an empty cell
+// never blanks out an existing field. This is a plain data correction, not
+// an event: no batchOperation/event rows are created here.
+export async function confirmImportUpdates(input: {
+  rows: Extract<ResolvedImportRow, { status: "update" }>[];
+}): Promise<ImportUpdateResult> {
+  const { rows } = input;
+  if (rows.length === 0) return { updatedCount: 0 };
+
+  return await db.transaction(async (tx) => {
+    const ownerIdByName = new Map<string, string>();
+    const existingOwners = await tx.select({ id: owner.id, name: owner.name, farmId: owner.farmId }).from(owner);
+    for (const o of existingOwners) ownerIdByName.set(`${o.farmId}:${o.name.trim().toLowerCase()}`, o.id);
+
+    const animalIds = [...new Set(rows.map((r) => r.animalId))];
+    const animalEstablishments = await tx.execute<{ animal_id: string; current_establishment_id: string | null }>(
+      sql`select animal_id, current_establishment_id from animal_current_state where animal_id in (${sql.join(
+        animalIds.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+    );
+    const establishmentIdByAnimalId = new Map(
+      animalEstablishments.rows.filter((a) => a.current_establishment_id).map((a) => [a.animal_id, a.current_establishment_id as string])
+    );
+    const farmIdByEstablishmentId = new Map<string, string>();
+    const establishmentIdsForFarms = [...new Set(establishmentIdByAnimalId.values())];
+    if (establishmentIdsForFarms.length > 0) {
+      const establishmentRows = await tx
+        .select({ id: establishment.id, farmId: establishment.farmId })
+        .from(establishment)
+        .where(inArray(establishment.id, establishmentIdsForFarms));
+      for (const e of establishmentRows) farmIdByEstablishmentId.set(e.id, e.farmId);
+    }
+    const farmIdByAnimalId = new Map(
+      [...establishmentIdByAnimalId.entries()]
+        .map(([animalId, establishmentId]) => [animalId, farmIdByEstablishmentId.get(establishmentId)] as const)
+        .filter((entry): entry is [string, string] => !!entry[1])
+    );
+
+    let updatedCount = 0;
+    for (const row of rows) {
+      const animalUpdate: Partial<typeof animal.$inferInsert> = {};
+      if (row.breed) animalUpdate.breed = row.breed;
+      if (row.sex) animalUpdate.sex = row.sex;
+      if (row.birthDate) animalUpdate.birthDate = row.birthDate;
+      if (row.ownerName) {
+        const farmId = farmIdByAnimalId.get(row.animalId);
+        if (farmId) animalUpdate.ownerId = await resolveOwnerId(tx, ownerIdByName, farmId, row.ownerName);
+      }
+      if (Object.keys(animalUpdate).length > 0) {
+        await tx.update(animal).set(animalUpdate).where(eq(animal.id, row.animalId));
+      }
+
+      if (row.secondaryTag) {
+        await tx.update(animalTagHistory).set({ secondaryTag: row.secondaryTag }).where(eq(animalTagHistory.tag, row.tag));
+      }
+
+      updatedCount += 1;
+    }
+
+    return { updatedCount };
+  });
 }

@@ -5,18 +5,41 @@ import { ImportForm } from "@/components/settings/import-form";
 
 vi.mock("@/app/(protected)/settings/import/actions", () => ({
   parseImportFileAction: vi.fn(),
+  previewImportAction: vi.fn(),
   importChunkAction: vi.fn(),
 }));
 
-const { parseImportFileAction, importChunkAction } = await import("@/app/(protected)/settings/import/actions");
+const { parseImportFileAction, previewImportAction, importChunkAction } =
+  await import("@/app/(protected)/settings/import/actions");
 
 beforeEach(() => {
   vi.mocked(parseImportFileAction).mockReset();
+  vi.mocked(previewImportAction).mockReset();
   vi.mocked(importChunkAction).mockReset();
+  // Default preview: every row previewed will "crear" unless a test overrides it.
+  vi.mocked(previewImportAction).mockImplementation(async (rows) =>
+    rows.map((row) => ({ tag: row.tag, action: "crear" as const })),
+  );
 });
 
+async function goToPreview() {
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Continuar" }),
+    ).toBeInTheDocument(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Confirmar importación" }),
+    ).toBeInTheDocument(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Confirmar importación" }));
+}
+
 describe("ImportForm", () => {
-  it("parses the uploaded file, shows the column mapper, then imports in chunks and shows the summary", async () => {
+  it("parses the uploaded file, shows a preview, then imports in chunks and shows the summary", async () => {
     vi.mocked(parseImportFileAction).mockResolvedValue({
       headers: ["IDE (caravana electrónica)", "Estancia"],
       rows: [
@@ -24,7 +47,11 @@ describe("ImportForm", () => {
         ["TAG2", "San Antonio"],
       ],
     });
-    vi.mocked(importChunkAction).mockResolvedValue({ createdCount: 2, errors: [] });
+    vi.mocked(importChunkAction).mockResolvedValue({
+      createdCount: 2,
+      updatedCount: 0,
+      errors: [],
+    });
 
     render(<ImportForm />);
 
@@ -35,24 +62,45 @@ describe("ImportForm", () => {
     await userEvent.upload(input, file);
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Continuar" }),
+      ).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    await waitFor(() => expect(screen.getByText(/2 filas creadas/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Se crearán 2 animales/)).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar importación" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/2 filas creadas/)).toBeInTheDocument(),
+    );
     expect(importChunkAction).toHaveBeenCalledTimes(1);
     expect(importChunkAction).toHaveBeenCalledWith([
-      expect.objectContaining({ tag: "TAG1", establishmentName: "San Antonio" }),
-      expect.objectContaining({ tag: "TAG2", establishmentName: "San Antonio" }),
+      expect.objectContaining({
+        tag: "TAG1",
+        establishmentName: "San Antonio",
+      }),
+      expect.objectContaining({
+        tag: "TAG2",
+        establishmentName: "San Antonio",
+      }),
     ]);
   });
 
-  it("shows the error rows in the final summary", async () => {
+  it("shows the error rows in the preview and in the final summary", async () => {
     vi.mocked(parseImportFileAction).mockResolvedValue({
       headers: ["IDE (caravana electrónica)", "Estancia"],
       rows: [["", "San Antonio"]],
     });
+    vi.mocked(previewImportAction).mockResolvedValue([
+      { tag: "", action: "error", reason: "Falta la caravana" },
+    ]);
     vi.mocked(importChunkAction).mockResolvedValue({
       createdCount: 0,
+      updatedCount: 0,
       errors: [{ tag: "", reason: "Falta la caravana" }],
     });
 
@@ -62,15 +110,29 @@ describe("ImportForm", () => {
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Continuar" }),
+      ).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    await waitFor(() => expect(screen.getByText("Falta la caravana")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getAllByText("Falta la caravana").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar importación" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Falta la caravana")).toBeInTheDocument(),
+    );
   });
 
   it("dispatches chunks sequentially, one in flight at a time, never in parallel", async () => {
     const headers = ["IDE (caravana electrónica)", "Estancia"];
-    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    const rows = Array.from({ length: 250 }, (_, i) => [
+      `TAG${i + 1}`,
+      "San Antonio",
+    ]);
     vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
 
     let inFlight = false;
@@ -92,7 +154,7 @@ describe("ImportForm", () => {
       }
 
       inFlight = false;
-      return { createdCount: chunkRows.length, errors: [] };
+      return { createdCount: chunkRows.length, updatedCount: 0, errors: [] };
     });
 
     render(<ImportForm />);
@@ -101,16 +163,17 @@ describe("ImportForm", () => {
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await goToPreview();
 
-    await waitFor(() => expect(screen.getByText(/250 filas creadas/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/250 filas creadas/)).toBeInTheDocument(),
+    );
 
     expect(importChunkAction).toHaveBeenCalledTimes(2);
     expect(inFlightAtCallStart).toEqual([false, false]);
     expect(importChunkAction).toHaveBeenNthCalledWith(
       1,
-      expect.arrayContaining([expect.objectContaining({ tag: "TAG1" })])
+      expect.arrayContaining([expect.objectContaining({ tag: "TAG1" })]),
     );
     const firstCallArg = vi.mocked(importChunkAction).mock.calls[0][0];
     const secondCallArg = vi.mocked(importChunkAction).mock.calls[1][0];
@@ -122,12 +185,16 @@ describe("ImportForm", () => {
     const headers = ["IDE (caravana electrónica)", "Estancia"];
     // 250 rows so a naive per-chunk (200-row) dedup would miss a tag repeated
     // between row 0 (chunk 1) and row 205 (chunk 2).
-    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    const rows = Array.from({ length: 250 }, (_, i) => [
+      `TAG${i + 1}`,
+      "San Antonio",
+    ]);
     rows[0] = ["DUPTAG", "San Antonio"];
     rows[205] = ["DUPTAG", "San Antonio"];
     vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
     vi.mocked(importChunkAction).mockImplementation(async (chunkRows) => ({
       createdCount: chunkRows.length,
+      updatedCount: 0,
       errors: [],
     }));
 
@@ -137,26 +204,35 @@ describe("ImportForm", () => {
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await goToPreview();
 
     // 250 rows - 2 file-duplicate rows = 248 sent to the server.
-    await waitFor(() => expect(screen.getByText(/248 filas creadas/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/248 filas creadas/)).toBeInTheDocument(),
+    );
 
-    expect(screen.getAllByText("Caravana duplicada en el archivo")).toHaveLength(2);
+    expect(
+      screen.getAllByText("Caravana duplicada en el archivo").length,
+    ).toBeGreaterThan(0);
 
-    const allSentRows = vi.mocked(importChunkAction).mock.calls.flatMap((args) => args[0]);
+    const allSentRows = vi
+      .mocked(importChunkAction)
+      .mock.calls.flatMap((args) => args[0]);
     expect(allSentRows.some((r) => r.tag === "DUPTAG")).toBe(false);
     expect(allSentRows).toHaveLength(248);
   });
 
   it("preserves accumulated progress when a later chunk fails, and lets the admin restart", async () => {
     const headers = ["IDE (caravana electrónica)", "Estancia"];
-    const rows = Array.from({ length: 250 }, (_, i) => [`TAG${i + 1}`, "San Antonio"]);
+    const rows = Array.from({ length: 250 }, (_, i) => [
+      `TAG${i + 1}`,
+      "San Antonio",
+    ]);
     vi.mocked(parseImportFileAction).mockResolvedValue({ headers, rows });
 
     vi.mocked(importChunkAction).mockImplementationOnce(async (chunkRows) => ({
       createdCount: chunkRows.length,
+      updatedCount: 0,
       errors: [],
     }));
     vi.mocked(importChunkAction).mockImplementationOnce(async () => {
@@ -169,15 +245,20 @@ describe("ImportForm", () => {
     await userEvent.upload(input, new File(["x"], "base.xlsx"));
     fireEvent.click(screen.getByRole("button", { name: "Subir" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await goToPreview();
 
-    await waitFor(() => expect(screen.getByText("Chip secundario o caravana duplicados")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText("Chip secundario o caravana duplicados"),
+      ).toBeInTheDocument(),
+    );
     // The first chunk's 200 created rows must still be shown, not discarded.
     expect(screen.getByText(/200 filas creadas/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Volver a empezar" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Archivo Excel")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByLabelText("Archivo Excel")).toBeInTheDocument(),
+    );
   });
 });

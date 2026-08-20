@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
+import { toast } from "@/components/ui/toast";
 import { ImportColumnMapper } from "@/components/settings/import-column-mapper";
 import {
   applyImportColumnMapping,
@@ -11,8 +12,10 @@ import {
 } from "@/lib/activities/bulk-import-mapping";
 import {
   parseImportFileAction,
+  previewImportAction,
   importChunkAction,
   type ImportChunkActionResult,
+  type ImportPreviewRow,
 } from "@/app/(protected)/settings/import/actions";
 
 const CHUNK_SIZE = 200;
@@ -20,12 +23,15 @@ const CHUNK_SIZE = 200;
 type Phase =
   | { step: "upload" }
   | { step: "map"; headers: string[]; rows: string[][] }
+  | { step: "previewing" }
+  | { step: "preview"; mappedRows: MappedImportRow[]; preview: ImportPreviewRow[] }
   | { step: "importing"; total: number; processed: number }
-  | { step: "done"; createdCount: number; errors: ImportChunkActionResult["errors"] }
+  | { step: "done"; createdCount: number; updatedCount: number; errors: ImportChunkActionResult["errors"] }
   | {
       step: "error";
       message: string;
       createdCount: number;
+      updatedCount: number;
       errors: ImportChunkActionResult["errors"];
       processed: number;
       total: number;
@@ -71,10 +77,20 @@ function partitionDuplicateTags(mappedRows: MappedImportRow[]): {
   return { uniqueRows, duplicateRows };
 }
 
-function ImportSummary({ createdCount, errors }: { createdCount: number; errors: ImportChunkActionResult["errors"] }) {
+function ImportSummary({
+  createdCount,
+  updatedCount,
+  errors,
+}: {
+  createdCount: number;
+  updatedCount: number;
+  errors: ImportChunkActionResult["errors"];
+}) {
   return (
     <>
-      <p className="text-sm font-medium">{createdCount} filas creadas</p>
+      <p className="text-sm font-medium">
+        {createdCount} filas creadas, {updatedCount} filas editadas
+      </p>
       {errors.length > 0 && (
         <table className="w-full text-sm">
           <thead>
@@ -111,7 +127,15 @@ export function ImportForm() {
       const { headers, rows } = await parseImportFileAction(formData);
       setPhase({ step: "map", headers, rows });
     } catch (error) {
-      setPhase({ step: "error", message: errorMessage(error), createdCount: 0, errors: [], processed: 0, total: 0 });
+      setPhase({
+        step: "error",
+        message: errorMessage(error),
+        createdCount: 0,
+        updatedCount: 0,
+        errors: [],
+        processed: 0,
+        total: 0,
+      });
     } finally {
       setUploading(false);
     }
@@ -121,6 +145,20 @@ export function ImportForm() {
     if (phase.step !== "map") return;
     const mappedRows: MappedImportRow[] = applyImportColumnMapping(phase.headers, phase.rows, mapping);
     const { uniqueRows, duplicateRows } = partitionDuplicateTags(mappedRows);
+    const duplicatePreview: ImportPreviewRow[] = duplicateRows.map((row) => ({
+      tag: row.tag,
+      action: "error",
+      reason: "Caravana duplicada en el archivo",
+    }));
+
+    setPhase({ step: "previewing" });
+    const preview = await previewImportAction(uniqueRows);
+    setPhase({ step: "preview", mappedRows, preview: [...duplicatePreview, ...preview] });
+  }
+
+  async function handleConfirmImport() {
+    if (phase.step !== "preview") return;
+    const { uniqueRows, duplicateRows } = partitionDuplicateTags(phase.mappedRows);
     const duplicateTagErrors: ImportChunkActionResult["errors"] = duplicateRows.map((row) => ({
       tag: row.tag,
       reason: "Caravana duplicada en el archivo",
@@ -130,6 +168,7 @@ export function ImportForm() {
     setPhase({ step: "importing", total: uniqueRows.length, processed: 0 });
 
     let createdCount = 0;
+    let updatedCount = 0;
     const errors: ImportChunkActionResult["errors"] = [...duplicateTagErrors];
     let processed = 0;
 
@@ -137,15 +176,18 @@ export function ImportForm() {
       for (const rowsChunk of chunks) {
         const result = await importChunkAction(rowsChunk);
         createdCount += result.createdCount;
+        updatedCount += result.updatedCount;
         errors.push(...result.errors);
         processed += rowsChunk.length;
         setPhase({ step: "importing", total: uniqueRows.length, processed });
       }
     } catch (error) {
+      toast({ type: "error", title: errorMessage(error) });
       setPhase({
         step: "error",
         message: errorMessage(error),
         createdCount,
+        updatedCount,
         errors,
         processed,
         total: uniqueRows.length,
@@ -153,7 +195,8 @@ export function ImportForm() {
       return;
     }
 
-    setPhase({ step: "done", createdCount, errors });
+    toast({ type: "success", title: `${createdCount} filas creadas, ${updatedCount} filas editadas.` });
+    setPhase({ step: "done", createdCount, updatedCount, errors });
   }
 
   if (phase.step === "upload") {
@@ -174,7 +217,7 @@ export function ImportForm() {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-destructive">{phase.message}</p>
-        <ImportSummary createdCount={phase.createdCount} errors={phase.errors} />
+        <ImportSummary createdCount={phase.createdCount} updatedCount={phase.updatedCount} errors={phase.errors} />
         <Button type="button" onClick={() => setPhase({ step: "upload" })}>
           Volver a empezar
         </Button>
@@ -184,6 +227,57 @@ export function ImportForm() {
 
   if (phase.step === "map") {
     return <ImportColumnMapper headers={phase.headers} onSubmit={handleMappingSubmit} />;
+  }
+
+  if (phase.step === "previewing") {
+    return <p className="text-sm">Analizando archivo…</p>;
+  }
+
+  if (phase.step === "preview") {
+    const toCreate = phase.preview.filter((r) => r.action === "crear").length;
+    const toUpdate = phase.preview.filter((r) => r.action === "editar").length;
+    const previewErrors = phase.preview.filter((r): r is Extract<ImportPreviewRow, { action: "error" }> => r.action === "error");
+
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm font-medium">
+          Se crearán {toCreate} animales, se editarán {toUpdate} animales existentes
+          {previewErrors.length > 0 && `, ${previewErrors.length} filas con error`}.
+        </p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-left">Caravana</th>
+              <th className="text-left">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {phase.preview.map((row, index) => (
+              <tr key={`${row.tag}-${index}`}>
+                <td>{row.tag}</td>
+                <td>
+                  {row.action === "crear"
+                    ? "Crear"
+                    : row.action === "editar"
+                      ? row.fields.length > 0
+                        ? `Editar: ${row.fields.join(", ")}`
+                        : "Editar: sin cambios"
+                      : row.reason}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="flex gap-2">
+          <Button type="button" onClick={handleConfirmImport}>
+            Confirmar importación
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setPhase({ step: "upload" })}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (phase.step === "importing") {
@@ -196,7 +290,7 @@ export function ImportForm() {
 
   return (
     <div className="flex flex-col gap-3">
-      <ImportSummary createdCount={phase.createdCount} errors={phase.errors} />
+      <ImportSummary createdCount={phase.createdCount} updatedCount={phase.updatedCount} errors={phase.errors} />
     </div>
   );
 }
