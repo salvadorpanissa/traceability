@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toast";
 import { ColumnMapper } from "@/components/activities/column-mapper";
-import { StepHeading } from "@/components/activities/step-heading";
+import { WizardProgress } from "@/components/activities/wizard-progress";
 import { TransferPreviewTable } from "@/components/activities/transfer-preview-table";
 import { ScrollablePreviewTable } from "@/components/activities/scrollable-preview-table";
 import { ProductListEditor, emptyProduct } from "@/components/activities/product-list-editor";
@@ -17,6 +17,7 @@ import { PendingOwnerEditor } from "@/components/activities/pending-owner-editor
 import { PaddockSelector } from "@/components/activities/paddock-selector";
 import { PaddockMismatchWarning } from "@/components/activities/paddock-mismatch-warning";
 import { ReproductiveStatusLegend } from "@/components/activities/reproductive-status-legend";
+import { parseActivityFileAction } from "@/app/(protected)/activities/shared-actions";
 import {
   previewHealthBatch,
   confirmHealthBatchAction,
@@ -26,11 +27,10 @@ import {
   listPaddocksAction,
   listTagsInPaddockAction,
   listProductsAction,
-  createReproductiveStatusForHealthAction,
-  listReproductiveStatusesAction,
+  resolveReproductiveStatusNamesAction,
   type PreviewResult,
 } from "@/app/(protected)/activities/health/actions";
-import type { ColumnMapping } from "@/lib/activities/column-mapping";
+import { extractDistinctColumnValues, type ColumnMapping } from "@/lib/activities/column-mapping";
 import type { HealthProduct } from "@/lib/activities/health";
 import { findPaddockMismatches, findMissingFromPaddock } from "@/lib/activities/health-paddock-mismatch";
 import { HealthFormSidebar } from "@/components/activities/health-form-sidebar";
@@ -40,7 +40,6 @@ import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 import type { ProductCatalogEntry } from "@/lib/dal/product-catalog";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
-import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
 
 function buildInitialProducts(
   suggestions: { rawValue: string; matchedProductId: string | null }[],
@@ -64,20 +63,15 @@ function buildInitialProducts(
   return { products, suggestedNames };
 }
 
+// Mapping and the reproductive-status legend are both resolved client-side
+// before the first previewHealthBatch call, so in practice only the
+// eventDate/rows branches are ever taken — the rest is defensive.
 function stepFromPreview(result: PreviewResult): HealthFormStep {
   if (result.mappingNeeded) return "mapping";
-  if (result.valueLegendNeeded) return "legend";
+  if (result.valueLegendNeeded) return "reproductiveStatus";
   if (result.eventDateNeeded) return "eventDate";
   return "products";
 }
-
-const STEP_LABELS: Record<HealthFormStep, string> = {
-  mapping: "Mapeo de columnas",
-  legend: "Estados reproductivos",
-  eventDate: "Fecha del lote",
-  products: "Productos",
-  review: "Caravanas y confirmación",
-};
 
 function pendingOwnerNames(rows: ResolvedRow[]): string[] {
   const names: string[] = [];
@@ -101,7 +95,6 @@ export function HealthForm({
   const [paddockLoadError, setPaddockLoadError] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [eventDate, setEventDate] = useState("");
-  const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [rows, setRows] = useState<ResolvedRow[]>([]);
   const [catalog, setCatalog] = useState<ProductCatalogEntry[]>([]);
   const [catalogLoadError, setCatalogLoadError] = useState("");
@@ -113,22 +106,17 @@ export function HealthForm({
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [transferMismatched, setTransferMismatched] = useState<boolean | null>(null);
   const [paddockTags, setPaddockTags] = useState<string[]>([]);
-  const [reproductiveStatusCatalog, setReproductiveStatusCatalog] = useState<ReproductiveStatusCatalogEntry[]>([]);
-  const [reproductiveStatusValueMap, setReproductiveStatusValueMap] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HealthFormStep | null>(null);
   const [stepHistory, setStepHistory] = useState<HealthFormStep[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
+  const [rawRows, setRawRows] = useState<string[][]>([]);
   const [workingMapping, setWorkingMapping] = useState<ColumnMapping[] | null>(null);
-  const [distinctValues, setDistinctValues] = useState<string[]>([]);
+  const [reproductiveStatusNameMap, setReproductiveStatusNameMap] = useState<Record<string, string>>({});
   const [hydrated, setHydrated] = useState(false);
-  // True only for the one file-pick right after a draft is restored — lets
-  // handleFileChange auto-continue with the cached mapping instead of
-  // treating it like an unrelated new file (which must reset the legend).
-  const [resumingFromDraft, setResumingFromDraft] = useState(false);
 
-  // Restore a draft saved before a reload — everything except the raw File
-  // (browsers don't let a page get that back), so mapping/legend/eventDate
-  // steps ask the user to re-pick the same file to continue.
+  // Restore a draft saved before a reload. The raw File can't come back
+  // (browsers don't let a page get that back), but every later step works off
+  // the already-parsed headers/rawRows, so the wizard resumes where it was.
   useEffect(() => {
     const draft = loadHealthFormDraft();
     if (draft) {
@@ -138,18 +126,16 @@ export function HealthForm({
       setStep(draft.step);
       setStepHistory(draft.stepHistory);
       setHeaders(draft.headers);
+      setRawRows(draft.rawRows);
       setWorkingMapping(draft.workingMapping);
-      setDistinctValues(draft.distinctValues);
-      setReproductiveStatusValueMap(draft.reproductiveStatusValueMap);
+      setReproductiveStatusNameMap(draft.reproductiveStatusNameMap);
       setRows(draft.rows);
       setProducts(draft.products);
       setSuggestedNames(draft.suggestedNames);
       setTransferMismatched(draft.transferMismatched);
-      setResumingFromDraft(draft.step === "mapping" || draft.step === "legend" || draft.step === "eventDate");
       if (draft.establishmentId) {
         listPaddocksAction(draft.establishmentId).then(setPaddocks).catch(() => {});
         listProductsAction(draft.establishmentId).then(setCatalog).catch(() => {});
-        listReproductiveStatusesAction(draft.establishmentId).then(setReproductiveStatusCatalog).catch(() => {});
       }
       if (draft.establishmentId && draft.paddockId) {
         listTagsInPaddockAction(draft.establishmentId, draft.paddockId).then(setPaddockTags).catch(() => {});
@@ -167,9 +153,9 @@ export function HealthForm({
       step,
       stepHistory,
       headers,
+      rawRows,
       workingMapping,
-      distinctValues,
-      reproductiveStatusValueMap,
+      reproductiveStatusNameMap,
       rows,
       products,
       suggestedNames,
@@ -184,9 +170,9 @@ export function HealthForm({
     step,
     stepHistory,
     headers,
+    rawRows,
     workingMapping,
-    distinctValues,
-    reproductiveStatusValueMap,
+    reproductiveStatusNameMap,
     rows,
     products,
     suggestedNames,
@@ -197,18 +183,10 @@ export function HealthForm({
     setEstablishmentId(selectedEstablishmentId);
     setPaddockId(null);
     setEventDate("");
-    setPreview(null);
     setRows([]);
     setTransferMismatched(null);
     setPaddockLoadError("");
     setCatalogLoadError("");
-    setReproductiveStatusValueMap({});
-    setStep(null);
-    setStepHistory([]);
-    setHeaders([]);
-    setWorkingMapping(null);
-    setDistinctValues([]);
-    setResumingFromDraft(false);
     if (!selectedEstablishmentId) {
       setPaddocks([]);
       setCatalog([]);
@@ -226,11 +204,6 @@ export function HealthForm({
       setCatalog([]);
       setCatalogLoadError(err instanceof Error ? err.message : "No se pudieron cargar los productos");
     }
-    try {
-      setReproductiveStatusCatalog(await listReproductiveStatusesAction(selectedEstablishmentId));
-    } catch {
-      setReproductiveStatusCatalog([]);
-    }
   }
 
   function handleDiscardDraft() {
@@ -240,35 +213,26 @@ export function HealthForm({
     setPaddocks([]);
     setFile(null);
     setEventDate("");
-    setPreview(null);
     setRows([]);
     setCatalog([]);
     setProducts([emptyProduct()]);
     setSuggestedNames([null]);
     setTransferMismatched(null);
     setPaddockTags([]);
-    setReproductiveStatusValueMap({});
+    setReproductiveStatusNameMap({});
     setStep(null);
     setStepHistory([]);
     setHeaders([]);
+    setRawRows([]);
     setWorkingMapping(null);
-    setDistinctValues([]);
-    setResumingFromDraft(false);
   }
 
   async function handlePaddockChange(selectedPaddockId: string | null) {
     setPaddockId(selectedPaddockId);
     setEventDate("");
-    setPreview(null);
     setRows([]);
     setTransferMismatched(null);
     setPaddockTags([]);
-    setStep(null);
-    setStepHistory([]);
-    setHeaders([]);
-    setWorkingMapping(null);
-    setDistinctValues([]);
-    setResumingFromDraft(false);
     if (selectedPaddockId && establishmentId) {
       try {
         setPaddockTags(await listTagsInPaddockAction(establishmentId, selectedPaddockId));
@@ -280,39 +244,72 @@ export function HealthForm({
 
   function handleFileChange(selected: File | null) {
     setFile(selected);
-    if (resumingFromDraft) {
-      setResumingFromDraft(false);
-      if (selected && workingMapping) {
-        void runPreview(workingMapping, selected);
-        return;
-      }
-    }
-    setEventDate("");
-    setTransferMismatched(null);
-    setReproductiveStatusValueMap({});
   }
 
-  async function runPreview(mapping?: ColumnMapping[], fileOverride?: File) {
-    const activeFile = fileOverride ?? file;
-    if (!activeFile || !establishmentId) return;
+  async function handleUploadFile() {
+    if (!file) return;
     const formData = new FormData();
-    formData.set("file", activeFile);
+    formData.set("file", file);
+    const result = await parseActivityFileAction(formData);
+    setHeaders(result.headers);
+    setRawRows(result.rows);
+    setWorkingMapping(result.initialMapping);
+    setStep("mapping");
+    setStepHistory([]);
+  }
+
+  function handleMappingSubmit(mapping: ColumnMapping[]) {
+    setWorkingMapping(mapping);
+    setStepHistory((prev) => [...prev, "mapping"]);
+    const distinctValues = extractDistinctColumnValues(headers, rawRows, mapping, "reproductiveStatus");
+    setStep(distinctValues.length > 0 ? "reproductiveStatus" : "establishment");
+  }
+
+  function handleReproductiveStatusLegendChange(nameMap: Record<string, string>) {
+    setReproductiveStatusNameMap(nameMap);
+  }
+
+  function handleSubmitReproductiveStatusLegend() {
+    if (step !== "reproductiveStatus") return;
+    setStepHistory((prev) => [...prev, "reproductiveStatus"]);
+    setStep("establishment");
+  }
+
+  async function handleSubmitEstablishmentStep() {
+    if (step !== "establishment" || !workingMapping || !establishmentId || !paddockId) return;
+    let mapping = workingMapping;
+    // Only the values still present in the file matter — a mapping edited via
+    // "Atrás" can leave stale entries behind in the name map.
+    const nameMap: Record<string, string> = {};
+    for (const value of extractDistinctColumnValues(headers, rawRows, mapping, "reproductiveStatus")) {
+      const name = reproductiveStatusNameMap[value];
+      if (name) nameMap[value] = name;
+    }
+    if (Object.keys(nameMap).length > 0) {
+      const resolvedIds = await resolveReproductiveStatusNamesAction(establishmentId, nameMap);
+      mapping = mapping.map((m) =>
+        m.meaning === "reproductiveStatus" ? { ...m, reproductiveStatusValueMap: resolvedIds } : m
+      );
+      setWorkingMapping(mapping);
+    }
+    setStepHistory((prev) => [...prev, "establishment"]);
+    await runPreview(mapping);
+  }
+
+  async function runPreview(mapping: ColumnMapping[]) {
+    if (!file || !establishmentId) return;
+    const formData = new FormData();
+    formData.set("file", file);
     formData.set("eventDate", eventDate);
     formData.set("establishmentId", establishmentId);
-    if (mapping) formData.set("mapping", JSON.stringify(mapping));
+    formData.set("mapping", JSON.stringify(mapping));
     const result = await previewHealthBatch(formData);
-    setStepHistory((prev) => (step ? [...prev, step] : prev));
+    if (result.mappingNeeded || result.valueLegendNeeded) {
+      // Defensive only — the client always sends a fully-resolved mapping by
+      // this point, so neither branch is reachable in normal operation.
+      return;
+    }
     setStep(stepFromPreview(result));
-    setPreview(result);
-    if (result.mappingNeeded) {
-      setHeaders(result.headers);
-      return;
-    }
-    setWorkingMapping(result.mapping);
-    if (result.valueLegendNeeded) {
-      setDistinctValues(result.distinctValues);
-      return;
-    }
     if (result.eventDateNeeded) return;
     setRows(result.rows);
     const built = buildInitialProducts(result.productSuggestions, catalog);
@@ -321,11 +318,12 @@ export function HealthForm({
   }
 
   function handleBack() {
-    setStepHistory((prev) => {
-      if (prev.length === 0) return prev;
-      setStep(prev[prev.length - 1]);
-      return prev.slice(0, -1);
-    });
+    if (stepHistory.length === 0) {
+      setStep(null);
+      return;
+    }
+    setStep(stepHistory[stepHistory.length - 1]);
+    setStepHistory(stepHistory.slice(0, -1));
   }
 
   async function handleSubmitEventDate() {
@@ -337,24 +335,6 @@ export function HealthForm({
     if (step !== "products") return;
     setStepHistory((prev) => [...prev, "products"]);
     setStep("review");
-  }
-
-  async function handleCreateReproductiveStatus(name: string): Promise<ReproductiveStatusCatalogEntry> {
-    const created = await createReproductiveStatusForHealthAction(establishmentId, name);
-    setReproductiveStatusCatalog((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-    return created;
-  }
-
-  function handleReproductiveStatusLegendChange(valueMap: Record<string, string>) {
-    setReproductiveStatusValueMap(valueMap);
-  }
-
-  async function handleSubmitReproductiveStatusLegend() {
-    if (step !== "legend" || !workingMapping) return;
-    const mapping = workingMapping.map((m) =>
-      m.meaning === "reproductiveStatus" ? { ...m, reproductiveStatusValueMap: reproductiveStatusValueMap } : m
-    );
-    await runPreview(mapping);
   }
 
   async function handleCreateProduct(name: string): Promise<ProductCatalogEntry> {
@@ -445,6 +425,21 @@ export function HealthForm({
   const establishmentName = establishments.find((e) => e.id === establishmentId)?.name ?? null;
   const paddockName = paddocks.find((p) => p.id === paddockId)?.name ?? null;
 
+  const reproductiveStatusValues = extractDistinctColumnValues(
+    headers,
+    rawRows,
+    workingMapping ?? [],
+    "reproductiveStatus"
+  );
+  const wizardSteps = [
+    { key: "mapping", label: "Mapeo de columnas" },
+    ...(reproductiveStatusValues.length > 0 ? [{ key: "reproductiveStatus", label: "Estado reproductivo" }] : []),
+    { key: "establishment", label: "Campo y potrero" },
+    ...(step === "eventDate" || stepHistory.includes("eventDate") ? [{ key: "eventDate", label: "Fecha del lote" }] : []),
+    { key: "products", label: "Productos" },
+    { key: "review", label: "Caravanas y confirmación" },
+  ];
+
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-start">
       <Card className="min-w-0 flex-1">
@@ -452,60 +447,20 @@ export function HealthForm({
           <CardTitle>Sanidad</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-      {!step ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="establishment">Campo</Label>
-            <select
-              id="establishment"
-              aria-label="Campo"
-              value={establishmentId}
-              onChange={(e) => handleEstablishmentChange(e.target.value)}
-              className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-            >
-              <option value="">Elegir campo</option>
-              {establishments.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
-          {catalogLoadError ? <p className="text-sm text-red-600">{catalogLoadError}</p> : null}
-          {establishmentId ? (
-            <PaddockSelector
-              paddocks={paddocks}
-              paddockId={paddockId}
-              onChange={handlePaddockChange}
-              onCreatePaddock={handleCreatePaddock}
-              label="Potrero"
-              allowNone={false}
-            />
-          ) : null}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="file">Archivo</Label>
-            <FileInput id="file" file={file} onChange={handleFileChange} />
-          </div>
-          <Button type="button" disabled={!establishmentId || !paddockId || !file} onClick={() => runPreview()}>
-            Subir
-          </Button>
-        </>
-      ) : null}
+      {step ? <WizardProgress steps={wizardSteps} currentIndex={wizardSteps.findIndex((s) => s.key === step)} /> : null}
 
-      {step && step !== "products" && step !== "review" && !file ? (
+      {!step ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">
-            Recuperamos tu progreso — volvé a elegir el mismo archivo para continuar.
-          </p>
           <Label htmlFor="file">Archivo</Label>
           <FileInput id="file" file={file} onChange={handleFileChange} />
+          <Button type="button" disabled={!file} onClick={handleUploadFile}>
+            Subir
+          </Button>
         </div>
       ) : null}
 
       {step === "mapping" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading label={STEP_LABELS.mapping} position={stepHistory.length + 1} />
           <ColumnMapper
             headers={headers}
             availableMeanings={[
@@ -521,34 +476,67 @@ export function HealthForm({
               "reproductiveStatus",
               "ignore",
             ]}
-            initialMapping={workingMapping ?? (preview?.mappingNeeded ? preview.initialMapping : null)}
-            onSubmit={(mapping) => runPreview(mapping)}
+            initialMapping={workingMapping}
+            onSubmit={handleMappingSubmit}
           />
-          {stepHistory.length > 0 ? (
-            <Button type="button" variant="outline" onClick={handleBack}>
-              Atrás
-            </Button>
-          ) : null}
+          <Button type="button" variant="outline" onClick={handleBack}>
+            Atrás
+          </Button>
         </div>
       ) : null}
 
-      {step === "legend" ? (
+      {step === "reproductiveStatus" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading label={STEP_LABELS.legend} position={stepHistory.length + 1} />
           <ReproductiveStatusLegend
-            distinctValues={distinctValues}
-            catalog={reproductiveStatusCatalog}
-            initialValueMap={reproductiveStatusValueMap}
-            onCreateStatus={handleCreateReproductiveStatus}
+            distinctValues={reproductiveStatusValues}
+            initialNameMap={reproductiveStatusNameMap}
             onChange={handleReproductiveStatusLegendChange}
           />
           <div className="flex gap-2">
-            {stepHistory.length > 0 ? (
-              <Button type="button" variant="outline" onClick={handleBack}>
-                Atrás
-              </Button>
-            ) : null}
+            <Button type="button" variant="outline" onClick={handleBack}>
+              Atrás
+            </Button>
             <Button type="button" onClick={handleSubmitReproductiveStatusLegend}>
+              Continuar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === "establishment" ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="establishment">Campo</Label>
+          <select
+            id="establishment"
+            aria-label="Campo"
+            value={establishmentId}
+            onChange={(e) => handleEstablishmentChange(e.target.value)}
+            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+          >
+            <option value="">Elegir campo</option>
+            {establishments.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+          </select>
+          {paddockLoadError ? <p className="text-sm text-red-600">{paddockLoadError}</p> : null}
+          {catalogLoadError ? <p className="text-sm text-red-600">{catalogLoadError}</p> : null}
+          {establishmentId ? (
+            <PaddockSelector
+              paddocks={paddocks}
+              paddockId={paddockId}
+              onChange={handlePaddockChange}
+              onCreatePaddock={handleCreatePaddock}
+              label="Potrero"
+              allowNone={false}
+            />
+          ) : null}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={handleBack}>
+              Atrás
+            </Button>
+            <Button type="button" disabled={!establishmentId || !paddockId} onClick={handleSubmitEstablishmentStep}>
               Continuar
             </Button>
           </div>
@@ -557,7 +545,6 @@ export function HealthForm({
 
       {step === "eventDate" ? (
         <div className="flex flex-col gap-2">
-          <StepHeading label={STEP_LABELS.eventDate} position={stepHistory.length + 1} />
           <p className="text-sm text-muted-foreground">
             El archivo no tiene una columna de fecha — indicá la fecha para todo el lote.
           </p>
@@ -578,7 +565,6 @@ export function HealthForm({
 
       {step === "products" ? (
         <div className="flex flex-col gap-4">
-          <StepHeading label={STEP_LABELS.products} position={stepHistory.length + 1} />
           <ProductListEditor
             catalog={catalog}
             products={products}
@@ -601,7 +587,6 @@ export function HealthForm({
 
       {step === "review" ? (
         <div className="flex flex-col gap-4">
-          <StepHeading label={STEP_LABELS.review} position={stepHistory.length + 1} />
           <PendingOwnerEditor
             pendingNames={pendingNames}
             ownerCatalog={ownerCatalog}
