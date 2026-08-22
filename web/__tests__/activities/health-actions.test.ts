@@ -29,6 +29,7 @@ const {
   confirmHealthBatchAction,
   createProductAction,
   createOwnerAction,
+  resolveReproductiveStatusNamesAction,
 } = await import("../../app/(protected)/activities/health/actions");
 const { auth } = await import("@/auth");
 
@@ -787,5 +788,24 @@ describe("createOwnerAction", () => {
     const created = await createOwnerAction(seededFarm.id, "Pérez");
 
     expect(created.name).toBe("Pérez");
+  });
+});
+
+describe("resolveReproductiveStatusNamesAction", () => {
+  it("resolves a typed name against the establishment's farm catalog", async () => {
+    const { seededFarm } = await seedManagerSession();
+
+    const result = await resolveReproductiveStatusNamesAction(seededFarm.id, { "1": "Preñada" });
+
+    expect(Object.keys(result)).toEqual(["1"]);
+    expect(result["1"]).toBeTruthy();
+  });
+
+  it("rejects a manager without access to the establishment", async () => {
+    await seedManagerSession();
+    const [otherFarm] = await testDb.insert(farm).values({ name: "Otro" }).returning();
+    const [otherEstablishment] = await testDb.insert(establishment).values({ farmId: otherFarm.id, name: "Otro" }).returning();
+
+    await expect(resolveReproductiveStatusNamesAction(otherEstablishment.id, { "1": "Preñada" })).rejects.toThrow();
   });
 });

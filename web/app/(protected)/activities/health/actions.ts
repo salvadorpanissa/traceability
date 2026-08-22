@@ -19,11 +19,8 @@ import { createOwner, type OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import { listPaddocksByEstablishment, getPaddockEstablishmentId, createPaddock, type PaddockCatalogEntry } from "@/lib/dal/paddock-catalog";
 import { listTagsInPaddock } from "@/lib/dal/animal-access";
 import { rememberedInitialMapping, rememberColumnMeanings } from "@/lib/dal/column-header-meaning";
-import {
-  createReproductiveStatus,
-  listReproductiveStatusesByFarm,
-  type ReproductiveStatusCatalogEntry,
-} from "@/lib/dal/reproductive-status-catalog";
+import { listReproductiveStatusesByFarm } from "@/lib/dal/reproductive-status-catalog";
+import { resolveReproductiveStatusNames } from "@/lib/activities/reproductive-status-resolve";
 
 export type PreviewResult =
   | { mappingNeeded: true; headers: string[]; initialMapping: ColumnMapping[] | null }
@@ -191,20 +188,13 @@ export async function getHealthBatchDetailAction(batchId: string): Promise<Healt
   return healthBatchDetail(batchId, session.user.id, session.user.role);
 }
 
-export async function createReproductiveStatusForHealthAction(
+export async function resolveReproductiveStatusNamesAction(
   establishmentId: string,
-  name: string
-): Promise<ReproductiveStatusCatalogEntry> {
+  nameMap: Record<string, string>
+): Promise<Record<string, string>> {
   const session = await requireSession();
   await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
   const farmId = await getEstablishmentFarmId(establishmentId);
-  if (!farmId) throw new Error("Campo no encontrado");
-  return createReproductiveStatus(farmId, name);
-}
-
-export async function listReproductiveStatusesAction(establishmentId: string): Promise<ReproductiveStatusCatalogEntry[]> {
-  const session = await requireSession();
-  await requireEstablishmentAccess(session.user.id, session.user.role, establishmentId);
-  const farmId = await getEstablishmentFarmId(establishmentId);
-  return farmId ? listReproductiveStatusesByFarm(farmId) : [];
+  if (!farmId) return {};
+  return resolveReproductiveStatusNames(farmId, nameMap);
 }
