@@ -1,11 +1,8 @@
-import { config } from "dotenv";
-import path from "node:path";
 import { sql } from "drizzle-orm";
 import { createDbClient } from "./client";
+import { loadEnv } from "./env";
 
-// ENV_FILE picks which env file to load (.env.local for local dev by
-// default, .env.production for prod) — same mechanism as db/migrate.ts.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 // Fills farm.group_id, category.group_id, product.group_id after migration
 // 0034 adds them nullable. Migration 0035 then tightens all three to NOT

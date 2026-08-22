@@ -1,8 +1,7 @@
-import { config } from "dotenv";
-import path from "node:path";
 import { Client } from "pg";
+import { loadEnv } from "./env";
 
-config({ path: path.resolve(__dirname, "..", ".env.local"), quiet: true });
+loadEnv();
 
 async function run() {
   const adminConnectionString = process.env.DATABASE_URL;

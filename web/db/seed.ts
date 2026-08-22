@@ -1,13 +1,10 @@
-import { config } from "dotenv";
-import path from "node:path";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { createDbClient } from "./client";
-import { role, establishment, farm, userAccount } from "./schema";
+import { role, establishment, farm, userAccount, userFarm } from "./schema";
+import { loadEnv } from "./env";
 
-// ENV_FILE picks which env file to load (.env.local for local dev by
-// default, .env.production for prod) — same mechanism as db/migrate.ts.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 async function upsertRole(db: ReturnType<typeof createDbClient>, name: string) {
   const [existing] = await db.select().from(role).where(eq(role.name, name));
@@ -57,8 +54,23 @@ async function run() {
     });
   }
 
+  // Manager for "Campos" — assigned at the farm level, so it covers every
+  // establecimiento under it (San Antonio, Cuatro Cerros), same as
+  // seed-demo.ts.
+  const managerRole = await upsertRole(db, "manager");
+  const managerEmail = "panissa@manager.com";
+  const [existingManager] = await db.select().from(userAccount).where(eq(userAccount.email, managerEmail));
+  if (!existingManager) {
+    const managerPasswordHash = await bcrypt.hash("Artigas1146", 10);
+    const [manager] = await db
+      .insert(userAccount)
+      .values({ name: "Panissa", email: managerEmail, passwordHash: managerPasswordHash, roleId: managerRole.id })
+      .returning();
+    await db.insert(userFarm).values({ userId: manager.id, farmId: seededFarm.id });
+  }
+
   console.log(
-    `Seeded: admin (${adminEmail}), establishments ${seededEstablishments.map((e) => `"${e.name}"`).join(", ")}`
+    `Seeded: admin (${adminEmail}), manager (${managerEmail}), establishments ${seededEstablishments.map((e) => `"${e.name}"`).join(", ")}`
   );
   process.exit(0);
 }

@@ -1,27 +1,18 @@
-import { config } from "dotenv";
-import path from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDbClient } from "./client";
+import { loadEnv } from "./env";
 
 // Deviation from the brief: dotenv loading was added since tsx does not read
 // .env.local into process.env automatically (unlike `next dev`/`next build`).
-// ENV_FILE picks which env file to load (.env.local for local dev by
-// default, .env.production for prod) — set literally by the npm script, not
-// shell-expanded, same reasoning as MIGRATE_TARGET below.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 async function run() {
-  // Deviation from the brief: the "db:migrate:test" npm script originally
-  // passed "$DATABASE_URL_TEST" directly, but that shell substitution happens
-  // before this file's dotenv.config() runs, so it silently resolved to an
-  // empty string unless the caller's shell already exported the var. Using a
-  // MIGRATE_TARGET flag (set literally by the npm script, not shell-expanded)
-  // lets dotenv populate process.env first.
-  const argConnectionString = process.argv[2];
+  const positional = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const argConnectionString = positional[0];
   const connectionString =
     argConnectionString && argConnectionString.length > 0
       ? argConnectionString
-      : process.env.MIGRATE_TARGET === "test"
+      : process.argv.includes("--target=test")
         ? process.env.DATABASE_URL_TEST
         : process.env.DATABASE_URL;
   if (!connectionString) {

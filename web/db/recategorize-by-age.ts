@@ -1,7 +1,6 @@
-import { config } from "dotenv";
-import path from "node:path";
+import { loadEnv } from "./env";
 
-config({ path: path.resolve(__dirname, "..", ".env.local"), quiet: true });
+loadEnv();
 
 async function main() {
   // Dynamic import to ensure dotenv.config() executes before loading

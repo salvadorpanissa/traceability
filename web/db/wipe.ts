@@ -1,10 +1,7 @@
-import { config } from "dotenv";
-import path from "node:path";
 import { Client } from "pg";
+import { loadEnv } from "./env";
 
-// ENV_FILE picks which env file to load (.env.local for local dev by
-// default, .env.production for prod) — same mechanism as db/migrate.ts.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 async function run() {
   const connectionString = process.env.DATABASE_URL;
@@ -13,10 +10,10 @@ async function run() {
   }
 
   // This deletes every row in every table — an explicit, separate opt-in on
-  // top of picking the right ENV_FILE, so a bare `npm run db:wipe:prod` typo
+  // top of picking --env, so a bare `npm run db:wipe -- --env=prod` typo
   // can't silently take out a real database.
-  if (process.env.WIPE_CONFIRM !== "yes") {
-    throw new Error("Refusing to wipe: set WIPE_CONFIRM=yes explicitly to confirm you mean it");
+  if (!process.argv.includes("--confirm")) {
+    throw new Error("Refusing to wipe: pass --confirm explicitly to confirm you mean it");
   }
 
   const client = new Client({ connectionString });

@@ -1,13 +1,12 @@
-import { config } from "dotenv";
-import path from "node:path";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { createDbClient } from "./client";
 import { role, farm, userAccount, userFarm } from "./schema";
+import { loadEnv } from "./env";
 
-// Usage: FARM_ID=... MANAGER_EMAIL=... MANAGER_NAME=... MANAGER_PASSWORD=... \
-//   ENV_FILE=.env.production tsx db/create-manager.ts
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+// Usage: set FARM_ID, MANAGER_EMAIL, MANAGER_NAME, MANAGER_PASSWORD in the
+// target env file, then: tsx db/create-manager.ts --env=prod
+loadEnv();
 
 async function run() {
   const connectionString = process.env.DATABASE_URL;

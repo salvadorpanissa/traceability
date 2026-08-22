@@ -1,4 +1,3 @@
-import { config } from "dotenv";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { and, eq, sql } from "drizzle-orm";
@@ -23,13 +22,14 @@ import {
   paddock,
 } from "./schema";
 import { estimateBirthDateFromAge } from "../lib/activities/date-normalization";
+import { loadEnv } from "./env";
 
 // Demo/showcase data: a manager assigned to one farm (operación) with two
 // campos (establecimientos), 20 animals each (spread across ages so a
 // monthly age-based recategorization replay produces real category-change
 // history), a couple of health products, and one "lote" Excel per campo
 // ready to upload from Actividades > Sanidad.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 const FARM_NAME = "Operación Demo";
 const ESTABLISHMENT_NAMES = ["Campo 1", "Campo 2"];
@@ -141,12 +141,12 @@ async function run() {
   if (!connectionString) throw new Error("DATABASE_URL is not set");
 
   // This writes fictional demo data (fake manager, fake animals) into
-  // whatever database ENV_FILE points at — an explicit, separate opt-in on
-  // top of picking the right ENV_FILE, same reasoning as WIPE_CONFIRM in
-  // db/wipe.ts, so a bare `npm run db:seed-demo:prod` can't dump showcase
-  // fixtures into a real farm's database.
-  if (process.env.SEED_DEMO_CONFIRM !== "yes") {
-    throw new Error("Refusing to seed demo data: set SEED_DEMO_CONFIRM=yes explicitly to confirm you mean it");
+  // whatever --env points at — an explicit, separate opt-in on top of
+  // picking the right --env, same reasoning as --confirm in db/wipe.ts, so a
+  // bare `npm run db:seed-demo -- --env=prod` can't dump showcase fixtures
+  // into a real farm's database.
+  if (!process.argv.includes("--confirm")) {
+    throw new Error("Refusing to seed demo data: pass --confirm explicitly to confirm you mean it");
   }
 
   const managerEmail = process.env.SEED_MANAGER_EMAIL;

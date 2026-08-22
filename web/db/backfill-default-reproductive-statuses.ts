@@ -1,11 +1,8 @@
-import { config } from "dotenv";
-import path from "node:path";
 import { sql } from "drizzle-orm";
 import { createDbClient } from "./client";
+import { loadEnv } from "./env";
 
-// ENV_FILE picks which env file to load (.env.local for local dev by
-// default, .env.production for prod) — same mechanism as db/migrate.ts.
-config({ path: path.resolve(__dirname, "..", process.env.ENV_FILE ?? ".env.local"), quiet: true });
+loadEnv();
 
 const DEFAULT_STATUS_NAMES = ["Preñada", "Vacía"];
 
