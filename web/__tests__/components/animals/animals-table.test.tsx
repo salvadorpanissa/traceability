@@ -25,6 +25,7 @@ function makeAnimal(overrides: Partial<AnimalLookupDetail>): AnimalLookupDetail 
     notes: null,
     reproductiveStatusId: null,
     reproductiveStatusName: null,
+    latestWeightKg: null,
     ...overrides,
   };
 }

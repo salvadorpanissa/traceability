@@ -13,11 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RetagForm } from "@/components/activities/retag-form";
 import { DeathForm } from "@/components/activities/death-form";
+import { WeighForm } from "@/components/activities/weigh-form";
 import { translate, type Locale } from "@/lib/i18n/dictionaries";
 import { statusLabel } from "@/lib/dashboard/animal-labels";
 import { formatShortDate, toSentenceCase } from "@/lib/utils";
 import { updateAnimalAction } from "@/app/(protected)/animals/actions";
-import type { AnimalLookupDetail, AnimalTagHistoryEntry, AnimalHealthNoteEntry } from "@/lib/dal/animal-access";
+import type { AnimalLookupDetail, AnimalTagHistoryEntry, AnimalHealthNoteEntry, AnimalPesajeEntry } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
@@ -26,6 +27,7 @@ export function AnimalDetail({
   animal,
   tagHistory,
   healthNotes,
+  pesajes,
   owners,
   categories,
   reproductiveStatuses,
@@ -34,6 +36,7 @@ export function AnimalDetail({
   animal: AnimalLookupDetail;
   tagHistory: AnimalTagHistoryEntry[];
   healthNotes: AnimalHealthNoteEntry[];
+  pesajes: AnimalPesajeEntry[];
   owners: OwnerCatalogEntry[];
   categories: CategoryCatalogEntry[];
   reproductiveStatuses: ReproductiveStatusCatalogEntry[];
@@ -50,6 +53,7 @@ export function AnimalDetail({
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
   const [retagOpen, setRetagOpen] = useState(false);
   const [deathOpen, setDeathOpen] = useState(false);
+  const [weighOpen, setWeighOpen] = useState(false);
   const router = useRouter();
 
   function handleRetagOpenChange(open: boolean) {
@@ -59,6 +63,11 @@ export function AnimalDetail({
 
   function handleDeathOpenChange(open: boolean) {
     setDeathOpen(open);
+    if (!open) router.refresh();
+  }
+
+  function handleWeighOpenChange(open: boolean) {
+    setWeighOpen(open);
     if (!open) router.refresh();
   }
 
@@ -215,6 +224,9 @@ export function AnimalDetail({
                     <button type="button" className="text-sm underline" onClick={() => setDeathOpen(true)}>
                       {translate(locale, "animalLookup.registerDeath")}
                     </button>
+                    <button type="button" className="text-sm underline" onClick={() => setWeighOpen(true)}>
+                      {translate(locale, "animals.weighAction")}
+                    </button>
 
                     <Dialog open={retagOpen} onOpenChange={handleRetagOpenChange}>
                       <DialogContent>
@@ -231,6 +243,15 @@ export function AnimalDetail({
                           <DialogTitle>{translate(locale, "animalLookup.registerDeath")}</DialogTitle>
                         </DialogHeader>
                         <DeathForm initialTag={currentTag} hideContext />
+                      </DialogContent>
+                    </Dialog>
+
+                    <Dialog open={weighOpen} onOpenChange={handleWeighOpenChange}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{translate(locale, "animals.weighAction")}</DialogTitle>
+                        </DialogHeader>
+                        <WeighForm initialTag={currentTag} hideContext />
                       </DialogContent>
                     </Dialog>
                   </>
@@ -310,6 +331,41 @@ export function AnimalDetail({
           )}
         </CardContent>
       </Card>
+
+      {pesajes.length > 0 ? (
+        <Card className="mx-auto w-full max-w-4xl" data-testid="animal-pesajes">
+          <CardHeader>
+            <CardTitle>{translate(locale, "animals.pesajesTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="pb-1 font-normal">{translate(locale, "animals.pesajeDate")}</th>
+                    <th className="pb-1 font-normal">{translate(locale, "animals.pesajeWeight")}</th>
+                    <th className="pb-1 font-normal">{translate(locale, "animals.pesajeMethod")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pesajes.map((entry, index) => (
+                    <tr key={`${entry.eventDate}-${index}`}>
+                      <td className="py-1 align-top">{formatShortDate(entry.eventDate)}</td>
+                      <td className="py-1 align-top">{entry.weightKg} kg</td>
+                      <td className="py-1 align-top">
+                        {translate(
+                          locale,
+                          entry.estimated ? "animals.pesajeMethodEstimated" : "animals.pesajeMethodIndividual"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

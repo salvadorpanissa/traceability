@@ -17,6 +17,7 @@ const MEANING_LABELS: Record<ColumnMeaning, string> = {
   secondaryTag: "Chip secundario",
   breed: "Raza",
   reproductiveStatus: "Estado reproductivo",
+  weight: "Peso (kg)",
   ignore: "Ignorar",
 };
 

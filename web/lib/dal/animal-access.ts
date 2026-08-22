@@ -210,6 +210,7 @@ export type AnimalLookupDetail = AnimalCurrentStateWithNames & {
   notes: string | null;
   reproductiveStatusId: string | null;
   reproductiveStatusName: string | null;
+  latestWeightKg: string | null;
 };
 
 type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
@@ -221,6 +222,7 @@ type AnimalLookupDetailRow = CurrentStateWithNamesRow & {
   notes: string | null;
   reproductive_status_id: string | null;
   reproductive_status_name: string | null;
+  latest_weight_kg: string | null;
 };
 
 function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
@@ -234,8 +236,24 @@ function toAnimalLookupDetail(row: AnimalLookupDetailRow): AnimalLookupDetail {
     notes: row.notes,
     reproductiveStatusId: row.reproductive_status_id,
     reproductiveStatusName: row.reproductive_status_name,
+    latestWeightKg: row.latest_weight_kg,
   };
 }
+
+// Most recent non-voided pesaje for the animal — same voided-event exclusion
+// as NOTES_SUBQUERY, latest by event_date/created_at like the secondary_tag
+// subquery.
+const LATEST_WEIGHT_SUBQUERY = sql`
+  (
+    select ep.weight_kg
+    from event ev
+    join event_pesaje ep on ep.event_id = ev.id
+    where ev.animal_id = acs.animal_id
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = ev.id)
+    order by ev.event_date desc, ev.created_at desc
+    limit 1
+  ) as latest_weight_kg
+`;
 
 // Every event note the animal has ever accumulated (transfer, health,
 // recategorize, ...), oldest first — used where a single cell needs the
@@ -273,7 +291,8 @@ const CURRENT_STATE_WITH_DETAILS_SELECT = sql`
     ) as secondary_tag,
     a.reproductive_status_id,
     rs.name as reproductive_status_name,
-    ${NOTES_SUBQUERY}
+    ${NOTES_SUBQUERY},
+    ${LATEST_WEIGHT_SUBQUERY}
   from animal_current_state acs
   left join establishment e on e.id = acs.current_establishment_id
   left join paddock p on p.id = acs.current_paddock_id
@@ -341,7 +360,8 @@ export async function findAnimalDetailByTag(
       ) as secondary_tag,
       a.reproductive_status_id,
       rs.name as reproductive_status_name,
-      ${NOTES_SUBQUERY}
+      ${NOTES_SUBQUERY},
+      ${LATEST_WEIGHT_SUBQUERY}
     from animal_tag_history ath
     join animal_current_state acs on acs.animal_id = ath.animal_id
     left join establishment e on e.id = acs.current_establishment_id
@@ -477,6 +497,38 @@ export async function animalHealthNotesFor(animalId: string): Promise<AnimalHeal
     productName: row.product_name,
     withdrawalEndDate: row.withdrawal_end_date,
     notes: row.notes,
+  }));
+}
+
+export type AnimalPesajeEntry = {
+  eventDate: string;
+  weightKg: string;
+  estimated: boolean;
+};
+
+type AnimalPesajeRow = {
+  event_date: string;
+  weight_kg: string;
+  estimated: boolean;
+};
+
+// Every non-voided pesaje for one animal, newest first — same voided-event
+// exclusion as animalHealthNotesFor. Unguarded by establishment access for
+// the same reason: callers reach here only after findAnimalDetailById
+// already confirmed the caller can see this animal.
+export async function animalPesajesFor(animalId: string): Promise<AnimalPesajeEntry[]> {
+  const result = await db.execute<AnimalPesajeRow>(sql`
+    select ev.event_date, ep.weight_kg, ep.estimated
+    from event ev
+    join event_pesaje ep on ep.event_id = ev.id
+    where ev.animal_id = ${animalId}
+      and not exists (select 1 from event v where v.event_type = 'void' and v.voids_event_id = ev.id)
+    order by ev.event_date desc, ev.created_at desc
+  `);
+  return result.rows.map((row) => ({
+    eventDate: row.event_date,
+    weightKg: row.weight_kg,
+    estimated: row.estimated,
   }));
 }
 

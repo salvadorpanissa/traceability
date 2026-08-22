@@ -58,7 +58,7 @@ export const event = pgTable(
     index("event_event_date_idx").on(table.eventDate),
     check(
       "event_type_check",
-      sql`${table.eventType} in ('transfer', 'health', 'retag', 'recategorize', 'sale', 'death', 'void')`
+      sql`${table.eventType} in ('transfer', 'health', 'retag', 'recategorize', 'sale', 'death', 'pesaje', 'void')`
     ),
     check(
       "event_voids_only_when_void",

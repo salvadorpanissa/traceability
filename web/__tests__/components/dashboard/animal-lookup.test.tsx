@@ -37,6 +37,7 @@ const ALIVE_STATE: AnimalLookupDetail = {
   notes: null,
   reproductiveStatusId: null,
   reproductiveStatusName: null,
+  latestWeightKg: null,
 };
 
 describe("AnimalLookup", () => {

@@ -17,6 +17,7 @@ const EVENT_TYPE_LABEL_KEYS: Record<string, TranslationKey> = {
   recategorize: "eventType.recategorize",
   sale: "eventType.sale",
   death: "eventType.death",
+  pesaje: "eventType.pesaje",
 };
 
 function lastEventLabel(row: StaleTagRow, locale: Locale): string {

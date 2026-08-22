@@ -1,0 +1,1 @@
+ALTER TABLE "event_pesaje" ADD COLUMN "estimated" boolean DEFAULT false NOT NULL;

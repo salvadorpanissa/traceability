@@ -36,6 +36,11 @@ const navItems: NavItem[] = [
     isActive: (pathname) => pathname.startsWith("/activities/recategorize"),
   },
   {
+    href: "/activities/pesaje",
+    labelKey: "appShell.navPesaje",
+    isActive: (pathname) => pathname.startsWith("/activities/pesaje"),
+  },
+  {
     href: "/activities/transfer",
     labelKey: "appShell.navTransfer",
     isActive: (pathname) => pathname.startsWith("/activities/transfer"),

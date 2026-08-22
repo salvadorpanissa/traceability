@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { parseLocaleCookie } from "@/lib/i18n/dictionaries";
 import { requireSession } from "@/lib/dal/session";
-import { findAnimalDetailById, animalTagHistoryFor, animalHealthNotesFor } from "@/lib/dal/animal-access";
+import { findAnimalDetailById, animalTagHistoryFor, animalHealthNotesFor, animalPesajesFor } from "@/lib/dal/animal-access";
 import { listOwnersByFarms } from "@/lib/dal/owner-catalog";
 import { listSelectableEstablishments, listSelectableFarms } from "@/lib/dal/farm-access";
 import { listCategoriesByFarm } from "@/lib/dal/category-catalog";
@@ -18,9 +18,10 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ i
   const animal = await findAnimalDetailById(session.user.id, session.user.role, id);
   if (!animal) notFound();
 
-  const [tagHistory, healthNotes, farms, establishments] = await Promise.all([
+  const [tagHistory, healthNotes, pesajes, farms, establishments] = await Promise.all([
     animalTagHistoryFor(id),
     animalHealthNotesFor(id),
+    animalPesajesFor(id),
     listSelectableFarms(session.user.id, session.user.role),
     listSelectableEstablishments(session.user.id, session.user.role),
   ]);
@@ -35,6 +36,7 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ i
       animal={animal}
       tagHistory={tagHistory}
       healthNotes={healthNotes}
+      pesajes={pesajes}
       owners={owners}
       categories={categories}
       reproductiveStatuses={reproductiveStatuses}

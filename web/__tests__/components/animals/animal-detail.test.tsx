@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { AnimalDetail } from "@/components/animals/animal-detail";
 import { Toaster } from "@/components/ui/toast";
 import { updateAnimalAction } from "@/app/(protected)/animals/actions";
-import type { AnimalLookupDetail, AnimalTagHistoryEntry, AnimalHealthNoteEntry } from "@/lib/dal/animal-access";
+import type { AnimalLookupDetail, AnimalTagHistoryEntry, AnimalHealthNoteEntry, AnimalPesajeEntry } from "@/lib/dal/animal-access";
 import type { OwnerCatalogEntry } from "@/lib/dal/owner-catalog";
 import type { CategoryCatalogEntry } from "@/lib/dal/category-catalog";
 import type { ReproductiveStatusCatalogEntry } from "@/lib/dal/reproductive-status-catalog";
@@ -39,6 +39,16 @@ vi.mock("@/app/(protected)/activities/death/actions", () => ({
   confirmDeathAction: vi.fn(),
 }));
 
+vi.mock("@/app/(protected)/activities/pesaje/actions", () => ({
+  lookupWeighCandidateAction: vi.fn().mockResolvedValue({
+    status: "alive",
+    establishmentName: "Campo Norte",
+    paddockName: "Potrero 1",
+    categoryName: "Vaca de cría",
+  }),
+  confirmSingleWeighAction: vi.fn(),
+}));
+
 const baseAnimal: AnimalLookupDetail = {
   animalId: "a1",
   currentTag: "AR1",
@@ -57,6 +67,7 @@ const baseAnimal: AnimalLookupDetail = {
   notes: null,
   reproductiveStatusId: null,
   reproductiveStatusName: null,
+  latestWeightKg: null,
 };
 
 const owners: OwnerCatalogEntry[] = [
@@ -79,11 +90,12 @@ const tagHistory: AnimalTagHistoryEntry[] = [
 ];
 
 const healthNotes: AnimalHealthNoteEntry[] = [];
+const pesajes: AnimalPesajeEntry[] = [];
 
 describe("AnimalDetail", () => {
   it("shows a back link above the card", () => {
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
 
     const backLink = screen.getByRole("link", { name: /volver a animales/i });
@@ -94,7 +106,7 @@ describe("AnimalDetail", () => {
 
   it("wraps the edit form and the summary card in a centered row, not the full page width", () => {
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
 
     const cards = container.querySelectorAll('[data-slot="card"]');
@@ -107,7 +119,7 @@ describe("AnimalDetail", () => {
 
   it("shows the caravana in the summary card, laid out like the other read-only fields", () => {
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
 
     const card = container.querySelector('[data-slot="card"]');
@@ -125,7 +137,7 @@ describe("AnimalDetail", () => {
     });
     const user = userEvent.setup();
 
-    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
     expect(screen.getByLabelText("Raza")).toHaveValue("Hereford");
 
@@ -151,7 +163,7 @@ describe("AnimalDetail", () => {
 
     render(
       <>
-        <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+        <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
         <Toaster />
       </>
     );
@@ -163,7 +175,7 @@ describe("AnimalDetail", () => {
   });
 
   it("does not offer the caravana, campo, or potrero as editable fields, but does offer sexo", () => {
-    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
     expect(screen.queryByLabelText("Caravana")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Campo")).not.toBeInTheDocument();
@@ -172,15 +184,47 @@ describe("AnimalDetail", () => {
   });
 
   it("does not offer the propietario as an editable field", () => {
-    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
     expect(screen.queryByLabelText("Propietario")).not.toBeInTheDocument();
     expect(screen.getByText("SASG")).toBeInTheDocument();
   });
 
+  it("hides the pesajes card when the animal has no pesaje history", () => {
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+
+    expect(screen.queryByTestId("animal-pesajes")).not.toBeInTheDocument();
+  });
+
+  it("lists pesajes in the order given (DAL already sorts newest first) with their method", () => {
+    const pesajeHistory: AnimalPesajeEntry[] = [
+      { eventDate: "2026-03-01", weightKg: "450.0", estimated: true },
+      { eventDate: "2026-01-10", weightKg: "300", estimated: false },
+    ];
+    render(
+      <AnimalDetail
+        animal={baseAnimal}
+        tagHistory={tagHistory}
+        healthNotes={healthNotes}
+        pesajes={pesajeHistory}
+        owners={owners}
+        categories={categories}
+        reproductiveStatuses={reproductiveStatuses}
+        locale="es"
+      />
+    );
+
+    const card = screen.getByTestId("animal-pesajes");
+    const rows = within(card).getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("450.0 kg");
+    expect(rows[0]).toHaveTextContent("Promedio (tropa)");
+    expect(rows[1]).toHaveTextContent("300 kg");
+    expect(rows[1]).toHaveTextContent("Individual");
+  });
+
   it("lists every past tag in a compact history table inside the activity card", () => {
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
     const table = within(screen.getByTestId("tag-history-table"));
     const cards = container.querySelectorAll('[data-slot="card"]');
@@ -199,6 +243,7 @@ describe("AnimalDetail", () => {
         animal={baseAnimal}
         tagHistory={[tagHistory[0]]}
         healthNotes={healthNotes}
+        pesajes={pesajes}
         owners={owners}
         categories={categories}
         reproductiveStatuses={reproductiveStatuses}
@@ -214,7 +259,7 @@ describe("AnimalDetail", () => {
   it("opens recaravaneo and registrar muerte modals for a living animal, next to the Guardar button in the edit card", async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
     const saveButton = screen.getByRole("button", { name: "Guardar" });
     const retagButton = screen.getByRole("button", { name: "Recaravanear" });
@@ -235,6 +280,7 @@ describe("AnimalDetail", () => {
         animal={{ ...baseAnimal, status: "dead" }}
         tagHistory={tagHistory}
         healthNotes={healthNotes}
+        pesajes={pesajes}
         owners={owners}
         categories={categories}
         reproductiveStatuses={reproductiveStatuses}
@@ -266,7 +312,7 @@ describe("AnimalDetail", () => {
       },
     ];
     const { container } = render(
-      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={notes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
+      <AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={notes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />
     );
     const card = container.querySelector('[data-slot="card"]');
     const section = screen.getByTestId("animal-health-notes");
@@ -291,7 +337,7 @@ describe("AnimalDetail", () => {
   });
 
   it("shows a fallback when there are no sanidad notes", () => {
-    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
+    render(<AnimalDetail animal={baseAnimal} tagHistory={tagHistory} healthNotes={healthNotes} pesajes={pesajes} owners={owners} categories={categories} reproductiveStatuses={reproductiveStatuses} locale="es" />);
 
     expect(screen.getByText("Sanidades realizadas")).toBeInTheDocument();
     expect(screen.getByText("Sin notas de sanidad.")).toBeInTheDocument();

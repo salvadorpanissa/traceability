@@ -33,6 +33,14 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       width: "w-32",
     },
     {
+      key: "weight",
+      header: translate(locale, "animalLookup.weight"),
+      render: (row) => (row.latestWeightKg ? `${row.latestWeightKg} kg` : "—"),
+      sortValue: (row) => (row.latestWeightKg !== null ? Number(row.latestWeightKg) : null),
+      exportValue: (row) => row.latestWeightKg ?? "—",
+      width: "w-24",
+    },
+    {
       key: "establishment",
       header: translate(locale, "livestock.establishment"),
       render: (row) => row.establishmentName ?? translate(locale, "livestock.noEstablishment"),

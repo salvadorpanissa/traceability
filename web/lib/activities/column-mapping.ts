@@ -11,6 +11,7 @@ export type ColumnMeaning =
   | "secondaryTag"
   | "breed"
   | "reproductiveStatus"
+  | "weight"
   | "ignore";
 
 // Raw Excel value (trimmed) -> reproductive_status.id. Ausencia de clave =
@@ -71,6 +72,30 @@ export function applyColumnMapping(headers: string[], rows: string[][], mapping:
     breed: breedIndex >= 0 ? (row[breedIndex] || null) : null,
     reproductiveStatusId:
       reproductiveStatusIndex >= 0 ? (reproductiveStatusValueMap[(row[reproductiveStatusIndex] ?? "").trim()] || null) : null,
+  }));
+}
+
+export type PesajeMappedRow = {
+  tag: string;
+  date: string | null;
+  notes: string | null;
+  weight: string | null;
+};
+
+// Pesaje's own mapping function (rather than reusing applyColumnMapping)
+// since "weight" is a meaning no other activity needs — keeping it out of
+// MappedRow avoids adding an always-null field to every other activity's rows.
+export function applyPesajeColumnMapping(headers: string[], rows: string[][], mapping: ColumnMapping[]): PesajeMappedRow[] {
+  const tagIndex = columnIndexFor(headers, mapping, "tag");
+  const dateIndex = columnIndexFor(headers, mapping, "date");
+  const notesIndex = columnIndexFor(headers, mapping, "notes");
+  const weightIndex = columnIndexFor(headers, mapping, "weight");
+
+  return rows.map((row) => ({
+    tag: tagIndex >= 0 ? (row[tagIndex] ?? "") : "",
+    date: dateIndex >= 0 ? (row[dateIndex] || null) : null,
+    notes: notesIndex >= 0 ? (row[notesIndex] || null) : null,
+    weight: weightIndex >= 0 ? (row[weightIndex] || null) : null,
   }));
 }
 

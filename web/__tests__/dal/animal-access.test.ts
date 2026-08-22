@@ -18,6 +18,7 @@ import {
   category,
   eventRetag,
   eventRecategorize,
+  eventPesaje,
   owner,
   reproductiveStatus,
 } from "@/db/schema";
@@ -1052,6 +1053,65 @@ describe("findAnimalDetailByTag", () => {
     const result = await findAnimalDetailByTag(admin.id, "admin", "AR000000000063");
 
     expect(result?.notes).toBe("Cojera leve | Tratada con antibiótico");
+  });
+
+  it("resolves latestWeightKg from the most recent non-voided pesaje", async () => {
+    const [adminRole] = await testDb
+      .insert(role)
+      .values({ name: "admin" })
+      .returning();
+    const [seededFarmGroup] = await testDb
+      .insert(farm)
+      .values({ name: "Campo Norte" })
+      .returning();
+    const [seededFarm] = await testDb
+      .insert(establishment)
+      .values({ farmId: seededFarmGroup.id, name: "Campo Norte" })
+      .returning();
+    const [admin] = await testDb
+      .insert(userAccount)
+      .values({
+        name: "Admin",
+        email: "admin@example.com",
+        passwordHash: "hashed",
+        roleId: adminRole.id,
+      })
+      .returning();
+    const seededAnimal = await seedDetailedAnimalAtFarm(seededFarm.id, admin.id, "AR000000000064");
+    const animalId = seededAnimal.id;
+
+    const [batch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "pesaje", establishmentId: seededFarm.id, animalCount: 1, createdBy: admin.id })
+      .returning();
+
+    async function insertPesaje(eventDate: string, weightKg: string) {
+      const [pesajeEvent] = await testDb
+        .insert(event)
+        .values({ eventType: "pesaje", eventDate, animalId, establishmentId: seededFarm.id, batchOperationId: batch.id, createdBy: admin.id })
+        .returning();
+      await testDb.insert(eventPesaje).values({ eventId: pesajeEvent.id, weightKg });
+      return pesajeEvent.id;
+    }
+
+    await insertPesaje("2026-01-01", "300");
+    const laterVoidedId = await insertPesaje("2026-03-01", "999");
+    await insertPesaje("2026-02-01", "350");
+    // The most recent pesaje was a mistake and got voided — the second most
+    // recent non-voided one should win instead of the voided one.
+    await testDb.insert(event).values({
+      eventType: "void",
+      eventDate: "2026-03-02",
+      animalId,
+      establishmentId: seededFarm.id,
+      batchOperationId: batch.id,
+      createdBy: admin.id,
+      voidsEventId: laterVoidedId,
+    });
+
+    const result = await findAnimalDetailByTag(admin.id, "admin", "AR000000000064");
+
+    expect(result?.latestWeightKg).toBe("350");
   });
 
   it("leaves owner, sex, breed, birth date, and secondary tag null when unset", async () => {

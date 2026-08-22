@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, integer, check, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, numeric, integer, boolean, check, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { event } from "./event";
 import { establishment } from "./establishment";
@@ -103,4 +103,15 @@ export const eventDeath = pgTable("event_death", {
     .primaryKey()
     .references(() => event.id, { onDelete: "cascade" }),
   cause: text("cause"),
+});
+
+export const eventPesaje = pgTable("event_pesaje", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => event.id, { onDelete: "cascade" }),
+  weightKg: numeric("weight_kg").notNull(),
+  // true when weightKg is total-weighed-truckload / head-count (no scale on
+  // the establecimiento) rather than an individual reading — lets reports
+  // and the per-animal weight history flag it as approximate.
+  estimated: boolean("estimated").notNull().default(false),
 });
