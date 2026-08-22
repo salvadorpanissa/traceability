@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/i18n/context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ export function RecentHealthEvents({
   batches: HealthBatchRow[];
 }) {
   const { t } = useLocale();
+  const router = useRouter();
   const MAX_ITEMS = 5;
   const [visibleBatches, setVisibleBatches] = useState(batches);
   const [voidingId, setVoidingId] = useState<string | null>(null);
@@ -36,6 +38,10 @@ export function RecentHealthEvents({
     try {
       await voidHealthBatchAction(batchId);
       setVisibleBatches((prev) => prev.filter((b) => b.batchId !== batchId));
+      // Refetches the whole dashboard so the stat cards (total livestock,
+      // cabezas tratadas) drop by whatever this void undid — they're
+      // computed server-side from the same events, not from this list.
+      router.refresh();
     } catch {
       setErrorId(batchId);
     } finally {

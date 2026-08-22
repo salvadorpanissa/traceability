@@ -16,6 +16,10 @@ vi.mock("@/app/(protected)/activities/health/actions", () => ({
   getHealthBatchDetailAction: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 const batches: HealthBatchRow[] = [
   {
     batchId: "batch-1",

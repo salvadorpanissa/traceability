@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { requireFile } from "@/lib/dal/form-data";
@@ -181,6 +182,8 @@ export async function listTagsInPaddockAction(establishmentId: string, paddockId
 export async function voidHealthBatchAction(batchId: string): Promise<void> {
   const session = await requireSession();
   await voidHealthBatch({ userId: session.user.id, role: session.user.role, batchOperationId: batchId });
+  revalidatePath("/dashboard");
+  revalidatePath("/animals");
 }
 
 export async function getHealthBatchDetailAction(batchId: string): Promise<HealthBatchDetail | null> {
