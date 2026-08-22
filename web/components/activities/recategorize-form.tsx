@@ -251,7 +251,7 @@ export function RecategorizeForm({ farms }: { farms: { id: string; name: string 
           <StepHeading label={STEP_LABELS.mapping} position={stepHistory.length + 1} />
           <ColumnMapper
             headers={headers}
-            availableMeanings={["tag", "date", "notes", "secondaryTag", "breed", "ignore"]}
+            availableMeanings={["tag", "secondaryTag", "date", "breed", "reproductiveStatus", "ignore"]}
             initialMapping={workingMapping ?? (preview?.mappingNeeded ? preview.initialMapping : null)}
             onSubmit={(mapping) => runPreview(mapping)}
           />

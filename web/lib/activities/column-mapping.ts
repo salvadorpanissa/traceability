@@ -11,6 +11,8 @@ export type ColumnMeaning =
   | "secondaryTag"
   | "breed"
   | "reproductiveStatus"
+  | "establishment"
+  | "eventDate"
   | "ignore";
 
 // Raw Excel value (trimmed) -> reproductive_status.id. Ausencia de clave =

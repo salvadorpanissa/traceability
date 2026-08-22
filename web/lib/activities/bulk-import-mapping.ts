@@ -1,20 +1,18 @@
-export type ImportColumnMeaning =
-  | "tag"
-  | "secondaryTag"
-  | "owner"
-  | "establishment"
-  | "paddock"
-  | "category"
-  | "breed"
-  | "sex"
-  | "birthDate"
-  | "eventDate"
-  | "ignore";
+import type { ColumnMapping, ColumnMeaning } from "@/lib/activities/column-mapping";
 
-export type ImportColumnMapping = {
-  header: string;
-  meaning: ImportColumnMeaning;
-};
+export const ANIMAL_IMPORT_MEANINGS: ColumnMeaning[] = [
+  "tag",
+  "secondaryTag",
+  "owner",
+  "establishment",
+  "paddock",
+  "category",
+  "breed",
+  "sex",
+  "birthDate",
+  "eventDate",
+  "ignore",
+];
 
 export type MappedImportRow = {
   tag: string;
@@ -34,7 +32,7 @@ export type MappedImportRow = {
 // columns by hand. Any header not in this list (or a future file with
 // slightly different wording) falls back to "ignore" and stays editable in
 // the mapper UI.
-const HEADER_MEANING_BY_TEXT: Record<string, ImportColumnMeaning> = {
+const HEADER_MEANING_BY_TEXT: Record<string, ColumnMeaning> = {
   "IDE (caravana electrónica)": "tag",
   "Chip secundario": "secondaryTag",
   Propietario: "owner",
@@ -47,11 +45,11 @@ const HEADER_MEANING_BY_TEXT: Record<string, ImportColumnMeaning> = {
   "Fecha alta en sistema": "eventDate",
 };
 
-export function detectImportMapping(headers: string[]): ImportColumnMapping[] {
+export function detectImportMapping(headers: string[]): ColumnMapping[] {
   return headers.map((header) => ({ header, meaning: HEADER_MEANING_BY_TEXT[header] ?? "ignore" }));
 }
 
-function columnIndexFor(headers: string[], mapping: ImportColumnMapping[], meaning: ImportColumnMeaning): number {
+function columnIndexFor(headers: string[], mapping: ColumnMapping[], meaning: ColumnMeaning): number {
   const mapped = mapping.find((m) => m.meaning === meaning);
   if (!mapped) return -1;
   return headers.indexOf(mapped.header);
@@ -60,7 +58,7 @@ function columnIndexFor(headers: string[], mapping: ImportColumnMapping[], meani
 export function applyImportColumnMapping(
   headers: string[],
   rows: string[][],
-  mapping: ImportColumnMapping[]
+  mapping: ColumnMapping[]
 ): MappedImportRow[] {
   const tagIndex = columnIndexFor(headers, mapping, "tag");
   const secondaryTagIndex = columnIndexFor(headers, mapping, "secondaryTag");

@@ -510,14 +510,14 @@ export function HealthForm({
             headers={headers}
             availableMeanings={[
               "tag",
-              "date",
-              "category",
-              "product",
-              "sex",
-              "owner",
-              "notes",
               "secondaryTag",
+              "date",
+              "notes",
+              "product",
+              "category",
+              "sex",
               "breed",
+              "owner",
               "reproductiveStatus",
               "ignore",
             ]}

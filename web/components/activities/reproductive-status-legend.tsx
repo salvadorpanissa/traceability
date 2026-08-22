@@ -44,42 +44,45 @@ export function ReproductiveStatusLegend({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border p-3">
-      <p className="text-sm font-medium">A qué estado corresponde cada valor de la columna</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+        <p className="text-sm font-medium">A qué estado corresponde cada valor de la columna</p>
 
-      {distinctValues.map((rawValue) => (
-        <div key={rawValue} className="flex items-center gap-2">
-          <span className="min-w-16 text-sm text-muted-foreground">{rawValue}</span>
-          <select
-            aria-label={`Valor: ${rawValue}`}
-            value={valueMap[rawValue] ?? ""}
-            onChange={(e) => handleAssign(rawValue, e.target.value)}
-            className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-          >
-            <option value="">Sin dato</option>
-            {catalog.map((status) => (
-              <option key={status.id} value={status.id}>
-                {status.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ))}
+        {distinctValues.map((rawValue) => (
+          <div key={rawValue} className="flex items-center justify-center gap-2">
+            <span className="truncate text-sm">{rawValue}</span>
+            <span aria-hidden="true" className="text-muted-foreground">
+              →
+            </span>
+            <select
+              aria-label={`Valor: ${rawValue}`}
+              value={valueMap[rawValue] ?? ""}
+              onChange={(e) => handleAssign(rawValue, e.target.value)}
+              className="h-8 w-40 shrink-0 rounded-lg border border-border bg-background px-2 text-sm"
+            >
+              <option value="">Sin dato</option>
+              {catalog.map((status) => (
+                <option key={status.id} value={status.id}>
+                  {status.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
 
-      <div className="flex items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="new-reproductive-status-name">Nombre del estado nuevo</Label>
-          <Input
-            id="new-reproductive-status-name"
-            value={newStatusName}
-            onChange={(e) => setNewStatusName(e.target.value)}
-          />
-        </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+        <Label htmlFor="new-reproductive-status-name">Nombre del estado nuevo</Label>
+        <Input
+          id="new-reproductive-status-name"
+          value={newStatusName}
+          onChange={(e) => setNewStatusName(e.target.value)}
+        />
         <Button type="button" size="sm" onClick={handleCreateStatus}>
           Crear estado
         </Button>
+        {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
       </div>
-      {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
     </div>
   );
 }

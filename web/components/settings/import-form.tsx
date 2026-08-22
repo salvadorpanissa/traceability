@@ -4,10 +4,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { toast } from "@/components/ui/toast";
-import { ImportColumnMapper } from "@/components/settings/import-column-mapper";
+import { ColumnMapper } from "@/components/activities/column-mapper";
+import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import {
+  ANIMAL_IMPORT_MEANINGS,
   applyImportColumnMapping,
-  type ImportColumnMapping,
+  detectImportMapping,
   type MappedImportRow,
 } from "@/lib/activities/bulk-import-mapping";
 import {
@@ -141,7 +143,7 @@ export function ImportForm() {
     }
   }
 
-  async function handleMappingSubmit(mapping: ImportColumnMapping[]) {
+  async function handleMappingSubmit(mapping: ColumnMapping[]) {
     if (phase.step !== "map") return;
     const mappedRows: MappedImportRow[] = applyImportColumnMapping(phase.headers, phase.rows, mapping);
     const { uniqueRows, duplicateRows } = partitionDuplicateTags(mappedRows);
@@ -226,7 +228,14 @@ export function ImportForm() {
   }
 
   if (phase.step === "map") {
-    return <ImportColumnMapper headers={phase.headers} onSubmit={handleMappingSubmit} />;
+    return (
+      <ColumnMapper
+        headers={phase.headers}
+        availableMeanings={ANIMAL_IMPORT_MEANINGS}
+        initialMapping={detectImportMapping(phase.headers)}
+        onSubmit={handleMappingSubmit}
+      />
+    );
   }
 
   if (phase.step === "previewing") {
