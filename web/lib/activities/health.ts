@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { batchOperation, event, eventTransfer, eventHealth, paddock, product } from "@/db/schema";
+import { animal, batchOperation, event, eventTransfer, eventHealth, paddock, product } from "@/db/schema";
 import { db } from "@/db";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { createNewAnimal } from "@/lib/activities/animal-creation";
@@ -185,9 +185,17 @@ export async function confirmHealthBatch(input: {
   });
 }
 
-// Undoes a whole health batch (e.g. one confirmed twice by mistake) without
-// deleting anything — inserts a 'void' event per row, which every derived
-// view (animal_current_state, withdrawal, stale-tag) already knows to skip.
+// Undoes a whole health batch (e.g. one confirmed twice by mistake) — inserts
+// a 'void' event per row, which every derived view (animal_current_state,
+// withdrawal, stale-tag) already knows to skip. When a row's animal didn't
+// exist before this batch (a health import auto-creates one for an unknown
+// tag — see createNewAnimal), voiding its self-retag/placement leaves it
+// with zero live events anywhere: nothing but a hollow "alive, no tag, no
+// campo" row that can't even be retagged (its tag is still claimed by its
+// own now-voided animal_tag_history entry). Rather than leave that ghost
+// behind, such an animal is deleted outright, not just voided. An animal
+// that still has any live event elsewhere (i.e. real activity happened to
+// it since) is never touched — only a pure artifact of this batch is.
 export async function voidHealthBatch(input: {
   userId: string;
   role: string | undefined;
@@ -210,6 +218,8 @@ export async function voidHealthBatch(input: {
   const eventsToVoid = liveEvents.filter((e) => !alreadyVoidedIds.has(e.id));
   if (eventsToVoid.length === 0) return;
 
+  const affectedAnimalIds = [...new Set(eventsToVoid.map((e) => e.animalId))];
+
   await db.transaction(async (tx) => {
     await tx.insert(event).values(
       eventsToVoid.map((e) => ({
@@ -222,6 +232,26 @@ export async function voidHealthBatch(input: {
         voidsEventId: e.id,
       }))
     );
+
+    for (const animalId of affectedAnimalIds) {
+      // A voided event isn't removed, just superseded by a separate 'void'
+      // row pointing at it — so "live" means "not the target of any void",
+      // not "not itself of type void".
+      const remainingEvents = await tx
+        .select({ id: event.id, eventType: event.eventType, voidsEventId: event.voidsEventId })
+        .from(event)
+        .where(eq(event.animalId, animalId));
+      const voidedIds = new Set(
+        remainingEvents.filter((e) => e.eventType === "void").map((e) => e.voidsEventId)
+      );
+      const stillLive = remainingEvents.some((e) => e.eventType !== "void" && !voidedIds.has(e.id));
+      if (stillLive) continue;
+      // animal_tag_history cascades off animal_id; the event detail tables
+      // (event_health/event_retag/event_transfer/...) cascade off event_id.
+      await tx.delete(event).where(eq(event.animalId, animalId));
+      await tx.delete(animal).where(eq(animal.id, animalId));
+    }
+
     await tx.execute(sql`refresh materialized view concurrently animal_current_state`);
   });
 }

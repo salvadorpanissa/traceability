@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { testDb } from "../../../test/db";
 import { resetTestDb } from "../../../test/reset-db";
 import {
@@ -1024,7 +1024,7 @@ describe("confirmHealthBatch", () => {
 });
 
 describe("voidHealthBatch", () => {
-  it("voids every event in the batch, including the placement transfer for a newly-created animal", async () => {
+  it("deletes a newly-created animal outright once its whole batch is voided and it has no live events left", async () => {
     const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
     const [productA] = await testDb
       .insert(product)
@@ -1062,19 +1062,86 @@ describe("voidHealthBatch", () => {
     });
 
     const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000081"));
-    expect(await currentPaddockIdFor(tagRow.animalId)).toBe(potreroA.id);
+    const createdAnimalId = tagRow.animalId;
+    expect(await currentPaddockIdFor(createdAnimalId)).toBe(potreroA.id);
 
     const [batch] = await testDb.select().from(batchOperation).where(eq(batchOperation.establishmentId, seededFarm.id));
     await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
 
-    const animalEvents = await testDb.select().from(event).where(eq(event.animalId, tagRow.animalId));
-    const liveEvents = animalEvents.filter((e) => e.eventType !== "void");
-    const voidEvents = animalEvents.filter((e) => e.eventType === "void");
-    expect(voidEvents.map((e) => e.voidsEventId).sort()).toEqual(liveEvents.map((e) => e.id).sort());
+    // Voiding the batch left the animal with zero live events anywhere
+    // (it only ever existed because of this batch), so it's deleted
+    // outright instead of lingering as an untaggable ghost.
+    const remainingAnimal = await testDb.select().from(animal).where(eq(animal.id, createdAnimalId));
+    expect(remainingAnimal).toHaveLength(0);
+    const remainingTagRow = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000081"));
+    expect(remainingTagRow).toHaveLength(0);
+    const remainingEvents = await testDb.select().from(event).where(eq(event.animalId, createdAnimalId));
+    expect(remainingEvents).toHaveLength(0);
+  });
 
-    // The placement transfer got voided along with the health event, so the
-    // animal is no longer considered to be in the sanidad's potrero.
-    expect(await currentPaddockIdFor(tagRow.animalId)).toBeNull();
+  it("does not delete an existing animal, only voids the batch's events on it", async () => {
+    const { manager, seededFarm, seededFarmGroup } = await seedManagerAndFarm();
+    const [productA] = await testDb
+      .insert(product)
+      .values({ farmId: seededFarmGroup.id, name: "Ivermectina 1%" })
+      .returning();
+    const [createdAnimal] = await testDb.insert(animal).values({}).returning();
+    await testDb.insert(animalTagHistory).values({ animalId: createdAnimal.id, tag: "AR000000000090" });
+    // A prior, unrelated event so the animal has real history outside this batch.
+    const [priorBatch] = await testDb
+      .insert(batchOperation)
+      .values({ eventType: "retag", establishmentId: seededFarm.id, animalCount: 1, createdBy: manager.id })
+      .returning();
+    await testDb.insert(event).values({
+      eventType: "retag",
+      eventDate: "2026-01-01",
+      animalId: createdAnimal.id,
+      establishmentId: seededFarm.id,
+      batchOperationId: priorBatch.id,
+      createdBy: manager.id,
+    });
+
+    const rows: ResolvedRow[] = [
+      {
+        tag: "AR000000000090",
+        eventDate: "2026-02-01",
+        notes: null,
+        status: "existing",
+        animalId: createdAnimal.id,
+        currentEstablishmentId: seededFarm.id,
+        currentPaddockId: null,
+      },
+    ];
+    const products: HealthProduct[] = [
+      { productId: productA.id, dose: "10", doseUnit: "ml", route: "subcutánea", withdrawalDays: null, notes: null },
+    ];
+
+    await confirmHealthBatch({
+      userId: manager.id,
+      role: "manager",
+      operatingEstablishmentId: seededFarm.id,
+      products,
+      rows,
+      paddockId: null,
+    });
+
+    const [batch] = await testDb
+      .select()
+      .from(batchOperation)
+      .where(and(eq(batchOperation.establishmentId, seededFarm.id), eq(batchOperation.eventType, "health")));
+    await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
+
+    const remainingAnimal = await testDb.select().from(animal).where(eq(animal.id, createdAnimal.id));
+    expect(remainingAnimal).toHaveLength(1);
+    const healthEvents = await testDb
+      .select()
+      .from(event)
+      .where(and(eq(event.animalId, createdAnimal.id), eq(event.eventType, "health")));
+    const voidEvents = await testDb
+      .select()
+      .from(event)
+      .where(and(eq(event.animalId, createdAnimal.id), eq(event.eventType, "void")));
+    expect(voidEvents.map((e) => e.voidsEventId).sort()).toEqual(healthEvents.map((e) => e.id).sort());
   });
 
   it("is idempotent — voiding an already-voided batch does nothing on the second call", async () => {
@@ -1111,12 +1178,14 @@ describe("voidHealthBatch", () => {
 
     const [batch] = await testDb.select().from(batchOperation).where(eq(batchOperation.establishmentId, seededFarm.id));
     await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
-    const afterFirstVoid = await testDb.select().from(event).where(eq(event.batchOperationId, batch.id));
+    const [tagRow] = await testDb.select().from(animalTagHistory).where(eq(animalTagHistory.tag, "AR000000000082"));
+    expect(tagRow).toBeUndefined();
 
-    await voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id });
-    const afterSecondVoid = await testDb.select().from(event).where(eq(event.batchOperationId, batch.id));
-
-    expect(afterSecondVoid).toHaveLength(afterFirstVoid.length);
+    // Second call: the batch's events (and the animal itself) are already
+    // gone, so this is a no-op rather than an error.
+    await expect(
+      voidHealthBatch({ userId: manager.id, role: "manager", batchOperationId: batch.id })
+    ).resolves.toBeUndefined();
   });
 
   it("rejects a manager without access to the batch's establishment", async () => {

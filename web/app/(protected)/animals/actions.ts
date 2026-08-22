@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/dal/session";
 import { requireEstablishmentAccess, getEstablishmentFarmId } from "@/lib/dal/farm-access";
 import { getAnimalEditState, updateAnimalDetails, type AnimalLookupDetail } from "@/lib/dal/animal-access";
@@ -61,6 +62,11 @@ export async function updateAnimalAction(
       reproductiveStatusId: parsed.data.reproductiveStatusId,
     });
     if (!updated) return { ok: false, error: "Animal no encontrado" };
+    // Otherwise the animals list keeps showing pre-edit data if the user
+    // gets back there via the browser's back button, which Next.js serves
+    // from its client-side cache rather than re-fetching.
+    revalidatePath("/animals");
+    revalidatePath(`/animals/${parsed.data.animalId}`);
     return { ok: true, animal: updated };
   } catch (error) {
     if (isUniqueViolationError(error)) return { ok: false, error: "Ese chip secundario ya pertenece a otro animal" };

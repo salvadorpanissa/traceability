@@ -151,6 +151,7 @@ export function AnimalsTable({ rows, locale }: { rows: AnimalLookupDetail[]; loc
       emptyMessage={translate(locale, "animals.empty")}
       columnToggle
       columnStorageKey="animals-table-columns"
+      filterStorageKey="animals-table-filters"
     />
   );
 }

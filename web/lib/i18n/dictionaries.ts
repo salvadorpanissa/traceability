@@ -37,7 +37,8 @@ const dictionaries = {
     "dashboard.recentHealthCompleted": "COMPLETADO",
     "dashboard.recentHealthEventDateLabel": "Realizado el",
     "dashboard.recentHealthVoid": "Anular",
-    "dashboard.recentHealthVoidConfirm": "¿Seguro que querés anular esta sanidad? Esta acción no se puede deshacer.",
+    "dashboard.recentHealthVoidConfirm":
+      "¿Seguro que querés anular esta sanidad? Esta acción no se puede deshacer.",
     "dashboard.recentHealthVoidError": "No se pudo anular. Probá de nuevo.",
     "dashboard.recentHealthDetailTitle": "Detalle de sanidad",
     "dashboard.recentHealthDetailLoading": "Cargando...",

@@ -103,6 +103,7 @@ export function DataTable<T>({
   filters,
   columnToggle = false,
   columnStorageKey,
+  filterStorageKey,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -125,6 +126,9 @@ export function DataTable<T>({
   // localStorage key to remember hidden columns across reloads. Only takes
   // effect when columnToggle is set.
   columnStorageKey?: string;
+  // localStorage key to remember search text and filter selections across
+  // navigation (e.g. leaving to edit a row and coming back).
+  filterStorageKey?: string;
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
@@ -150,6 +154,27 @@ export function DataTable<T>({
     if (!columnStorageKey) return;
     window.localStorage.setItem(columnStorageKey, JSON.stringify([...hiddenColumns]));
   }, [columnStorageKey, hiddenColumns]);
+
+  // Same SSR-safe hydration pattern as columns above, for search text and
+  // filter selections.
+  useEffect(() => {
+    if (!filterStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(filterStorageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as { query?: string; filterValues?: Record<string, string> };
+        if (saved.query) setQuery(saved.query);
+        if (saved.filterValues) setFilterValues(saved.filterValues);
+      }
+    } catch {
+      // Ignore malformed or inaccessible storage — falls back to no filters applied.
+    }
+  }, [filterStorageKey]);
+
+  useEffect(() => {
+    if (!filterStorageKey) return;
+    window.localStorage.setItem(filterStorageKey, JSON.stringify({ query, filterValues }));
+  }, [filterStorageKey, query, filterValues]);
 
   const columnByKey = useMemo(() => new Map(columns.map((c) => [c.key, c])), [columns]);
   const visibleColumns = useMemo(

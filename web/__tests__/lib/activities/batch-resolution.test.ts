@@ -610,6 +610,54 @@ describe("resolveBatchRows", () => {
     });
   });
 
+  it("marks an unregistered tag as new when the Excel owner column matches one of the farm's own owners", async () => {
+    const { seededFarm, seededFarmGroup } = await seedFarmUserRole();
+    const [seededOwner] = await testDb
+      .insert(owner)
+      .values({ farmId: seededFarmGroup.id, name: "AIP" })
+      .returning();
+    const rows: MappedRow[] = [
+      {
+        tag: "AR000000000099",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: "aip",
+        notes: null,
+        reproductiveStatusId: null,
+      },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({
+      status: "new",
+      ownerId: seededOwner.id,
+      pendingOwnerName: null,
+    });
+  });
+
+  it("does not match an owner name against a different farm's owner", async () => {
+    const { seededFarm } = await seedFarmUserRole();
+    const { seededFarmGroup: otherFarmGroup } = await seedFarmUserRole("Otro campo");
+    await testDb.insert(owner).values({ farmId: otherFarmGroup.id, name: "AIP" });
+    const rows: MappedRow[] = [
+      {
+        tag: "AR000000000098",
+        date: null,
+        category: null,
+        sex: null,
+        ownerName: "AIP",
+        notes: null,
+        reproductiveStatusId: null,
+      },
+    ];
+    const [resolved] = await resolveBatchRows(rows, "2026-02-01", seededFarm.id);
+    expect(resolved).toMatchObject({
+      status: "foreign",
+      ownerId: null,
+      pendingOwnerName: "AIP",
+    });
+  });
+
   it("marks a tag registered at a different establishment as wrong_establishment, with the owner inferred from its DICOSE", async () => {
     const { seededFarm: homeFarm } =
       await seedFarmUserRole("Campo San Antonio");

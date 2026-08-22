@@ -644,7 +644,7 @@ export function HealthForm({
             open={confirmDialogOpen}
             onOpenChange={setConfirmDialogOpen}
             title="¿Confirmar sanidad?"
-            description="Se va a registrar este lote de sanidad. Esta acción no se puede deshacer."
+            description="Se va a registrar este lote de sanidad."
             confirmLabel="Confirmar"
             cancelLabel="Cancelar"
             variant="destructive"

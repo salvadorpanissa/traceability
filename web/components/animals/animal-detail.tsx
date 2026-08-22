@@ -80,6 +80,7 @@ export function AnimalDetail({
       return;
     }
     toast({ type: "success", title: translate(locale, "animals.saveSuccessToast") });
+    router.refresh();
   }
 
   const currentTag = animal.currentTag ?? "";
@@ -145,6 +146,7 @@ export function AnimalDetail({
                     onChange={(e) => setSex(e.target.value)}
                     className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
                   >
+                    <option value="">{translate(locale, "animalLookup.noSex")}</option>
                     <option value="male">{translate(locale, "animalLookup.sexMale")}</option>
                     <option value="female">{translate(locale, "animalLookup.sexFemale")}</option>
                   </select>

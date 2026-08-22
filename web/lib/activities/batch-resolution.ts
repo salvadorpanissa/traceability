@@ -111,7 +111,11 @@ export async function resolveBatchRows(
     : [];
   const categoryIdByName = new Map(categoryRows.map((c) => [c.name, c.id]));
 
-  const ownerRows = await db.select({ id: owner.id, name: owner.name }).from(owner);
+  // Scoped to the operating establishment's farm — a name match against an
+  // unrelated farm's owner isn't a meaningful signal that the animal is ours.
+  const ownerRows = operatingEstablishment
+    ? await db.select({ id: owner.id, name: owner.name }).from(owner).where(eq(owner.farmId, operatingEstablishment.farmId))
+    : [];
   const ownerIdByName = new Map(ownerRows.map((o) => [o.name.trim().toLowerCase(), o.id]));
 
   const ownTagRows =
@@ -235,9 +239,31 @@ export async function resolveBatchRows(
           pendingOwnerName = row.ownerName.trim();
         }
       }
+
+      // Not in DICOSE, but the row's owner column names one of this farm's
+      // own owners — as good a signal that the animal is ours as a DICOSE
+      // registration, e.g. for a tag freshly put on and not yet registered.
+      if (ownerId) {
+        result.push({
+          tag: row.tag,
+          eventDate,
+          notes,
+          secondaryTag,
+          breed,
+          reproductiveStatusId,
+          status: "new",
+          categoryId,
+          sex,
+          birthDate,
+          ownerId,
+          pendingOwnerName: null,
+        });
+        continue;
+      }
+
       // A row with no owner name at all has nothing pending to review — force
       // it in as "ajena" automatically instead of making the user tick the
-      // per-row checkbox. A row that does carry an owner name (matched or
+      // per-row checkbox. A row that does carry an owner name (unmatched, so
       // pending) still goes through the normal manual-confirm path.
       const forced = autoForceForeignWithoutOwner && !row.ownerName;
       result.push({
