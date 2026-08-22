@@ -6,11 +6,11 @@ const draft: HealthFormDraft = {
   paddockId: "paddock-1",
   eventDate: "2026-08-17",
   step: "review",
-  stepHistory: ["mapping", "legend", "eventDate"],
+  stepHistory: ["mapping", "reproductiveStatus", "establishment", "eventDate"],
   headers: ["Caravana", "Fecha"],
+  rawRows: [["AR1", "2026-02-01", "1"]],
   workingMapping: [{ header: "Caravana", meaning: "tag" }],
-  distinctValues: ["preñada"],
-  reproductiveStatusValueMap: { "preñada": "status-1" },
+  reproductiveStatusNameMap: { "1": "Preñada" },
   rows: [],
   products: [],
   suggestedNames: [],
@@ -29,6 +29,8 @@ describe("health-form-draft", () => {
   it("round-trips a saved draft", () => {
     saveHealthFormDraft(draft);
     expect(loadHealthFormDraft()).toEqual(draft);
+    expect(loadHealthFormDraft()?.rawRows).toEqual([["AR1", "2026-02-01", "1"]]);
+    expect(loadHealthFormDraft()?.reproductiveStatusNameMap).toEqual({ "1": "Preñada" });
   });
 
   it("clears the draft", () => {

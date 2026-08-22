@@ -2,7 +2,7 @@ import type { ColumnMapping } from "@/lib/activities/column-mapping";
 import type { HealthProduct } from "@/lib/activities/health";
 import type { ResolvedRow } from "@/lib/activities/batch-resolution";
 
-export type HealthFormStep = "mapping" | "legend" | "eventDate" | "products" | "review";
+export type HealthFormStep = "mapping" | "reproductiveStatus" | "establishment" | "eventDate" | "products" | "review";
 
 export type HealthFormDraft = {
   establishmentId: string;
@@ -11,9 +11,9 @@ export type HealthFormDraft = {
   step: HealthFormStep | null;
   stepHistory: HealthFormStep[];
   headers: string[];
+  rawRows: string[][];
   workingMapping: ColumnMapping[] | null;
-  distinctValues: string[];
-  reproductiveStatusValueMap: Record<string, string>;
+  reproductiveStatusNameMap: Record<string, string>;
   rows: ResolvedRow[];
   products: HealthProduct[];
   suggestedNames: (string | null)[];
