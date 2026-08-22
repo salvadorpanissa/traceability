@@ -18,13 +18,13 @@ export function RecategorizePreviewTable({
   }
 
   return (
-    <table className="w-full text-sm">
+    <table className="w-full table-fixed text-sm">
       <thead>
         <tr className="border-b text-left">
-          <th className="py-1 px-2">Caravana</th>
-          <th className="py-1 px-2">Categoría actual</th>
-          <th className="py-1 px-2">Categoría nueva</th>
-          <th className="py-1 px-2">Estado</th>
+          <th className="w-[20%] py-1 px-2">Caravana</th>
+          <th className="w-[22%] py-1 px-2">Categoría actual</th>
+          <th className="w-[22%] py-1 px-2">Categoría nueva</th>
+          <th className="w-[36%] py-1 px-2">Estado</th>
         </tr>
       </thead>
       <tbody>
@@ -33,10 +33,14 @@ export function RecategorizePreviewTable({
             const target = targetCategoryName(row.sex);
             return (
               <tr key={`${row.tag}-${index}`} className="border-b last:border-0">
-                <td className="py-1 px-2">{row.tag || "—"}</td>
-                <td className="py-1 px-2">{row.currentCategoryName ?? "—"}</td>
-                <td className="py-1 px-2">{target ?? "—"}</td>
-                <td className="py-1 px-2">{target ? "OK" : "Sin categoría destino para este sexo"}</td>
+                <td className="py-1 px-2 truncate" title={row.tag || undefined}>{row.tag || "—"}</td>
+                <td className="py-1 px-2 truncate" title={row.currentCategoryName ?? undefined}>
+                  {row.currentCategoryName ?? "—"}
+                </td>
+                <td className="py-1 px-2 truncate" title={target ?? undefined}>{target ?? "—"}</td>
+                <td className="py-1 px-2 truncate" title={target ? undefined : "Sin categoría destino para este sexo"}>
+                  {target ? "OK" : "Sin categoría destino"}
+                </td>
               </tr>
             );
           }
